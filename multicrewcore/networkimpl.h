@@ -35,10 +35,11 @@ public:
 	ConnectionImpl( IDirectPlay8Peer *peer );
 	virtual ~ConnectionImpl();
 
-	virtual void addReceiver( Receiver *receiver );
-	virtual void removeReceiver( Receiver *receiver );
+	virtual void addModule( MulticrewModule *module );
+	virtual void removeModule( MulticrewModule *module );
 
-	virtual bool send( Packet *packet, bool safe, Priority prio, SmartPtr<Sender> sender );
+	virtual bool send( SmartPtr<ModulePacket> packet, bool safe, 
+					   Priority prio, SmartPtr<MulticrewModule> sender );
 	virtual void disconnect();
 	virtual bool start();
 
@@ -48,9 +49,8 @@ public:
 	DPNID thisPlayer();
 
 protected:
-	std::map<std::string,Receiver*> receivers;
+	std::map<std::string,MulticrewModule*> modules;
 
-	void deliverModulePacket( ModulePacket *packet );
 	DWORD throttleThreadProc( LPVOID param );
 	virtual HRESULT messageCallback( PVOID pvUserContext, DWORD dwMessageType, 
 									 PVOID pMessage );

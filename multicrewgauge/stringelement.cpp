@@ -25,6 +25,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define BUFFER_SIZE 256
 
+class StringPacket : public Packet {
+public:
+	StringPacket( std::string string ) {
+		this->string = string;
+	}	
+
+	StringPacket( SharedBuffer &buffer ) 
+		: string( (char*)buffer.data() ) {		
+	}
+
+	virtual unsigned compiledSize() {
+		return string.length()+1;
+	}
+
+	virtual void compile( void *data ) {
+		strcpy( (char*)data, string.c_str() );
+	}
+
+	std::string string;
+};
+
+
 struct StringElement::Data {	
 	Data( StringElement *el ) 
 		: callbackAdapter( el, StringElement::callback ) {
@@ -83,6 +105,12 @@ void StringElement::detach() {
 	}
 }
 
+
+SmartPtr<Packet> StringElement::createPacket( SharedBuffer &buffer ) {
+	return new StringPacket( buffer );
+}
+
+
 /****************************************************************************************/
 
 StringRecorder::StringRecorder( int id, Gauge &gauge )
@@ -118,7 +146,7 @@ FLOAT64 StringRecorder::callback( PELEMENT_STRING pelement ) {
 void StringRecorder::sendProc() {
 	if( d->changed ) {
 		EnterCriticalSection( &d->cs );
-		gauge().send( id(), d->value, strlen(d->value)+1, false );
+		gauge().send( id(), new StringPacket(d->value), false );
 		d->changed = false;
 		LeaveCriticalSection( &d->cs );
 	}
@@ -137,16 +165,16 @@ StringViewer::~StringViewer() {
 FLOAT64 StringViewer::callback( PELEMENT_STRING pelement ) {
 	EnterCriticalSection( &d->cs );
 	FLOAT64 ret = (*d->origCallback)( pelement );
-	pelement->string = (char*)0x4d434d43;
 	pelement->string = d->buffer;
-	strncpy( d->buffer, d->value, BUFFER_SIZE );
+	strncpy( d->buffer, d->value, BUFFER_SIZE );	
 	LeaveCriticalSection( &d->cs );
 	return ret;
 }
 
 
-void StringViewer::receive( void *data, unsigned size ) {
+void StringViewer::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<StringPacket> sp = (StringPacket*)&*packet;
 	EnterCriticalSection( &d->cs );
-	strncpy( d->value, (char*)data, BUFFER_SIZE );
+	strncpy( d->value, sp->string.c_str(), BUFFER_SIZE );
 	LeaveCriticalSection( &d->cs );
 }

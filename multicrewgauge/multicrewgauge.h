@@ -35,7 +35,8 @@ class IconElement;
 class Gauge;
 class MulticrewGauge;
 
-class Element {
+
+class Element : public PacketFactory<Packet> {
 public:
 	Element( int id, Gauge &gauge );
 	virtual ~Element();
@@ -46,8 +47,10 @@ public:
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void sendProc() {};
-	virtual void receive( void *data, unsigned size ) {}
+	virtual void receive( SmartPtr<Packet> packet ) {}
 	virtual void detach();
+	
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer )=0;
 
 private:
 	struct Data;
@@ -64,6 +67,8 @@ public:
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
+
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	
 protected:
 	virtual FLOAT64 callback( PELEMENT_ICON pelement )=0;
@@ -91,7 +96,7 @@ public:
 	IconViewer( int id, Gauge &gauge );
 	virtual ~IconViewer();
 
-	virtual void receive( void *data, unsigned size );
+	virtual void receive( SmartPtr<Packet> packet );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_ICON pelement );
@@ -107,6 +112,8 @@ public:
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
+
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	
 protected:
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement )=0;
@@ -134,7 +141,7 @@ public:
 	NeedleViewer( int id, Gauge &gauge );
 	virtual ~NeedleViewer();
 
-	virtual void receive( void *data, unsigned size );
+	virtual void receive( SmartPtr<Packet> packet );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
@@ -151,6 +158,8 @@ public:
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 	
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+
 protected:
 	virtual FLOAT64 callback( PELEMENT_STRING pelement )=0;
 
@@ -167,7 +176,7 @@ public:
 
 	virtual void sendProc();
 
-private:	
+private:
 	virtual FLOAT64 callback( PELEMENT_STRING pelement );
 };
 
@@ -177,7 +186,7 @@ public:
 	StringViewer( int id, Gauge &gauge );
 	virtual ~StringViewer();
 
-	virtual void receive( void *data, unsigned size );
+	virtual void receive( SmartPtr<Packet> );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_STRING pelement );
@@ -188,6 +197,8 @@ class StaticElement : public Element {
 public:
 	StaticElement( int id, Gauge &gauge );
 	virtual ~StaticElement();
+
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer ) { return 0; }
 
 protected:	
 	struct Data;
@@ -209,7 +220,7 @@ public:
 };
 
 
-class Gauge {
+class Gauge : public PacketFactory<Packet> {
 public:
 	Gauge( MulticrewGauge *mgauge, int id );
 	virtual ~Gauge();
@@ -221,8 +232,9 @@ public:
 	MulticrewGauge *mgauge();
 	virtual void sendProc();
 
-	void send( int element, void *data, unsigned size, bool safe, bool append=false );
-	virtual void receive( void *data, unsigned size );
+	void send( unsigned element, SmartPtr<Packet> packet, bool safe );
+	virtual void receive( SmartPtr<Packet> packet );
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 
 	virtual void attach( PGAUGEHDR gaugeHeader );
 	virtual void detach();
@@ -243,7 +255,7 @@ class GaugeRecorder : public Gauge {
 public:
 	GaugeRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeRecorder();
-	virtual void receive( void *data, unsigned size );
+	virtual void receive( SmartPtr<Packet> packet );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
@@ -270,15 +282,16 @@ class MulticrewGauge : public MulticrewModule {
 	virtual ~MulticrewGauge();
 	bool init();
 
-	void send( int gauge, void *data, unsigned size, bool safe, bool append=false );
+	void send( unsigned gauge, SmartPtr<Packet> packet, bool safe );
 	PGAUGE_CALLBACK installCallback();
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	
  protected:
 	friend Gauge;
 	void detached( Gauge *gauge );
 
  protected:	
-	virtual void receive( void *data, unsigned size );
+	virtual void handlePacket( SmartPtr<Packet> packet );
 	void installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual void sendProc();
 

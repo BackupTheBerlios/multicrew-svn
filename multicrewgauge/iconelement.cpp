@@ -24,11 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/callback.h"
 
 
-#pragma pack(push,1)
-struct UpdatePacket {
+struct IconStruct {
 	FLOAT64 value;
 };
-#pragma pack(pop,1)
+
+typedef StructPacket<IconStruct> IconPacket;
 
 
 struct IconElement::Data {	
@@ -42,6 +42,7 @@ struct IconElement::Data {
 	FLOAT64 oldValue;
 	bool changed;
 };
+
 
 IconElement::IconElement( int id, Gauge &gauge )
 	: Element( id, gauge ) {
@@ -83,7 +84,14 @@ void IconElement::detach() {
 	d->origCallback = 0;
 }
 
+
+SmartPtr<Packet> IconElement::createPacket( SharedBuffer &buffer ) {
+	return new IconPacket( buffer );
+}
+
+
 /****************************************************************************************/
+
 
 IconRecorder::IconRecorder( int id, Gauge &gauge )
 	: IconElement( id, gauge ) {
@@ -109,9 +117,9 @@ FLOAT64 IconRecorder::callback( PELEMENT_ICON pelement ) {
 
 void IconRecorder::sendProc() {
 	if( d->changed ) {
-		UpdatePacket packet;
-		packet.value = d->oldValue;
-		gauge().send( id(), &packet, sizeof(UpdatePacket), true );
+		IconStruct s;
+		s.value = d->oldValue;
+		gauge().send( id(), new IconPacket( s ), true );
 		d->changed = false;
 	}
 }
@@ -132,7 +140,7 @@ FLOAT64 IconViewer::callback( PELEMENT_ICON pelement ) {
 }
 
 
-void IconViewer::receive( void *data, unsigned size ) {
-	UpdatePacket *packet= (UpdatePacket*)data;
-	d->oldValue = packet->value;
+void IconViewer::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
+	d->oldValue = ip->data().value;
 }

@@ -33,8 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WAITTIME 100
 
 
-#pragma pack(push,1)
-struct PositionPacket {
+struct PositionStruct {
 	DWORD lat[2];
 	DWORD lon[2];
 	DWORD alt[2];
@@ -42,7 +41,8 @@ struct PositionPacket {
 	FLOAT64 accel[6];
 	FLOAT64 vel[6];
 };
-#pragma pack(pop,1)
+
+typedef StructPacket<PositionStruct> PositionPacket;
 
 
 PositionModule::PositionModule( bool hostMode ) 
@@ -53,6 +53,11 @@ PositionModule::PositionModule( bool hostMode )
 
 PositionModule::~PositionModule() {
 	MulticrewCore::multicrewCore()->unregisterModule( this );
+}
+
+
+SmartPtr<Packet> PositionModule::createPacket( SharedBuffer &buffer ) {
+	return new PositionPacket( buffer );
 }
 
 
@@ -85,19 +90,18 @@ PositionHostModule::~PositionHostModule() {
 
 
 void PositionHostModule::sendProc() {
-	PositionPacket packet;
-
     // read variables from the FS
+	PositionStruct data;
 	DWORD res;
 	bool ok = true;
-	ok = ok && FSUIPC_Read( 0x560, 36, packet.lat, &res );
-	ok = ok && FSUIPC_Read( 0x3060, 8*12, packet.accel, &res );
+	ok = ok && FSUIPC_Read( 0x560, 36, data.lat, &res );
+	ok = ok && FSUIPC_Read( 0x3060, 8*12, data.accel, &res );
 	ok = ok && FSUIPC_Process( &res );
 	if( !ok )
 		dout << "FSUIPC read error" << std::endl;
 	else
 		// and send packet
-		send( &packet, sizeof(PositionPacket), false, Connection::MediumPriority );
+		send( new PositionPacket(data), false, Connection::MediumPriority );
 }
 
 
@@ -129,17 +133,17 @@ PositionClientModule::~PositionClientModule() {
 }
 
 
-void PositionClientModule::receive( void *data, unsigned size ) {
-	 PositionPacket *pp = (PositionPacket*)data;
-	 //dout << "position packet received" << std::endl;
-	 
-	 // write variables from the FS
-	 DWORD res;
-	 bool ok = true;
-	 ok = ok && FSUIPC_Write( 0x560, 36, pp->lat, &res );
-	 ok = ok && FSUIPC_Write( 0x3060, 8*12, pp->accel, &res );
-	 ok = ok && FSUIPC_Process( &res );
-	 if( !ok ) {
-		 dout << "FSUIPC write error" << std::endl;
-	 }
+void PositionClientModule::handlePacket( SmartPtr<Packet> packet ) {
+	SmartPtr<PositionPacket> pp = (PositionPacket*)&*packet;
+	//dout << "position packet received" << std::endl;
+	
+	// write variables from the FS
+	DWORD res;
+	bool ok = true;
+	ok = ok && FSUIPC_Write( 0x560, 36, pp->data().lat, &res );
+	ok = ok && FSUIPC_Write( 0x3060, 8*12, pp->data().accel, &res );
+	ok = ok && FSUIPC_Process( &res );
+	if( !ok ) {
+		dout << "FSUIPC write error" << std::endl;
+	}
 }

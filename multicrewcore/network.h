@@ -33,29 +33,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MULTICREW_PORT "1299"
 
-class DLLEXPORT Receiver {
-public:
-	virtual std::string id()=0;
-	virtual void receive( ModulePacket *packet )=0;
-};
 
-
-class DLLEXPORT Sender : public Shared {
+class MulticrewModule;
+class ModulePacket : public ArrayPacket<Packet> {
  public:
-	virtual void sendCompleted( Packet *packet )=0;
-	virtual void sendFailed( Packet *packet )=0;
+	ModulePacket() {
+	}
+
+	ModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) 
+		: ArrayPacket<Packet>(buffer) {
+		this->mod = mod;
+	}
+
+ private:
+	SmartPtr<MulticrewModule> mod;
+	
+	virtual SmartPtr<Packet> createChild( SharedBuffer &buffer );
 };
+
+
+typedef PacketFactory<Packet> ModulePacketFactory;
 
 
 class Connection : public Shared {
 public:
 	enum Priority { HighPriority, MediumPriority, LowPriority };	
 
-	virtual void addReceiver( Receiver *receiver )=0;
-	virtual void removeReceiver( Receiver *receiver )=0;
+	virtual void addModule( MulticrewModule *module )=0;
+	virtual void removeModule( MulticrewModule *module )=0;
 
 	virtual bool start()=0;
-	virtual bool send( Packet *packet, bool safe, Priority prio, SmartPtr<Sender> sender )=0;
+	virtual bool send( SmartPtr<ModulePacket> packet, bool safe, 
+					   Priority prio, SmartPtr<MulticrewModule> sender )=0;
 	virtual void disconnect()=0;
 	Signal disconnected;
 };

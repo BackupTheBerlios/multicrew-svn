@@ -22,12 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "streams.h"
 #include "log.h"
 
-#pragma pack(push,1)
-struct DataFragment {
-	DWORD size;
-	char data[0];
-};
-#pragma pack(pop,1)
+
+
+/*******************************************************************/
 
 
 struct MulticrewModule::Data {
@@ -50,8 +47,9 @@ struct MulticrewModule::Data {
 	HANDLE exitedEvent;
 
 	// packet send data
-	ModulePacket *packet;
+	SmartPtr<ModulePacket> packet;
 	unsigned fragmentStart;
+	int packetSize;
 	unsigned maxPacketSize;
 	bool nextIsSafeTransmission;
 	Connection::Priority nextPriority;
@@ -69,14 +67,9 @@ MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode,
 	d->registered = d->core->registerModule( this );
 
 	// packet setup
+	d->packet = new ModulePacket();
 	d->lastPacketSent = true;
-	d->maxPacketSize = 8192;
-	d->packet = (ModulePacket*)malloc(d->maxPacketSize);
-	strncpy( d->packet->module, this->moduleName().c_str(), 32 );
-	d->packet->id = modulePacket;
-	d->packet->size = sizeof(ModulePacket);
 	d->nextPriority = Connection::LowPriority;
-	d->fragmentStart = 0;
 	d->nextIsSafeTransmission = false;
 
 	InitializeCriticalSection( &d->sendCritSect );
@@ -91,7 +84,6 @@ MulticrewModule::~MulticrewModule() {
 	if( d->registered ) MulticrewCore::multicrewCore()->unregisterModule( this );
 
 	DeleteCriticalSection( &d->sendCritSect );
-	delete d->packet;
 	delete d;
 }
 
@@ -111,13 +103,11 @@ bool MulticrewModule::isHostMode() {
 }
 
 
-void MulticrewModule::receive( ModulePacket *packet ) {
-	// iterate over all fragments
-	unsigned pos = sizeof(ModulePacket);
-	while( pos<packet->size ) {
-		DataFragment *fragment = (DataFragment*)(((char*)packet) + pos);
-		receive( fragment->data, fragment->size );
-		pos += fragment->size+sizeof(DataFragment);
+void MulticrewModule::receive( SmartPtr<ModulePacket> packet ) {
+	ModulePacket::iterator it = packet->begin();
+	while( it!=packet->end() ) {
+		handlePacket( *it );
+		it++;
 	}
 }
 
@@ -125,29 +115,10 @@ void MulticrewModule::lock() {
 	EnterCriticalSection( &d->sendCritSect );
 }
 
-void MulticrewModule::send( void *data, DWORD size,	bool safe, Connection::Priority prio, bool append ) {
+void MulticrewModule::send( SmartPtr<Packet> packet, bool safe, Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
-		// create packet buffer of sufficient size
-		if( d->maxPacketSize<d->packet->size+sizeof(DataFragment)+size ) {
-			while( d->maxPacketSize<d->packet->size+sizeof(DataFragment)+size )
-				d->maxPacketSize *= 2;
-			
-			d->packet = (ModulePacket*)realloc( d->packet, d->maxPacketSize );
-		}
-
-		// append data to packet
-		if( append ) {
-			DataFragment *dest = (DataFragment*)(((char*)d->packet)+d->fragmentStart);
-			memcpy( dest->data+dest->size, data, size );
-			dest->size += size;
-			d->packet->size += size;			
-		} else {
-			d->fragmentStart = d->packet->size;
-			DataFragment *dest = (DataFragment*)(((char*)d->packet)+d->fragmentStart);
-			memcpy( dest->data, data, size );
-			dest->size = size;
-			d->packet->size += sizeof(DataFragment)+size;			
-		}
+		// append packet
+		d->packet->append( packet );
 		
 		// update packet mode
 		d->nextIsSafeTransmission = d->nextIsSafeTransmission || safe;
@@ -161,27 +132,22 @@ void MulticrewModule::unlock() {
 	LeaveCriticalSection( &d->sendCritSect );
 }
 
-void MulticrewModule::sendCompleted( Packet *packet ) {
+void MulticrewModule::sendCompleted() {
 	//dout << moduleName() << " send completed" << std::endl;
 	d->lastPacketSent = true;
 }
 
 
-void MulticrewModule::sendFailed( Packet *packet ) {
+void MulticrewModule::sendFailed() {
 	dout << moduleName() << " send failed" << std::endl;
 	d->lastPacketSent = true;
-}
-
-
-std::string MulticrewModule::id() {
-	return d->moduleName;
 }
 
 
 void MulticrewModule::connect( SmartPtr<Connection> con ) {
 	dout << moduleName() << " connecting" << std::endl;
 	d->con = con;
-	d->con->addReceiver( this );
+	d->con->addModule( this );
 	d->lastPacketSent = true;
 
     // start thread
@@ -220,7 +186,7 @@ void MulticrewModule::disconnect() {
 		}
 		
 		// disconnect from connection
-		d->con->removeReceiver( this );
+		d->con->removeModule( this );
 		d->con = 0;
 	}
 
@@ -243,18 +209,19 @@ DWORD MulticrewModule::threadProc( LPVOID param ) {
 			sendProc();
 
 			// send packet
-			if( d->packet->size>sizeof(ModulePacket) ) {
+			if( d->packet->size()>0 ) {
 				d->lastPacketSent = false;
-				if( !d->con->send( d->packet, d->nextIsSafeTransmission, d->nextPriority, this ) )
+				if( !d->con->send( 
+						d->packet, 
+						d->nextIsSafeTransmission, d->nextPriority, this ) )
 					d->lastPacketSent = true;
 			} else {
 				d->lastPacketSent = true;
 			}
 
 			// default values
-			d->packet->size = sizeof(ModulePacket);
+			d->packet = new ModulePacket;
 			d->nextPriority = Connection::LowPriority;
-			d->fragmentStart = 0;
 			d->nextIsSafeTransmission = false;
 		}
 			

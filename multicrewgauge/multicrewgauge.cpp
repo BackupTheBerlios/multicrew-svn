@@ -32,34 +32,39 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/multicrewcore.h"
 #include "../multicrewcore/config.h"
 #include "../multicrewcore/log.h"
+#include "../multicrewcore/packets.h"
 
 
-#define WAITTIME 5
+#define WAITTIME 200
 
-enum PacketType {
-	gaugePacket=0,
-	eventPacket,
+
+typedef TypedPacket<unsigned, Packet> RoutedGaugePacket;
+
+
+class RoutedGaugePacketFactory : public TypedPacketFactory<unsigned,Packet> {
+public:
+	RoutedGaugePacketFactory( std::deque<Gauge *> &gauges ) 
+		: _gauges( gauges ) {
+	}
+
+	virtual SmartPtr<Packet> createPacket( unsigned key, SharedBuffer &buffer ) {
+		if( key<_gauges.size() )
+			return _gauges[key]->createPacket( buffer );
+		else
+			return 0;
+	}
+
+private:
+	std::deque<Gauge *> &_gauges;
 };
 
-#pragma pack(push,1)
-struct BasePacket {	
-	PacketType type;
-};
 
-struct GaugePacket : public BasePacket {
-	int gauge;
-	char data[0];
-};
-
-struct EventPacket : public BasePacket {
-	ID id;
-};
-#pragma pack(pop,1)
 
 typedef std::list<Gauge*> GaugeList;
 struct MulticrewGauge::Data {
 	Data( MulticrewGauge *mg )
-		: installCallbackAdapter( mg, MulticrewGauge::installGauge ) {
+		: installCallbackAdapter( mg, MulticrewGauge::installGauge ),
+		packetFactory(gauges) {
 	}
 
 	VoidCallbackAdapter3<MulticrewGauge, PGAUGEHDR, SINT32, UINT32> installCallbackAdapter;
@@ -67,7 +72,9 @@ struct MulticrewGauge::Data {
 	SmartPtr<MulticrewCore> core;
 	std::deque<Gauge*> gauges;
 	std::map<std::string, GaugeList*> detachedGauges;
+	RoutedGaugePacketFactory packetFactory;
 };
+
 
 MulticrewGauge::MulticrewGauge( bool hostMode, std::string moduleName )
 	: MulticrewModule( moduleName, hostMode, WAITTIME ) {
@@ -144,39 +151,26 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 }
 
 
-void MulticrewGauge::receive( void *data, unsigned size ) {
-	BasePacket *p = (BasePacket*)data;
-	switch( p->type ) {
-	case gaugePacket: 
-	{
-		GaugePacket *gp = (GaugePacket*)p;
-		lock();
-		if( gp->gauge>=0 && gp->gauge<d->gauges.size() ) {
-			Gauge *gauge = d->gauges[gp->gauge];
-			unlock();
-			gauge->receive( gp->data, size-sizeof(GaugePacket) );
-		} else {
-			unlock();
-		}
-	}
-	break;
-	default:
-		break;
+void MulticrewGauge::handlePacket( SmartPtr<Packet> packet ) {
+	SmartPtr<RoutedGaugePacket> gp = (RoutedGaugePacket*)&*packet;
+	lock();
+	if( gp->key()>=0 && gp->key()<d->gauges.size() ) {
+		Gauge *gauge = d->gauges[gp->key()];
+		unlock();
+		gauge->receive( (RoutedGaugePacket*)&*gp->wrappee() );
+	} else {
+		unlock();
 	}
 }
 
-void MulticrewGauge::send( int gauge, void *data, unsigned size, bool safe, bool append ) {
-	if( !append ) {
-		// add route
-		GaugePacket p;
-		p.type = gaugePacket;
-		p.gauge = gauge;
-		MulticrewModule::send( &p, sizeof(GaugePacket), safe, Connection::MediumPriority );
-	}
-	
-	// add data
-	MulticrewModule::send( data, size, safe, Connection::MediumPriority, true );
+
+void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe ) {
+	MulticrewModule::send( 
+		new RoutedGaugePacket(gauge, packet), 
+		safe,
+		Connection::MediumPriority );
 }
+
 
 void MulticrewGauge::sendProc() {
 	lock();
@@ -223,4 +217,12 @@ void MulticrewGauge::detached( Gauge *gauge ) {
 			
 	// add gauge to list
 	list->push_back( gauge );
+}
+
+
+SmartPtr<Packet> MulticrewGauge::createPacket( SharedBuffer &buffer ) {
+	lock();
+	SmartPtr<RoutedGaugePacket> gp = new RoutedGaugePacket( buffer, &d->packetFactory );
+	unlock();
+	return gp;
 }

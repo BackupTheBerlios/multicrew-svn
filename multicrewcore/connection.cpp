@@ -26,14 +26,52 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "callback.h"
 
 
-#define WAITTIME 100
-#define TARGET_QUEUE_SIZE 10
-
-
 // {B1449AC0-D32F-4b58-81E7-AA5F5D424CBD}
 const GUID gMulticrewGuid = 
 { 0xb1449ac0, 0xd32f, 0x4b58, { 0x81, 0xe7, 0xaa, 0x5f, 0x5d, 0x42, 0x4c, 0xbd } };
 
+
+class RoutedModulePacket : public Packet {
+public:
+	RoutedModulePacket( std::string moduleName, SmartPtr<ModulePacket> packet ) {
+		this->moduleName = moduleName;
+		this->packet = packet;
+	}	
+
+	RoutedModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) 
+		: moduleName( (char*)buffer.data() ) {		
+		packet = new ModulePacket( SharedBuffer(buffer,moduleName.size()+1), mod );
+	}
+
+	virtual unsigned compiledSize() {
+		return moduleName.length()+1+packet->compiledSize();
+	}
+
+	virtual void compile( void *data ) {
+		strcpy( (char*)data, moduleName.c_str() );
+		packet->compile( ((char*)data)+moduleName.length()+1 );
+	}
+
+	std::string module() {
+		return moduleName;
+	}
+
+	SmartPtr<ModulePacket> modulePacket() {
+		return packet;
+	}
+
+	static std::string module( SharedBuffer &buffer ) {
+		return (char*)buffer.data();
+	}
+
+private:	
+	std::string moduleName;
+	SmartPtr<ModulePacket> packet;
+};
+
+SmartPtr<Packet> ModulePacket::createChild( SharedBuffer &buffer ) {
+	return mod->createPacket( buffer );
+}
 
 /*******************************************************************/
 
@@ -76,16 +114,16 @@ ConnectionImpl::~ConnectionImpl() {
 }
 
 
-void ConnectionImpl::addReceiver( Receiver *receiver ) {
+void ConnectionImpl::addModule( MulticrewModule *module ) {
 	EnterCriticalSection( &d->critSect );
-	receivers[receiver->id()] = receiver;
+	modules[module->moduleName()] = module;
 	LeaveCriticalSection( &d->critSect );
 }
 
 
-void ConnectionImpl::removeReceiver( Receiver *receiver ) {
+void ConnectionImpl::removeModule( MulticrewModule *module ) {
 	EnterCriticalSection( &d->critSect );
-	receivers.erase( receivers.find(receiver->id()) );
+	modules.erase( modules.find(module->moduleName()) );
 	LeaveCriticalSection( &d->critSect );
 }
 
@@ -110,23 +148,6 @@ DPNID ConnectionImpl::thisPlayer() {
 }
 
 
-void ConnectionImpl::deliverModulePacket( ModulePacket *packet ) {
-	// find destination
-	EnterCriticalSection( &d->critSect );
-	std::map<std::string,Receiver*>::iterator dest;
-	dest = receivers.find(packet->module);
-	if( dest==receivers.end() ) {
-		LeaveCriticalSection( &d->critSect );
-		dout << "Unroutable packet for module \"" << packet->module << "\"" << std::endl;
-		return;
-	}			
-	LeaveCriticalSection( &d->critSect );
-
-	// deliver packet
-	(*dest).second->receive(packet);
-}
-
-
 PFNDPNMESSAGEHANDLER ConnectionImpl::callback() {
 	return d->callbackAdapter.callback();
 }
@@ -140,11 +161,27 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 	case DPN_MSGID_RECEIVE: 
 	{
 		DPNMSG_RECEIVE *rec = (DPNMSG_RECEIVE*)pMessage;
-		Packet *packet = (Packet*)rec->pReceiveData;
-		dout << "Received packet of type " << packet->id << std::endl;
-		if( packet->id==modulePacket ) {
-			deliverModulePacket( (ModulePacket*)packet );
-		}
+
+		// find destination
+		EnterCriticalSection( &d->critSect );
+		std::map<std::string,MulticrewModule*>::iterator dest;
+		SharedBuffer packetBuf(rec->pReceiveData, rec->dwReceiveDataSize, false);
+		std::string moduleId = RoutedModulePacket::module( packetBuf );
+		dest = modules.find( moduleId );
+		if( dest==modules.end() ) {
+			LeaveCriticalSection( &d->critSect );
+			dout << "Unroutable packet for module \"" << moduleId << "\"" << std::endl;
+			break;
+		}			
+		LeaveCriticalSection( &d->critSect );
+
+		// create packet object
+		SmartPtr<RoutedModulePacket> packet = 
+			new RoutedModulePacket( packetBuf, (MulticrewModule*)(dest->second) );
+		//dout << "Received packet " << std::endl;
+
+		// deliver packet
+		(*dest).second->receive( &*packet->modulePacket() );
 	}
 	break;
 
@@ -154,14 +191,14 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 
 		// from Sender object?
 		if( msg->pvUserContext!=0 ) {
-			Sender *sender = (Sender*)msg->pvUserContext;
+			MulticrewModule *sender = (MulticrewModule*)msg->pvUserContext;
 			//dout << "send complete message for " << msg->pvUserContext << std::endl;
 			
 			// call callback
 			if( FAILED(msg->hResultCode) )
-				sender->sendFailed( 0 );
+				sender->sendFailed();
 			else
-				sender->sendCompleted( 0 );
+				sender->sendCompleted();
 
 			//dout << "send complete handler returned " << msg->pvUserContext << std::endl;
 		}
@@ -340,20 +377,28 @@ bool ConnectionImpl::start() {
 }
 
 
-bool ConnectionImpl::send( Packet *packet, bool safe, 
-						   Priority prio, SmartPtr<Sender> sender ) {
+bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe, 
+						   Priority prio, SmartPtr<MulticrewModule> sender ) {
+	// connected?
 	if( d->peer==0 || d->disconnected ) {
-		if( !sender.isNull() ) sender->sendFailed( packet );
+		if( !sender.isNull() ) sender->sendFailed();
 		return false;
 	}
 
 	//dout << "sending to " << (d->hostMode?d->clientGroup:d->hostGroup) << std::endl;
 
+	// prepare packet
+	SmartPtr<RoutedModulePacket> routed = 
+		new RoutedModulePacket( sender->moduleName(), packet );
+	unsigned size = routed->compiledSize();
+	void *buffer = malloc( size );
+	routed->compile( buffer );
+
 	// send packet
 	DPN_BUFFER_DESC desc;
 	ZeroMemory( &desc, sizeof(DPN_BUFFER_DESC) );
-	desc.pBufferData = (BYTE*)packet;
-	desc.dwBufferSize = packet->size;
+	desc.pBufferData = (BYTE*)buffer;
+	desc.dwBufferSize = size;
 	DPNHANDLE asyncHandle;
 	HRESULT hr = d->peer->SendTo(
 		DPNID_ALL_PLAYERS_GROUP, //d->hostMode?d->clientGroup:d->hostGroup,
@@ -367,7 +412,8 @@ bool ConnectionImpl::send( Packet *packet, bool safe,
 		(safe?DPNSEND_GUARANTEED:0) |
 		DPNSEND_NOLOOPBACK | DPNSEND_COALESCE );
 
-	//dout << "send returned with " << fe(hr).c_str() << std::endl;
+	// free packet buffer
+	free( buffer );
 
 	// async operation?
 	if( hr==DPNSUCCESS_PENDING ) {
@@ -382,7 +428,7 @@ bool ConnectionImpl::send( Packet *packet, bool safe,
 
     // error?
 	if( FAILED(hr) ) {
-		if( !sender.isNull() ) sender->sendFailed( packet );
+		if( !sender.isNull() ) sender->sendFailed();
 		dout << "Failed to send packet: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
@@ -390,7 +436,7 @@ bool ConnectionImpl::send( Packet *packet, bool safe,
 	// no error -> callback?
 	if( !sender.isNull() ) {
 		//dout << "completed" << std::endl;
-		sender->sendCompleted( packet );
+		sender->sendCompleted();
 	}
 	
 	return true;

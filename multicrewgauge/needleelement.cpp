@@ -24,11 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/callback.h"
 
 
-#pragma pack(push,1)
-struct UpdatePacket {
+struct NeedleStruct {
 	FLOAT64 value;
 };
-#pragma pack(pop,1)
+
+typedef StructPacket<NeedleStruct> NeedlePacket;
 
 
 struct NeedleElement::Data {	
@@ -83,6 +83,11 @@ void NeedleElement::detach() {
 }
 
 
+SmartPtr<Packet> NeedleElement::createPacket( SharedBuffer &buffer ) {
+	return new NeedlePacket( buffer );
+}
+
+
 /****************************************************************************************/
 
 NeedleRecorder::NeedleRecorder( int id, Gauge &gauge )
@@ -108,9 +113,9 @@ FLOAT64 NeedleRecorder::callback( PELEMENT_NEEDLE pelement ) {
 
 void NeedleRecorder::sendProc() {
 	if( d->changed ) {
-		UpdatePacket packet;
-		packet.value = d->oldValue;
-		gauge().send( id(), &packet, sizeof(UpdatePacket), false );
+		NeedleStruct s;
+		s.value = d->oldValue;
+		gauge().send( id(), new NeedlePacket( s ), true );
 		d->changed = false;
 	}
 }
@@ -130,7 +135,7 @@ FLOAT64 NeedleViewer::callback( PELEMENT_NEEDLE pelement ) {
 }
 
 
-void NeedleViewer::receive( void *data, unsigned size ) {
-	UpdatePacket *packet = (UpdatePacket*)data;
-	d->oldValue = packet->value;
+void NeedleViewer::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<NeedlePacket> ip = (NeedlePacket*)&*packet;
+	d->oldValue = ip->data().value;
 }

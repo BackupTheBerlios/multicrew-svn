@@ -27,7 +27,8 @@ class PositionModule : public MulticrewModule {
 	PositionModule( bool hostMode );
 	virtual ~PositionModule();
 
-	virtual void receive( void *data, unsigned size ) {}
+	virtual void handlePacket( SmartPtr<Packet> packet ) {}
+	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 
  private:
 	struct Data;
@@ -54,7 +55,7 @@ class PositionClientModule : public PositionModule {
 	virtual ~PositionClientModule();
 
  private:
-	virtual void receive( void *data, unsigned size );
+	virtual void handlePacket( SmartPtr<Packet> packet );
 
 	struct Data;
 	friend Data;
