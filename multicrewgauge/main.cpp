@@ -140,6 +140,7 @@ void FSAPI module_init( void ) {
 		return;
 	}
 	memcpy( gGaugeImportTable, &ImportTable, sizeof(GAUGESIMPORT) );
+	//gGaugeImportTable->PANELSentry.fnptr->
 
 	// call module init
 	dlog << "Init gauge module \"" << gaugeModule << "\"" << std::endl; 
@@ -160,6 +161,7 @@ void FSAPI module_init( void ) {
 
 	// update ImportTable if changed
 	memcpy( gGaugeImportTable, &ImportTable, sizeof(GAUGESIMPORT) );
+	//gGaugeImportTable->
 
 	dlog << "Multicrew plane loaded" << std::endl;
 }

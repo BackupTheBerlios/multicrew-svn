@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "signals.h"
 #include "multicrewcore.h"
 #include "position.h"
+#include "fsuipcmodule.h"
 
 static MulticrewCore *multicrewCore = 0;
 
@@ -43,6 +44,7 @@ struct MulticrewCore::Data {
 
 	std::map<std::string, MulticrewModule*> modules;
 	SmartPtr<PositionModule> posModule;
+	SmartPtr<FsuipcModule> fsuipcModule;
 };
 
 
@@ -56,6 +58,7 @@ MulticrewCore::MulticrewCore() {
 MulticrewCore::~MulticrewCore() {
 	dout << "~MulticrewCore" << std::endl;
 	d->posModule = 0;
+	d->fsuipcModule = 0;
 	d->modules.clear();
 	::multicrewCore = 0;
 	CoUninitialize();
@@ -82,11 +85,35 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 
 	// first module?
 	if( d->modules.size()==1 ) {	
-		// create FSUIPC object (automatically registers to the modules list)
-		if( d->hostMode )
+		// position module (automatically registers to the modules list)
+		/*if( d->hostMode )
 			d->posModule = new PositionHostModule();
 		else
-			d->posModule = new PositionClientModule();
+		d->posModule = new PositionClientModule();	   */
+
+		// FSUIPC module
+		d->fsuipcModule = new FsuipcModule( d->hostMode );
+		d->fsuipcModule->watch( 0xbdc, 4 ); // flaps control
+		d->fsuipcModule->watch( 0xbd0, 4 ); // spoiler control
+		d->fsuipcModule->watch( 0xbb2, 2 ); // elevator control
+		d->fsuipcModule->watch( 0xbb6, 2 ); // ailerons control
+		d->fsuipcModule->watch( 0xbba, 2 ); // rudder control
+		d->fsuipcModule->watch( 0xbc8, 2 ); // parking brake
+		d->fsuipcModule->watch( 0xbe8, 4 ); // gears commanded
+		d->fsuipcModule->watch( 0x88c, 8 ); // engine 1
+		d->fsuipcModule->watch( 0x924, 8 ); // engine 2
+		d->fsuipcModule->watch( 0x3bfc, 4 ); // ZFW
+		d->fsuipcModule->watch( 0x280, 2 ); // nav + strobe lights 
+		d->fsuipcModule->watch( 0x28c, 2 ); // landing lights
+		d->fsuipcModule->watch( 0xd0c, 4 ); // light (FS2000+)
+		d->fsuipcModule->watch( 0x560, 36 ); // position
+		//d->fsuipcModule->watch( 0x3060, 8*12 ); // acceleration
+		d->fsuipcModule->watch( 0x3090, 4*12 ); // velocity
+		d->fsuipcModule->watch( 0x281c, 2 ); // master battery switch
+		d->fsuipcModule->watch( 0x2e80, 4 ); // avionics master switch
+		d->fsuipcModule->watch( 0x3100, 4 ); // alternator, battery, avionics
+		d->fsuipcModule->watch( 0x2e80, 4 ); // avionics master switch
+		d->fsuipcModule->watch( 0x3125, 4 ); // fuel pumps
 
 		// emit signal
 		planeLoaded.emit();
@@ -106,6 +133,7 @@ void MulticrewCore::unregisterModule( MulticrewModule *module ) {
 		if( d->modules.empty() ) {
 			// destroy FSUIPC module
 			d->posModule = 0;
+			d->fsuipcModule = 0;
 
 			// no modules registered anymore
 			dout << "unload" << std::endl;
