@@ -35,7 +35,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using namespace Gdiplus;
 
 
-
 class GlobalMem : public Shared {
 public:
 	GlobalMem( HGLOBAL hmem ) {
@@ -80,7 +79,8 @@ private:
 enum {
 	mousePacket = 0,
 	elementPacket,
-	metafilePacket
+	metafilePacket,
+	metafileResetPacket
 };
 
 
@@ -91,24 +91,43 @@ struct MouseStruct {
 };
 
 
+struct MetafileResetStruct {
+};
+
+
+struct MetafileStruct {
+	MetafileStruct( unsigned counter, unsigned size ) {
+		this->counter = counter;
+		this->size = size;
+	}
+
+	unsigned counter;
+	unsigned size;
+};
+
+
 typedef TypedPacket<char, Packet> GaugePacket;
 typedef TypedPacket<unsigned, Packet> ElementPacket;
 typedef StructPacket<MouseStruct> MousePacket;
+typedef StructPacket<MetafileResetStruct> MetafileResetPacket;
 
-class MetafilePacket : public WrappedPacket<PIXPOINT,RawPacket> {
+class MetafilePacket : public WrappedPacket<MetafileStruct, RawPacket> {
 public:
-	MetafilePacket( PPIXPOINT dim, SharedBuffer buffer ) 
-		: WrappedPacket<PIXPOINT,RawPacket>(
-			*dim,
-			new RawPacket(buffer) ) {
+	MetafilePacket( unsigned counter, unsigned size, SharedBuffer &buffer )
+		: WrappedPacket<MetafileStruct, RawPacket>(
+			MetafileStruct( counter, size ), new RawPacket(buffer) ) {
 	}
 
 	MetafilePacket( SharedBuffer &buf ) 
-		: WrappedPacket<PIXPOINT,RawPacket>(buf) {
+		: WrappedPacket<MetafileStruct, RawPacket>( buf ) {
 	}
 
-	PPIXPOINT dimension() {
-		return prefix();
+	unsigned counter() {
+		return prefix()->counter;
+	}
+
+	unsigned size() {
+		return prefix()->size;
 	}
 
 	SharedBuffer buffer() {
@@ -148,14 +167,11 @@ public:
 
 	virtual SmartPtr<Packet> createPacket( char key, SharedBuffer &buffer ) {
 		switch( key ) {
-		case mousePacket:
-			return new MousePacket( buffer );
-		case elementPacket:		
-			return new ElementPacket( buffer, &_elementFactory );
-		case metafilePacket:
-			return new MetafilePacket( buffer );
-		default:
-			return 0;
+		case mousePacket: return new MousePacket( buffer );
+		case elementPacket:	return new ElementPacket( buffer, &_elementFactory );
+		case metafilePacket: return new MetafilePacket( buffer );
+		case metafileResetPacket: return new MetafileResetPacket( buffer );
+		default: return 0;
 		}
 	}
 
@@ -163,6 +179,8 @@ private:
 	ElementPacketFactory& _elementFactory;
 };
 
+
+/*********************************************************************/
 
 
 struct Gauge::Data {
@@ -188,7 +206,10 @@ struct Gauge::Data {
 
 	// metafile data
 	SmartPtr<GlobalMem> lastMetafile;
-	PIXPOINT metafileDim;
+	SmartPtr<GlobalMem> previousMetafile;
+	unsigned metafileCounter;
+	bool sendMetafileReset;
+	bool resetSent;
 
 	// general gauge data
 	std::deque<Element *> elements;	
@@ -210,9 +231,13 @@ Gauge::Gauge( MulticrewGauge *mgauge, int id ) {
 	d->name = "";
 	d->parameters = "";
 	d->id = id;
+	d->metafileCounter = 0;
+	d->sendMetafileReset = true;
+	d->resetSent = false;
 
 	InitializeCriticalSection( &d->cs );
 }
+
 
 void Gauge::createElements() {
 	// create elements
@@ -244,6 +269,7 @@ void Gauge::createElements() {
 	}
 }
 
+
 Gauge::~Gauge() {
 	dout << "~Gauge " << name() << " " << parameter() << std::endl;			
 	EnterCriticalSection( &d->cs );
@@ -260,17 +286,21 @@ Gauge::~Gauge() {
 	delete d;
 }
 
+
 PGAUGEHDR Gauge::gaugeHeader() { 
 	return d->gaugeHeader; 
 }
+
 
 std::string Gauge::name() {	
 	return d->name;
 }
 
+
 std::string Gauge::parameter() {	
 	return d->parameters;
 }
+
 
 int Gauge::id() {
 	return d->id;
@@ -353,6 +383,7 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	}
 }
 
+
 void Gauge::attach( PGAUGEHDR gaugeHeader ) {	
 	EnterCriticalSection( &d->cs );
 
@@ -397,12 +428,14 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	LeaveCriticalSection( &d->cs );
 }
 
+
 bool Gauge::configBoolValue( const std::string &key, bool def ) {
 	// first look in [name!parameter], then in [name], then def
 	Config *c = d->mgauge->config();
 	return c->boolValue( name()+"!"+parameter(), key,
 						 c->boolValue( name(), key, def ) );
 }
+
 
 void Gauge::detach() {
 	if( d->gaugeHeader ) {
@@ -444,12 +477,15 @@ void Gauge::detach() {
 
 /********************************************************************************************/
 
+
 GaugeRecorder::GaugeRecorder( MulticrewGauge *mgauge, int id ) 
 	: Gauge( mgauge, id ) {
 }
 
+
 GaugeRecorder::~GaugeRecorder() {
 }
+
 
 Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 	Element *el = 0;
@@ -463,6 +499,7 @@ Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 
 	return el;
 }
+
 
 void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	// do work of callback
@@ -538,14 +575,18 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 	return TRUE;
 }
 
+
 /**************************************************************************/
+
 
 GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, int id ) 
 	: GaugeRecorder( mgauge, id ) {
 }
 
+
 GaugeMetafileRecorder::~GaugeMetafileRecorder() {
 }
+
 
 Element *GaugeMetafileRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 	Element *el = 0;
@@ -557,26 +598,74 @@ Element *GaugeMetafileRecorder::createElement( int id, PELEMENT_HEADER pelement 
 	return el;
 }
 
+
 void GaugeMetafileRecorder::sendProc() {
 	Gauge::sendProc();
 
 	// send metafile
-	EnterCriticalSection( &d->cs );	
+	EnterCriticalSection( &d->cs );
 	if( !d->lastMetafile.isNull() ) {
-		d->mgauge->send( 
-			id(), 
-			new GaugePacket( 
-				metafilePacket,
-				new MetafilePacket( 
-					&d->metafileDim,
-					SharedBuffer( d->lastMetafile->lock(), 
-								  d->lastMetafile->size() ))),
-			false );
-		d->lastMetafile->unlock();
-		d->lastMetafile = 0;
+		void *delta = 0;
+		unsigned long deltaSize = 0;
+		void *ref;
+		unsigned refSize;
+		if( d->metafileCounter==0 ) {
+			// no reference, use empty image
+			refSize = d->lastMetafile->size();
+			ref = malloc( refSize );			
+			ZeroMemory( ref, refSize );
+			dout << name() << " start fresh metafile" << std::endl;
+		} else {
+			// use previous metafile as reference
+			ref = d->previousMetafile->lock();
+			refSize = d->previousMetafile->size();
+		}
+					
+        // delta compress metafile		
+		LeaveCriticalSection( &d->cs );
+		if( zd_compress1( (const Bytef*)ref, refSize,
+						  (const Bytef*)d->lastMetafile->lock(), 
+						  d->lastMetafile->size(),
+						  (Bytef**)&delta, &deltaSize )==ZD_OK ) {
+			EnterCriticalSection( &d->cs );
+
+			// unlock and free stuff
+			d->lastMetafile->unlock();
+			if( d->metafileCounter==0 ) 
+				free( ref );			
+			else
+				d->previousMetafile->unlock();			   
+
+			// send package
+			d->mgauge->send( 
+				id(), 
+				new GaugePacket( 
+					metafilePacket,
+					new MetafilePacket( 
+						d->metafileCounter,
+						refSize,
+						SharedBuffer(delta, deltaSize, false) )),
+				true );		  
+
+            // packet sent
+			d->metafileCounter++;
+			d->previousMetafile = d->lastMetafile;
+			d->lastMetafile = 0;
+		} else {
+			EnterCriticalSection( &d->cs );
+
+			// unlock and free stuff
+			d->lastMetafile->unlock();
+			if( d->metafileCounter==0 ) 
+				free( ref );			
+			else
+				d->previousMetafile->unlock();
+			dout << name() << " compress failed" << std::endl;
+		}		
 	}
 	LeaveCriticalSection( &d->cs );
 }
+
 
 void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, 
 									  UINT32 extra_data ) {
@@ -589,8 +678,7 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	case PANEL_SERVICE_PRE_DRAW: {
 		// record metafile for gauge output
 		EnterCriticalSection( &d->cs );
-		if( d->elements.size()>0 && d->elements[0] ) {
-			
+		if( d->elements.size()>0 && d->elements[0] && d->lastMetafile.isNull() ) {
 			Element *element = d->elements[0];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
 		
@@ -599,7 +687,12 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 			CreateStreamOnHGlobal( NULL, FALSE, &stream );
 		 	
 			// create metafile
-			Metafile metafile( stream, staticImage->hdc, EmfTypeEmfPlusOnly );
+			RectF bounds( 0, 0, 
+						  staticImage->image_data.final->dim.x,
+						  staticImage->image_data.final->dim.y );
+			Metafile metafile( stream, staticImage->hdc, 
+							   bounds, MetafileFrameUnitPixel,
+							   EmfTypeEmfPlusOnly );
 			
 			// let gauge draw to metafile
 			HDC origHdc = staticImage->hdc;
@@ -613,21 +706,16 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 			origHdc = (HDC)0x204c5047;
 			
 			// display metafile
-			Graphics graphics( staticImage->hdc );
+			/*Graphics graphics( staticImage->hdc );
 			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
-			graphics.DrawImage( &metafile, 0, 0 );
+			graphics.DrawImage( &metafile, 0, 0 );*/
 			
 			// save metafile for later sending
 			HGLOBAL hmem;
 			GetHGlobalFromStream( stream, &hmem );
 			stream->Release();
 			if( GlobalSize(hmem)>500 ) {
-				EnterCriticalSection( &d->cs );
 				d->lastMetafile = new GlobalMem(hmem);
-				memcpy( &d->metafileDim, 
-						&staticImage->image_data.final->dim, 
-						sizeof(PIXPOINT) );
-				LeaveCriticalSection( &d->cs );
 			} else
 				GlobalFree( hmem );
 				 
@@ -650,11 +738,32 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 }
 
 
+void GaugeMetafileRecorder::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
+	switch( gp->key() ) {
+	case metafileResetPacket:
+	{
+		dout << name() << " reset metafile received" << std::endl;
+		EnterCriticalSection( &d->cs );
+		d->metafileCounter = 0;
+		d->previousMetafile = 0;
+		LeaveCriticalSection( &d->cs );
+	} break;
+
+	default:
+		GaugeRecorder::receive( packet );
+		break;
+	}
+}
+
+
 /**************************************************************************/
+
 
 GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id ) 
 	: Gauge( mgauge, id ) {
 }
+
 
 GaugeViewer::~GaugeViewer() {
 }
@@ -718,12 +827,15 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
 
 /**************************************************************************/
 
+
 GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id ) 
 	: GaugeViewer( mgauge, id ) {
 }
 
+
 GaugeMetafileViewer::~GaugeMetafileViewer() {
 }
+
 
 void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	// do work of callback
@@ -749,17 +861,14 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 			CreateStreamOnHGlobal( d->lastMetafile->handle(), FALSE, &stream );			
 			Metafile metafile( stream );
 					
-			// display metafile
-			dout << "x=" << d->metafileDim.x << " -> x=" << dim->x << std::endl;
+			// display metafile		
 			Graphics graphics( staticImage->hdc );
-			graphics.ScaleTransform( 
-				((float)dim->x)/d->metafileDim.x, 
-				((float)dim->y)/d->metafileDim.y, 
-				MatrixOrderPrepend );
 			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
-			graphics.DrawImage( &metafile, 0, 0 );
+			graphics.DrawImage( &metafile, 0, 0,
+								dim->x, dim->y );
 			
 			stream->Release();
+			d->previousMetafile = d->lastMetafile;
 			d->lastMetafile = 0;
 			SET_OFF_SCREEN( staticImage );
 		}
@@ -790,17 +899,92 @@ Element *GaugeMetafileViewer::createElement( int id, PELEMENT_HEADER pelement ) 
 }
 
 
+void GaugeMetafileViewer::sendProc() {
+	GaugeViewer::sendProc();
+
+	// metafile reset?
+	EnterCriticalSection( &d->cs );
+	if( d->sendMetafileReset ) {
+		dout << name() << " sending reset metafile" << std::endl;
+		d->sendMetafileReset = false;
+		d->mgauge->send(
+			id(),
+			new GaugePacket(
+				metafileResetPacket,
+				new MetafileResetPacket( MetafileResetStruct() )),
+			true );
+	}	
+	LeaveCriticalSection( &d->cs );
+}
+
+
 void GaugeMetafileViewer::receive( SmartPtr<Packet> packet ) {
 	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
 	switch( gp->key() ) {
 	case metafilePacket:
 	{
 		EnterCriticalSection( &d->cs );
+		
+		// metafile packet
 		SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*gp->wrappee();
-		dout << "metafile packet with size " << mp->buffer().size() << std::endl;
-		d->lastMetafile = new GlobalMem( mp->buffer().data(), 
-										 mp->buffer().size() );
-		memcpy( &d->metafileDim, mp->dimension(), sizeof(PIXPOINT) );
+		dout << this << " metafile packet with size " << mp->buffer().size() 
+			 << " counter=" << mp->counter() << std::endl;
+
+		// correct sequence?
+		if( d->metafileCounter!=mp->counter() ) {
+			if( !d->resetSent ) {
+				d->sendMetafileReset = true;
+				d->previousMetafile = 0;
+				d->metafileCounter = 0;
+				d->resetSent = true;
+				dout << this << " invalid metafile sequence, reset" << std::endl;
+			}
+		} else {
+			d->resetSent = false;
+			void *ref = 0;
+			unsigned refSize = 0;
+			SmartPtr<GlobalMem> previous;
+			if( d->metafileCounter==0 ) {
+				// use zeros as reference
+				refSize = mp->size();
+				ref = malloc( refSize );
+				ZeroMemory( ref, refSize );
+				dout << this << " start with fresh metafile" << std::endl;
+			} else {
+                // use previous as reference
+				if( d->lastMetafile.isNull() )
+					previous = d->previousMetafile;
+				else
+					previous = d->lastMetafile;			 
+				ref = previous->lock();
+				refSize = previous->size();
+			}
+
+			// uncompress
+			Bytef *tar = 0;
+			unsigned long tarSize = 0;
+			if( zd_uncompress1( (const Bytef*)ref, refSize,
+								&tar, &tarSize,
+								(const Bytef*)mp->buffer().data(), 
+								mp->buffer().size() )==ZD_OK ) {				
+				if( previous.isNull() )
+					free( ref );
+				else
+					previous->unlock();
+				d->metafileCounter++;				
+				d->lastMetafile = new GlobalMem( tar, tarSize );
+			} else {
+				if( previous.isNull() )
+					free( ref );				
+				else
+					previous->unlock();
+				dout << this << " uncompress failed" << std::endl;
+			}
+
+			// unlock and free stuff
+			free( tar );
+		}
+			
 		LeaveCriticalSection( &d->cs );
 	} break;
 

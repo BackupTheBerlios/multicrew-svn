@@ -272,6 +272,7 @@ public:
 	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeMetafileRecorder();
 	virtual void sendProc();
+	virtual void receive( SmartPtr<Packet> packet );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
@@ -296,6 +297,7 @@ public:
 	GaugeMetafileViewer( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeMetafileViewer();
 	virtual void receive( SmartPtr<Packet> packet );
+	virtual void sendProc();
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
