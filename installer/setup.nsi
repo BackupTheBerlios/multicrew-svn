@@ -84,20 +84,6 @@ Section "!Multicrew" SEC01
   !insertmacro MUI_STARTMENU_WRITE_END
 SectionEnd
 
-Section "PMDG 737NG 600/700 panels" SEC02
-
-; Shortcuts
-  !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
-  !insertmacro MUI_STARTMENU_WRITE_END
-SectionEnd
-
-Section "PMDG 737NG 800/900 panels" SEC03
-
-; Shortcuts
-  !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
-  !insertmacro MUI_STARTMENU_WRITE_END
-SectionEnd
-
 Section -AdditionalIcons
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   WriteIniStr "$INSTDIR\Multicrew\${PRODUCT_NAME}.url" "InternetShortcut" "URL" "${PRODUCT_WEB_SITE}"
@@ -109,7 +95,7 @@ SectionEnd
 
 Section -Post
   WriteUninstaller "$INSTDIR\Multicrew\uninst.exe"
-  WriteRegStr HKLM "Software\Multicrew" "" "$INSTDIR\Multicrew"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "fs9dir" "$INSTDIR"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\Multicrew\uninst.exe"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\Multicrew\..\multicrewcore.dll"
