@@ -94,7 +94,8 @@ enum {
 
 struct MouseStruct {
 	int mouseRectNum;
-	PIXPOINT pix;
+	PIXPOINT relative_point;
+	PIXPOINT screen_point;
 	FLAGS32 flags;
 };
 
@@ -537,48 +538,47 @@ Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 }
 
 
-void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
-	// do work of callback
-	switch (service_id) {
-	case PANEL_SERVICE_PRE_DRAW: {
-		// handle mouse events which came in from the network
-		EnterCriticalSection( &d->cs );
-		for( std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
-			 it!=d->mouseEvents.end();
-			 it++ ) {
-			// emit mouse event
-			dout << "mouse packet for " << d->name << " mouserect " << (*it)->data().mouseRectNum << std::endl;
+void GaugeRecorder::asyncCallback() {
+	// handle mouse events which came in from the network
+	EnterCriticalSection( &d->cs );
+	for( std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
+		 it!=d->mouseEvents.end();
+		 it++ ) {
+		// emit mouse event
+		dout << "mouse packet for " << d->name << " mouserect " << (*it)->data().mouseRectNum << std::endl;
+		
+		MouseStruct &ms = (*it)->data();
+		int num =  ms.mouseRectNum;
+		if( num>=0 && num<d->originalMouseCallbacks.size() ) {
+			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[num];
+			PMOUSERECT rect = d->gaugeHeader->mouse_rect + num;
 			
-			if( (*it)->data().mouseRectNum>=0 && (*it)->data().mouseRectNum<d->originalMouseCallbacks.size() ) {
-				PMOUSE_FUNCTION cb = d->originalMouseCallbacks[(*it)->data().mouseRectNum];
-				PMOUSERECT rect = d->gaugeHeader->mouse_rect + (*it)->data().mouseRectNum;
-				
-				// has callback?
-				if( cb!=0 ) {
-					// call callback
-					dout << "Call mouse callback for " << d->name << std::endl;
-					cb( &(*it)->data().pix, (*it)->data().flags );
-				} else {
-					// has eventid?
-					if( rect->event_id!=0 ) {
-						// trigger event
-						dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
-						trigger_key_event( rect->event_id, 0 );
-					}
-				}
+			// has callback?
+			if( cb!=0 ) {
+				// create MOUSECALLBACK structure
+				MOUSECALLBACK mc;
+				memcpy( &mc.relative_point, &ms.relative_point, sizeof(PIXPOINT) );
+				mc.user_data = (PVOID)d->gaugeHeader;
+				mc.mouse = rect;
+				memcpy( &mc.screen_point, &ms.screen_point, sizeof(PIXPOINT) );
+				mc.reserved = 0;
+
+				// call callback
+				dout << "Call mouse callback " << (void*)cb 
+					 << " for " << d->name << std::endl;
+				cb( (PPIXPOINT)&mc, ms.flags );
+			}
+			
+			// has eventid?
+			if( rect->event_id!=0 ) {
+				// trigger event					
+				dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
+				trigger_key_event( rect->event_id, 0 );				
 			}
 		}
-		d->mouseEvents.clear();
-		LeaveCriticalSection( &d->cs );
-	} break;
-
-		
-	default:
-		break;
 	}
-	
-	// call inherited callback
-	Gauge::callback( pgauge, service_id, extra_data );
+	d->mouseEvents.clear();
+	LeaveCriticalSection( &d->cs );
 }
 
 
@@ -587,8 +587,14 @@ void GaugeRecorder::receive( SmartPtr<Packet> packet ) {
 	switch( gp->key() ) {
 	case mousePacket:
 		EnterCriticalSection( &d->cs );
+
+		// store mouse event for latter usage
 		dout << "Received mouse packet for " << d->name << std::endl;
 		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
+
+		// tell core to initiate an async callback from the ui
+		triggerAsyncCallback();
+
 		LeaveCriticalSection( &d->cs );
 		break;
 
@@ -605,8 +611,9 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 		mouseRectNum>=0 && 
 		mouseRectNum<d->originalMouseCallbacks.size() && 
 		d->originalMouseCallbacks[mouseRectNum]!=0 ) {
-		dout << "mouseCallback for " << d->name << std::endl;
 		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
+		dout << "mouseCallback " << (void*)cb 
+			 << " for " << d->name << std::endl;
 		cb( pix, flags );
 	}
 	LeaveCriticalSection( &d->cs );
@@ -713,7 +720,7 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	}
 	
 	// call inherited callback
-	GaugeRecorder::callback( pgauge, service_id, extra_data );
+	Gauge::callback( pgauge, service_id, extra_data );
 }
 
 
@@ -946,27 +953,6 @@ Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 }
 
 
-void GaugeViewer::sendProc() {
-	Gauge::sendProc();
-
-	// send mouse events
-	EnterCriticalSection( &d->cs );
-	std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
-	while( it!=d->mouseEvents.end() ) {
-		d->mgauge->send( 
-			id(), 
-			new GaugePacket( 
-				mousePacket,
-				&*(*it)), 
-			false,
-			Connection::highPriority );		
-		it++;
-	}
-	d->mouseEvents.clear();
-	LeaveCriticalSection( &d->cs );
-}
-
-
 BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 	dout << "mouseCallback for " << d->name << std::endl;
 
@@ -974,19 +960,30 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
     // next sendProc call
 	EnterCriticalSection( &d->cs );
 	if( !d->swallowMouse ) {
-		while( d->mouseEvents.size()>5 ) {
-			// don't let the queue get too full
-			d->mouseEvents.pop_front();
-		}
-		MouseStruct s;
-		s.mouseRectNum = mouseRectNum;
-		memcpy( &s.pix, pix, sizeof(PIXPOINT) );
-		s.flags = flags;
-		d->mouseEvents.push_back( new MousePacket( s ) );
+		// the pix is a MOUSECALLBACK structure in fact. Look into GAUGES.H.
+		// that's Microsoft's coding practise ;-)
+		PMOUSECALLBACK mc = (PMOUSECALLBACK)pix;
+
+		// create MouseStruct data
+		MouseStruct ms;
+		ms.mouseRectNum = mouseRectNum;
+		memcpy( &ms.relative_point, &mc->relative_point, sizeof(PIXPOINT) );
+		memcpy( &ms.screen_point, &mc->screen_point, sizeof(PIXPOINT) );
+		ms.flags = flags;
+
+		// send MouseStruct packet
+		d->mgauge->send( 
+			id(), 
+			new GaugePacket(
+				mousePacket,
+				new MousePacket(ms)), 
+			false, // safe
+			Connection::highPriority,
+			true ); // async		
 	}
 	LeaveCriticalSection( &d->cs );
 	
-	return TRUE;
+	return FALSE;
 }
 
 

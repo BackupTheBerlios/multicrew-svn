@@ -43,7 +43,8 @@ struct MulticrewUI::Data {
 		  planeUnregisteredSlot( &core->planeUnloaded, ui, MulticrewUI::planeUnregistered ),
 		  disconnectedSlot( 0, ui, MulticrewUI::disconnected ),
 		  statusDlg( NULL ),
-		  loggedSlot( &core->logged, ui, MulticrewUI::logged ) {		
+		  loggedSlot( &core->logged, ui, MulticrewUI::logged ),
+		  asyncSlot( &core->initAsyncCallback, ui, MulticrewUI::asyncSlot ) {		
 	}
 
 	SmartPtr<MulticrewCore> core;
@@ -58,6 +59,8 @@ struct MulticrewUI::Data {
 	Slot1<MulticrewUI, const char*> loggedSlot;
 	CRITICAL_SECTION loggedCritSect;
 	std::list<std::string> loggedLines;
+
+	Slot<MulticrewUI> asyncSlot;
 
 	HMENU menu;
 	HWND hwnd;
@@ -243,4 +246,14 @@ void MulticrewUI::updateMenu() {
 		change.fState = (connected)?MFS_ENABLED:MFS_GRAYED;
 		SetMenuItemInfo( d->menu, ID_DISCONNECT_MENUITEM, FALSE, &change );
 	}
+}
+
+
+void MulticrewUI::async() {
+	d->core->callbackAsync();
+}
+
+
+void MulticrewUI::asyncSlot() {
+	PostMessage( d->hwnd, WM_COMMAND, ID_ASYNC, 0 );
 }

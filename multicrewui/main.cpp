@@ -106,6 +106,9 @@ LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				case ID_LOG:
 					ui->log();
 					return 0;
+				case ID_ASYNC:
+					ui->async();
+					return 0;
 			}
 			break;
 	}

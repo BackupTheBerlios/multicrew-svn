@@ -259,18 +259,16 @@ public:
 };
 
 
-class GaugeRecorder : public Gauge {
+class GaugeRecorder : public Gauge, public AsyncCallee {
 public:
 	GaugeRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeRecorder();
 	virtual void receive( SmartPtr<Packet> packet );
 
- protected:
-	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
-	
  private:
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
+	virtual void asyncCallback();
 };
 
 
@@ -295,7 +293,6 @@ class GaugeViewer : public Gauge  {
 public:
 	GaugeViewer( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeViewer();
-	virtual void sendProc();
 
 private:
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );

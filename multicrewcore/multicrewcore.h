@@ -71,6 +71,13 @@ private:
 };
 
 
+class DLLEXPORT AsyncCallee {
+ public:
+	void triggerAsyncCallback();
+	virtual void asyncCallback()=0;
+};
+
+
 class DLLEXPORT MulticrewCore : public Shared {
 public:
 	static SmartPtr<MulticrewCore> multicrewCore();	
@@ -89,6 +96,13 @@ public:
 	void log( std::string line );
 	Signal1<const char *> logged;
 	double time();
+
+	Signal initAsyncCallback;
+	void callbackAsync();
+
+ protected:
+	friend AsyncCallee;
+	void triggerAsyncCallback( AsyncCallee *callee );
 
 private:
 	MulticrewCore();

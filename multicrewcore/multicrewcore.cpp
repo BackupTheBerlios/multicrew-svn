@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <list>
 #include <deque>
 #include <map>
+#include <set>
 #include <vector>
 #include <sstream>
 
@@ -51,9 +52,12 @@ struct MulticrewCore::Data {
 	std::map<std::string, MulticrewModule*> modules;
 	SmartPtr<PositionModule> posModule;
 	SmartPtr<FsuipcModule> fsuipcModule;
+	std::set<AsyncCallee*> asyncCallees;
 
 	__int64 perfTimerFreq;
 	__int64 startTime;
+
+	CRITICAL_SECTION critSect;
 };
 
 
@@ -65,6 +69,8 @@ MulticrewCore::MulticrewCore() {
 	if( !QueryPerformanceFrequency((LARGE_INTEGER*)&d->perfTimerFreq) )
 		dlog << "No performance timer available" << std::endl;
 	QueryPerformanceCounter( (LARGE_INTEGER*)&d->startTime );
+
+	InitializeCriticalSection( &d->critSect );
 }
 
 
@@ -73,6 +79,8 @@ MulticrewCore::~MulticrewCore() {
 	d->modules.clear();
 	::multicrewCore = 0;
 	CoUninitialize();
+
+	DeleteCriticalSection( &d->critSect );
 	delete d;
 }
 
@@ -202,4 +210,39 @@ void MulticrewCore::unprepare() {
 		it->second->disconnect();
 		it++;
 	}
+}
+
+
+void MulticrewCore::triggerAsyncCallback( AsyncCallee *callee ) {
+	EnterCriticalSection( &d->critSect );
+	bool first = d->asyncCallees.size()==0;
+
+	// add callee to list of callback requesters
+	d->asyncCallees.insert( callee );
+
+	// let async callback handler know about the new callback
+	if( first ) initAsyncCallback.emit();
+	LeaveCriticalSection( &d->critSect );
+}
+
+
+void MulticrewCore::callbackAsync() {
+	EnterCriticalSection( &d->critSect );
+	for( std::set<AsyncCallee*>::iterator it = d->asyncCallees.begin();
+		 it!=d->asyncCallees.end();
+		 it++ ) {
+		// do callback
+		(*it)->asyncCallback();
+	}
+	d->asyncCallees.clear();
+	LeaveCriticalSection( &d->critSect );
+}
+
+
+
+/*********************************************************************************/
+
+
+void AsyncCallee::triggerAsyncCallback() {
+	MulticrewCore::multicrewCore()->triggerAsyncCallback( this );
 }

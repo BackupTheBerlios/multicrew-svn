@@ -29,6 +29,7 @@ public:
 	void disconnect();
 	void status();
 	void log();
+	void async();
 
 	HMENU newMenu();
 
@@ -42,4 +43,5 @@ private:
 	void planeRegistered();
 	void planeUnregistered();
 	void logged( const char *line );
+	void asyncSlot();
 };
