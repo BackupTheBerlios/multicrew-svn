@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <string>
 
 #include "gauges.h"
+#include "metafile.h"
 #include "../multicrewcore/multicrewcore.h"
 #include "../multicrewcore/config.h"
 #include "../multicrewcore/thread.h"
@@ -274,23 +275,15 @@ public:
 };
 
 
-class GaugeMetafileRecorder : public GaugeRecorder, private Thread {
+class GaugeMetafileRecorder : public GaugeRecorder {
 public:
-	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement );
+	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement,
+						   SmartPtr<MetafileCompressor> compressor );
 	virtual ~GaugeMetafileRecorder();
-	virtual void receive( SmartPtr<Packet> packet );
-
-	virtual void attach( PGAUGEHDR gaugeHeader );
-	virtual void detach();
 
 private:
-	virtual unsigned threadProc( void *param );
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
-	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
-	int zd_compress1(const Bytef *ref, uLong rsize,
-					 const Bytef *tar, uLong tsize,
-					 Bytef **delta, uLongf *dsize);	
-	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD);
+	SmartPtr<MetafileCompressor> compressor;
 };
 
 
@@ -307,14 +300,13 @@ private:
 
 class GaugeMetafileViewer : public GaugeViewer  {
 public:
-	GaugeMetafileViewer( MulticrewGauge *mgauge, int id, int metafileElement );
+	GaugeMetafileViewer( MulticrewGauge *mgauge, int id, int metafileElement,
+						 SmartPtr<MetafileDecompressor> decompressor );
 	virtual ~GaugeMetafileViewer();
-	virtual void receive( SmartPtr<Packet> packet );
-	virtual void sendProc( bool fullSend );
 
 private:
+	SmartPtr<MetafileDecompressor> decompressor;
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
-	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
 };
 
 
@@ -327,6 +319,10 @@ class MulticrewGauge : public MulticrewModule {
 	void send( unsigned gauge, SmartPtr<Packet> packet, bool safe, 
 			   Connection::Priority prio=Connection::mediumPriority, 
 			   bool async=false );
+
+	void sendMetafilePacket( unsigned channel, SmartPtr<Packet> packet, bool safe, 
+							 Connection::Priority prio=Connection::mediumPriority );
+
 	PGAUGE_CALLBACK installCallback();
 
 	void requestSend( Gauge *gauge );
@@ -336,6 +332,9 @@ class MulticrewGauge : public MulticrewModule {
 	friend Gauge;
 	void detached( Gauge *gauge );
 	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer );
+
+	bool configBoolValue( PGAUGEHDR pgauge, const std::string &key, bool def );
+	int configIntValue( PGAUGEHDR pgauge, const std::string &key, int def );
 
  protected:	
 	virtual void handlePacket( SmartPtr<Packet> packet );

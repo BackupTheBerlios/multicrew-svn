@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MULTICREWCORE_PACKETS_H_INCLUDED
 
 #include <deque>
+#include <map>
 
 
 class DLLEXPORT Buffer : public Shared {

@@ -27,67 +27,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gauges.h"
 #include "multicrewgauge.h"
+#include "metafile.h"
 #include "../multicrewcore/streams.h"
 #include "../multicrewcore/callback.h"
 #include "../multicrewcore/log.h"
 
-extern "C" {
-#include "zdelta/zdlib.h"
-#include "zdelta/zd_mem.h"
-}
-
 using namespace Gdiplus;
-
-
-#define METAFILEDELAY 300
-
-
-class GlobalMem : public Shared {
-public:
-	GlobalMem( HGLOBAL hmem ) {
-		this->hmem = hmem;
-	}
-
-	GlobalMem( unsigned size ) {
-		this->hmem = GlobalAlloc( 0, size );
-	}
-
-	GlobalMem( void *data, unsigned size ) {
-		this->hmem = GlobalAlloc( 0, size );
-		memcpy( lock(), data, size );
-		unlock();
-	}
-
-	virtual ~GlobalMem() {
-		GlobalFree( hmem );
-	}
-
-	void *lock() {
-		return GlobalLock( hmem );
-	}
-
-	void unlock() {
-		GlobalUnlock( hmem );
-	}
-
-	unsigned size() {
-		return GlobalSize( hmem );
-	}
-
-	HGLOBAL handle() {
-		return hmem;
-	}
-
-private:
-	HGLOBAL hmem;
-};
 
 
 enum {
 	mousePacket = 0,
 	elementPacket,
-	metafilePacket,
-	metafileResetPacket
 };
 
 
@@ -101,48 +51,9 @@ struct MouseStruct {
 };
 
 
-struct MetafileResetStruct {
-};
-
-
-struct MetafileStruct {
-	MetafileStruct( unsigned counter ) {
-		this->counter = counter;
-	}
-
-	unsigned counter;
-};
-
-
 typedef TypedPacket<char, Packet> GaugePacket;
 typedef TypedPacket<unsigned, Packet> ElementPacket;
 typedef StructPacket<MouseStruct> MousePacket;
-typedef StructPacket<MetafileResetStruct> MetafileResetPacket;
-
-class MetafilePacket : public WrappedPacket<MetafileStruct, RawPacket> {
-public:
-	MetafilePacket( unsigned counter, SharedBuffer &buffer )
-		: WrappedPacket<MetafileStruct, RawPacket>(
-			MetafileStruct( counter ), new RawPacket(buffer) ) {
-	}
-
-	MetafilePacket( SharedBuffer &buf ) 
-		: WrappedPacket<MetafileStruct, RawPacket>( buf ) {
-	}
-
-	unsigned counter() {
-		return prefix()->counter;
-	}
-
-	SharedBuffer buffer() {
-		return wrappee()->buffer();
-	}
-
-protected:
-	virtual SmartPtr<RawPacket> createWrappee( SharedBuffer &buffer ) {
-		return new RawPacket( buffer );
-	}
-};
 
 
 class ElementPacketFactory : public TypedPacketFactory<unsigned,Packet> {
@@ -173,8 +84,6 @@ public:
 		switch( key ) {
 		case mousePacket: return new MousePacket( buffer );
 		case elementPacket:	return new ElementPacket( buffer, &_elementFactory );
-		case metafilePacket: return new MetafilePacket( buffer );
-		case metafileResetPacket: return new MetafileResetPacket( buffer );
 		default: return 0;
 		}
 	}
@@ -190,9 +99,8 @@ private:
 struct Gauge::Data {
 	Data( Gauge *gauge )
 		: callbackAdapter( gauge, Gauge::callback ),
-		elementPacketFactory( elements ),
-		packetFactory( elementPacketFactory ),
-		boostTimerCallback( gauge, Gauge::boostMetafileThread ) {
+		  elementPacketFactory( elements ),
+		  packetFactory( elementPacketFactory ) {
 	}
 
 	PGAUGEHDR gaugeHeader;
@@ -202,6 +110,7 @@ struct Gauge::Data {
 	GaugePacketFactory packetFactory;
 
 	// mouse data
+	bool hookMouse;
 	std::deque<PMOUSE_FUNCTION> originalMouseCallbacks;
 	typedef UserCallbackAdapter2<BOOL, Gauge, int, PPIXPOINT, FLAGS32> MouseCallback;
 	std::deque<MouseCallback*> mouseCallbackAdapters;
@@ -211,16 +120,9 @@ struct Gauge::Data {
 	bool swallowMouse;
 
 	// metafile data
-	SmartPtr<GlobalMem> lastMetafile;
-	SmartPtr<GlobalMem> previousMetafile;
-	int metafileElement;
-	volatile unsigned metafileCounter;
-	bool sendMetafileReset;
-	bool resetSent;
-	UINT_PTR boostTimer;
-	VoidCallbackAdapter4<Gauge, HWND,UINT,UINT_PTR,DWORD> boostTimerCallback;
 	int minimumMetafileSize;
-	int metafileDelay;
+	int metafileElement;
+	int metafileCounter;
 
 	// general gauge data
 	std::deque<Element *> elements;	
@@ -243,10 +145,6 @@ Gauge::Gauge( MulticrewGauge *mgauge, int id ) {
 	d->name = "";
 	d->parameters = "";
 	d->id = id;
-	d->metafileCounter = 0;
-	d->sendMetafileReset = true;
-	d->resetSent = false;
-	d->minimumMetafileSize = -1;
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -459,9 +357,9 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 		d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
 
 	// setup mouse callbacks
-	bool hookMouse = configBoolValue( "hookmouse", true );
+	d->hookMouse = configBoolValue( "hookmouse", true );
 	d->origMouseRect = d->gaugeHeader->mouse_rect;
-	if( d->gaugeHeader->mouse_rect!=0 && hookMouse ) {
+	if( d->gaugeHeader->mouse_rect!=0 && d->hookMouse ) {
 		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
 		int num = 0;
 	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
@@ -509,7 +407,9 @@ void Gauge::detach() {
 		d->gaugeHeader->gauge_callback = d->originalGaugeCallback;
 
 		// restore mouse callbacks
-		if( d->gaugeHeader->mouse_rect!=0 && d->origMouseRect==d->gaugeHeader->mouse_rect ) {
+		if( d->gaugeHeader->mouse_rect!=0 && 
+			d->origMouseRect==d->gaugeHeader->mouse_rect &&
+			d->hookMouse ) {
 			PMOUSERECT rect = d->gaugeHeader->mouse_rect;
 			int num = 0;
 			while( rect->rect_type!=MOUSE_RECT_EOL ) {
@@ -667,26 +567,17 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 /**************************************************************************/
 
 
-GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement ) 
+GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, 
+											  int id, 
+											  int metafileElement,
+											  SmartPtr<MetafileCompressor> compressor ) 
 	: GaugeRecorder( mgauge, id ) {
-	Gauge::d->metafileDelay = -1;
-	setPriority( THREAD_PRIORITY_BELOW_NORMAL );
+	this->compressor = compressor;
 	Gauge::d->metafileElement = metafileElement;
 }
 
 
 GaugeMetafileRecorder::~GaugeMetafileRecorder() {
-}
-
-
-Element *GaugeMetafileRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
-	Element *el = 0;
-	switch( pelement->element_type ) {
-	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticRecorder( id, *this ); break;
-	default: break;
-	}
-
-	return el;
 }
 
 
@@ -703,7 +594,7 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 		EnterCriticalSection( &Gauge::d->cs );
 		if( Gauge::d->elements.size()>Gauge::d->metafileElement && 
 			Gauge::d->elements[Gauge::d->metafileElement] && 
-			Gauge::d->lastMetafile.isNull() ) {
+			compressor->open() ) {
 			Element *element = Gauge::d->elements[Gauge::d->metafileElement];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
 		
@@ -742,9 +633,11 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 			if( Gauge::d->minimumMetafileSize<0 )
 				Gauge::d->minimumMetafileSize = configIntValue( "metafileminimum", 500 );
 			if( GlobalSize(hmem)>Gauge::d->minimumMetafileSize ) {
-				Gauge::d->lastMetafile = new GlobalMem(hmem);
-			} else
+				compressor->close( new GlobalMem(hmem) );
+			} else {
+				compressor->close( 0 );
 				GlobalFree( hmem );
+			}
 				 
 			LeaveCriticalSection( &Gauge::d->cs );
 
@@ -766,227 +659,6 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	
 	// call inherited callback
 	Gauge::callback( pgauge, service_id, extra_data );
-}
-
-
-void GaugeMetafileRecorder::attach( PGAUGEHDR gaugeHeader ) {
-	Gauge::attach( gaugeHeader );
-
-	// get metafile delay
-	Gauge::d->metafileDelay = configIntValue( "metafiledelay", METAFILEDELAY );
-
-	// start compression thread
-	startThread( 0 );
-}
-
-
-void GaugeMetafileRecorder::detach() {
-	// stop compression thread
-	stopThread();
-
-	Gauge::detach();
-}
-
-
-void GaugeMetafileRecorder::receive( SmartPtr<Packet> packet ) {
-	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
-	switch( gp->key() ) {
-	case metafileResetPacket:
-	{
-		dout << name() << " reset metafile received" << std::endl;
-		EnterCriticalSection( &Gauge::d->cs );
-		Gauge::d->metafileCounter = 0;
-		//Gauge::d->previousMetafile = 0;
-		LeaveCriticalSection( &Gauge::d->cs );
-	} break;
-
-	default:
-		GaugeRecorder::receive( packet );
-		break;
-	}
-}
-
-
-int GaugeMetafileRecorder::zd_compress1(const Bytef *ref, uLong rsize,
-			 const Bytef *tar, uLong tsize,
-			 Bytef **delta, uLongf *dsize)
-{
-  int rval;
-  zd_stream strm;
-  zd_mem_buffer dbuf;
-
-  /* the zstream output buffer should have size greater than zero try to
-   * guess buffer size, such that no memory realocation will be needed 
-   */ 
-  if(!(*dsize)) *dsize = tsize/4 + 64; /* *dsize should not be 0*/
-
-  /* init io buffers */
-  strm.base[0]  = (Bytef*) ref;
-  strm.base_avail[0] = rsize;
-  strm.base_out[0] = 0;
-  strm.refnum      = 1;
-
-  strm.next_in  = (Bytef*) tar;
-  strm.total_in = 0;
-  strm.avail_in = tsize;
-
-  /* allocate the output buffer */
-  zd_alloc(&dbuf, *dsize);	
-  
-  strm.next_out  = dbuf.pos;
-  strm.total_out = 0;
-  strm.avail_out = *dsize; 
-
-  strm.zalloc = (alloc_func)0;
-  strm.zfree = (free_func)0;
-  strm.opaque = (voidpf)0;
-
-  /* init huffman coder */
-  rval = zd_deflateInit(&strm, ZD_DEFAULT_COMPRESSION);
-  if (rval != ZD_OK)
-  {
-    fprintf(stderr, "%s error: %d\n", "deflateInit", rval);
-    return rval;
-  }
-
-  /* compress the data */
-  while((rval = zd_deflate(&strm,ZD_FINISH))==ZD_OK){
-	  /* set correctly the mem_buffef internal pointer */
-	  dbuf.pos = strm.next_out; 
-	  
-	  /* allocate more memory */
-	  zd_realloc(&dbuf,dbuf.size);
-	  
-	  /* restore zstream internal pointer */
-	  strm.next_out = (unsigned char*)dbuf.pos;
-	  strm.avail_out = dbuf.size - strm.total_out;
-  }
-	  
-  /* set correcty the mem_buffer pointers */
-  dbuf.pos = strm.next_out; 
-
-  if(rval != ZD_STREAM_END){
-    fprintf(stderr, "%s error: %d\n", "deflateInit", rval);
-    zd_free(&dbuf);
-    zd_deflateEnd(&strm);
-    return rval;
-  }
-
-  *delta = dbuf.buffer;
-  *dsize = (uLong) strm.total_out;
-
-  /* release memory */
-  return zd_deflateEnd(&strm);
-}
-
-
-unsigned GaugeMetafileRecorder::threadProc( void *param ) {
-	setPriority( THREAD_PRIORITY_ABOVE_NORMAL );
-
-	while( true ) {
-		// new work available?
-		EnterCriticalSection( &Gauge::d->cs );
-		if( !Gauge::d->lastMetafile.isNull() ) {
-			// install boost timer
-			Gauge::d->boostTimer = SetTimer( NULL, 
-											 NULL, 
-											 Gauge::d->metafileDelay, 
-											 Gauge::d->boostTimerCallback.callback() );
-
-			// save current buffers
-			SmartPtr<GlobalMem> last = Gauge::d->lastMetafile;		 
-			SmartPtr<GlobalMem> previous = Gauge::d->previousMetafile;
-			unsigned counter = Gauge::d->metafileCounter;
-
-			// which reference for delta compression?
-			void *delta = 0;
-			unsigned long deltaSize = 0;
-			void *ref;
-			unsigned refSize;
-			if( counter==0 ) {
-				// no reference, use empty 1000 byte reference
-				refSize = 1000;
-				ref = malloc( refSize );			
-				ZeroMemory( ref, refSize );
-				dout << name() << " start fresh metafile" << std::endl;
-			} else {
-				if( previous.isNull() ) {
-					// this really shoundn't happend!
-					dout << "previous=0" << std::endl;
-					KillTimer( NULL, Gauge::d->boostTimer );
-					Gauge::d->boostTimer = 0;
-					LeaveCriticalSection( &Gauge::d->cs );
-					break;
-				}
-				// use previous metafile as reference
-				ref = previous->lock();
-				refSize = previous->size();
-			}
-								
-			// delta compress metafile
-			setPriority( THREAD_PRIORITY_BELOW_NORMAL );
-			LeaveCriticalSection( &Gauge::d->cs );
-			double start = MulticrewCore::multicrewCore()->time();
-			int ret = zd_compress1( (const Bytef*)ref, refSize,
-									(const Bytef*)last->lock(), last->size(),
-									(Bytef**)&delta, &deltaSize );
-			double end = MulticrewCore::multicrewCore()->time();
-			/*dout << name() << " compress in " << (end-start)*1000 << "ms"
-				 << " size=" << last->size()
-				 << " delta=" << deltaSize << std::endl;*/
-			EnterCriticalSection( &Gauge::d->cs );
-			setPriority( THREAD_PRIORITY_ABOVE_NORMAL );
-
-            // unlock and free stuff
-			last->unlock();
-			if( counter==0 ) free( ref ); else previous->unlock();			   
-			Gauge::d->lastMetafile = 0;
-			
-			// compression successful?
-			if( ret==ZD_OK && counter==Gauge::d->metafileCounter ) {
-				// send metafile
-				Gauge::d->mgauge->send( 
-					id(), 
-					new GaugePacket( 
-						metafilePacket,
-						new MetafilePacket( 
-							Gauge::d->metafileCounter,
-							SharedBuffer(new Buffer( delta, deltaSize, false )))),
-					true, // safe
-					Connection::lowPriority,
-					true ); // async
-		
-				// packet sent
-				Gauge::d->metafileCounter++;
-			
-				// save last as reference for the next one
-				Gauge::d->previousMetafile = last;
-			} else {
-				free( delta );
-				dout << name() << " compress failed" << std::endl;		   
-			}
-
-			// done -> kill boost timer
-			KillTimer( NULL, Gauge::d->boostTimer );
-			Gauge::d->boostTimer = 0;
-		}
-
-		LeaveCriticalSection( &Gauge::d->cs );		
-	
-		// exit thread?
-		if( shouldExit( Gauge::d->metafileDelay ) )
-			break;
-	}
-
-	return 0;
-}
-
-
-void GaugeMetafileRecorder::boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {
-	EnterCriticalSection( &Gauge::d->cs );
-	setPriority( THREAD_PRIORITY_ABOVE_NORMAL );
-	KillTimer( NULL, Gauge::d->boostTimer );
-	LeaveCriticalSection( &Gauge::d->cs );
 }
 
 
@@ -1057,9 +729,13 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
 /**************************************************************************/
 
 
-GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id, int metafileElement ) 
+GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id, 
+										  int metafileElement,
+										  SmartPtr<MetafileDecompressor> decompressor ) 
 	: GaugeViewer( mgauge, id ) {
-	d->metafileElement = metafileElement;
+	d->metafileElement = metafileElement;	
+	d->metafileCounter = -1;
+	this->decompressor = decompressor;
 }
 
 
@@ -1077,18 +753,24 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 	case PANEL_SERVICE_PRE_DRAW: {
 		// display
 		EnterCriticalSection( &d->cs );
+		SmartPtr<GlobalMem> lastMetafile = decompressor->lastMetafile();
 		if( d->elements.size()>d->metafileElement && 
 			d->elements[d->metafileElement] && 
-			!d->lastMetafile.isNull() ) {
+			!lastMetafile.isNull() &&
+			d->metafileCounter!=decompressor->counter() ) {
 			dout << "draw metafile" << std::endl;
 
+			// don't show same again
+			d->metafileCounter =  decompressor->counter();
+
+			// get element to draw onto
 			Element *element = d->elements[d->metafileElement];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
 			PPIXPOINT dim = &staticImage->image_data.final->dim;
 			
 			// create stream
 			IStream *stream;
-			CreateStreamOnHGlobal( d->lastMetafile->handle(), FALSE, &stream );			
+			CreateStreamOnHGlobal( lastMetafile->handle(), FALSE, &stream );			
 			Metafile metafile( stream );
 					
 			// display metafile		
@@ -1100,8 +782,6 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 			graphics.DrawImage( &metafile, 0, 0,
 								dim->x, dim->y );			
 			stream->Release();
-			d->previousMetafile = d->lastMetafile;
-			d->lastMetafile = 0;
 			SET_OFF_SCREEN( staticImage );
 		}
 		LeaveCriticalSection( &d->cs );
@@ -1117,112 +797,4 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 	}
 
 	GaugeViewer::callback( pgauge, service_id, extra_data );
-}
-
-Element *GaugeMetafileViewer::createElement( int id, PELEMENT_HEADER pelement ) {
-	Element *el = 0;
-
-	switch( pelement->element_type ) {
-	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticViewer( id, *this ); break;
-	default: break;
-	}
-
-	return el;
-}
-
-
-void GaugeMetafileViewer::sendProc( bool fullSend ) {
-	GaugeViewer::sendProc( fullSend );
-
-	// metafile reset?
-	EnterCriticalSection( &d->cs );
-	if( d->sendMetafileReset ) {
-		dout << name() << " sending reset metafile" << std::endl;
-		d->sendMetafileReset = false;
-		d->mgauge->send(
-			id(),
-			new GaugePacket(
-				metafileResetPacket,
-				new MetafileResetPacket( MetafileResetStruct() )),
-			true,
-			Connection::highPriority );
-	}	
-	LeaveCriticalSection( &d->cs );
-}
-
-
-void GaugeMetafileViewer::receive( SmartPtr<Packet> packet ) {
-	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
-	switch( gp->key() ) {
-	case metafilePacket:
-	{
-		EnterCriticalSection( &d->cs );
-		
-		// metafile packet
-		SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*gp->wrappee();
-		dout << this << " metafile packet with size " << mp->buffer().size() 
-			 << " counter=" << mp->counter() << std::endl;
-
-		// correct sequence?
-		if( d->metafileCounter!=mp->counter() ) {
-			if( !d->resetSent ) {
-				d->sendMetafileReset = true;
-				d->previousMetafile = 0;
-				d->metafileCounter = 0;
-				d->resetSent = true;
-				dout << this << " invalid metafile sequence, reset" << std::endl;
-			}
-		} else {
-			d->resetSent = false;
-			void *ref = 0;
-			unsigned refSize = 0;
-			SmartPtr<GlobalMem> previous;
-			if( d->metafileCounter==0 ) {
-				// use 1000 zeros as reference
-				refSize = 1000;
-				ref = malloc( refSize );
-				ZeroMemory( ref, refSize );
-				dout << this << " start with fresh metafile" << std::endl;
-			} else {
-                // use previous as reference
-				if( d->lastMetafile.isNull() )
-					previous = d->previousMetafile;
-				else
-					previous = d->lastMetafile;			 
-				ref = previous->lock();
-				refSize = previous->size();
-			}
-
-			// uncompress
-			Bytef *tar = 0;
-			unsigned long tarSize = 0;
-			if( zd_uncompress1( (const Bytef*)ref, refSize,
-								&tar, &tarSize,
-								(const Bytef*)mp->buffer().data(), 
-								mp->buffer().size() )==ZD_OK ) {				
-				if( previous.isNull() )
-					free( ref );
-				else
-					previous->unlock();
-				d->metafileCounter++;				
-				d->lastMetafile = new GlobalMem( tar, tarSize );
-			} else {
-				if( previous.isNull() )
-					free( ref );				
-				else
-					previous->unlock();
-				dout << this << " uncompress failed" << std::endl;
-			}
-
-			// unlock and free stuff
-			free( tar );
-		}
-			
-		LeaveCriticalSection( &d->cs );
-	} break;
-
-	default:
-		Gauge::receive( packet );
-		break;
-	}
 }

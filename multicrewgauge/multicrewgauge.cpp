@@ -38,24 +38,36 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WAITTIME 500
 
 
-typedef TypedPacket<unsigned, Packet> RoutedGaugePacket;
+typedef TypedPacket<unsigned, Packet> RoutedPacket;
 
 
-class RoutedGaugePacketFactory : public TypedPacketFactory<unsigned,Packet> {
+class RoutedPacketFactory : public TypedPacketFactory<unsigned,Packet> {
 public:
-	RoutedGaugePacketFactory( std::deque<Gauge *> &gauges ) 
-		: _gauges( gauges ) {
+	RoutedPacketFactory( std::deque<Gauge *> &gauges, 
+						 std::deque<SmartMetafileChannel> &metafileChannels ) 
+		: _gauges( gauges ),
+		  _metafileChannels( metafileChannels ) {
 	}
 
 	virtual SmartPtr<Packet> createPacket( unsigned key, SharedBuffer &buffer ) {
-		if( key<_gauges.size() )
-			return _gauges[key]->createPacket( buffer );
-		else
-			return 0;
+		// metafile or gauge packet?
+		if( key>=1000000 ) {
+			unsigned channel = key-1000000;
+			if( channel<_metafileChannels.size() )
+				return _metafileChannels[channel]->createPacket( buffer );
+			else
+				return 0;
+		} else {
+			if( key<_gauges.size() )
+				return _gauges[key]->createPacket( buffer );
+			else
+				return 0;
+		}
 	}
 
 private:
 	std::deque<Gauge *> &_gauges;
+	std::deque<SmartMetafileChannel> &_metafileChannels;
 };
 
 
@@ -64,7 +76,7 @@ typedef std::list<Gauge*> GaugeList;
 struct MulticrewGauge::Data {
 	Data( MulticrewGauge *mg )
 		: installCallbackAdapter( mg, MulticrewGauge::installGauge ),
-		packetFactory(gauges) {
+		  packetFactory( gauges, metafileChannels ) {
 	}
 
 	virtual ~Data() {
@@ -74,8 +86,9 @@ struct MulticrewGauge::Data {
 
 	SmartPtr<MulticrewCore> core;
 	std::deque<Gauge*> gauges;
+	std::deque<SmartMetafileChannel> metafileChannels;
 	std::map<std::string, GaugeList*> detachedGauges;
-	RoutedGaugePacketFactory packetFactory;
+	RoutedPacketFactory packetFactory;
 	std::set<Gauge*> sendRequests;
 	bool nextIsFullSend;
 };
@@ -100,6 +113,10 @@ MulticrewGauge::~MulticrewGauge() {
 	while( it!=d->gauges.end() ) delete *(it++);
 	d->gauges.clear();
 	unlock();
+
+	// clear metafile channels
+	d->metafileChannels.clear();
+
 	delete d;
 }
 
@@ -115,6 +132,30 @@ bool MulticrewGauge::init() {
 }
 
 
+bool MulticrewGauge::configBoolValue( PGAUGEHDR pgauge, const std::string &key, bool def ) {
+	// first look in [name!parameter], then in [name], then def
+	std::string name = pgauge->gauge_name;
+	std::string parameters;
+	if( pgauge->parameters )
+		parameters = pgauge->parameters;
+
+	return config()->boolValue( name+"!"+parameters, key,
+								config()->boolValue( name, key, def ) );
+}
+
+
+int MulticrewGauge::configIntValue( PGAUGEHDR pgauge, const std::string &key, int def ) {
+	// first look in [name!parameter], then in [name], then def
+	std::string name = pgauge->gauge_name;
+	std::string parameters;
+	if( pgauge->parameters )
+		parameters = pgauge->parameters;
+
+	return config()->intValue( name+"!"+parameters, key,
+						config()->intValue( name, key, def ) );
+}
+
+
 /*
  * Register gauge by creating a Gauge object. But not before
  * PREINSTALL, because the parameter isn't before
@@ -125,11 +166,11 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 		((PGAUGE_CALLBACK)(int)(pgauge->user_area[9]))( pgauge, service_id, extra_data );	
 
 	if( service_id==PANEL_SERVICE_POST_INSTALL ) {
-		if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 )
+		/*if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 )
 			dout << "New gauge " << pgauge << " " << pgauge->gauge_name 
 				 <<	" with " << pgauge->parameters << " id=" << d->gauges.size() << std::endl;
 		else
-			dout << "New gauge " << pgauge << " " << pgauge->gauge_name << " id=" << d->gauges.size() << std::endl;
+		dout << "New gauge " << pgauge << " " << pgauge->gauge_name << " id=" << d->gauges.size() << std::endl;*/
 
 		// restore old callback
 		pgauge->gauge_callback = (PGAUGE_CALLBACK)(int)(pgauge->user_area[9]);
@@ -138,25 +179,42 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 		// look for detached gauge which is to be reused
 		Gauge *gauge = getDetachedGauge( pgauge->gauge_name, pgauge->parameters );
 		if( gauge==0 ) {
-			bool metafile = config()->boolValue( pgauge->gauge_name, "metafile", false);
-			int element = config()->intValue( pgauge->gauge_name, "element", 0 );
-			if( pgauge->parameters )
-				dout << "Creating new for " << pgauge->gauge_name << ":" << pgauge->parameters 
-					 << (metafile?" metafile ":"")					
-					 << std::endl;
-			else
-				dout << "Creating new for " << pgauge->gauge_name << std::endl;
+			int metafile = configIntValue( pgauge, "metafile", -1 );
+			int element = configIntValue( pgauge, "metafileelement", 0 );
 			
 			// create new gauge
 			if( isHostMode() )
-				if( metafile )
-					gauge = new GaugeMetafileRecorder( this, d->gauges.size(), element );
-				else
+				if( metafile>=0 ) {
+					// create enough compression channels
+					while( metafile>=d->metafileChannels.size() ) {
+						int delay = 300; //configIntValue( 300; //config()->intValue( "metafile", 
+						d->metafileChannels.push_back( 
+							new MetafileCompressor( this, delay,
+													d->metafileChannels.size() ));
+					}
+						
+					// create the gauge with the associated metafile channel
+					gauge = new GaugeMetafileRecorder( 
+						this, d->gauges.size(), 
+						element,
+						(MetafileCompressor*)&*d->metafileChannels[metafile] );
+				} else
 					gauge = new GaugeRecorder( this, d->gauges.size() );
 			else
-				if( metafile )
-					gauge = new GaugeMetafileViewer( this, d->gauges.size(), element );
-				else
+				if( metafile>=0 ) {
+					// create enough decompression channels
+					while( metafile>=d->metafileChannels.size() ) {
+						d->metafileChannels.push_back( 
+							new MetafileDecompressor( this, 
+													  d->metafileChannels.size() ));
+					}
+
+					// create the gauge with the associated metafile channel
+					gauge = new GaugeMetafileViewer( 
+						this, d->gauges.size(), 
+						element, 
+						(MetafileDecompressor*)&*d->metafileChannels[metafile] );
+				} else
 					gauge = new GaugeViewer( this, d->gauges.size() );
 			
 			d->gauges.push_back( gauge );
@@ -168,14 +226,26 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 
 
 void MulticrewGauge::handlePacket( SmartPtr<Packet> packet ) {
-	SmartPtr<RoutedGaugePacket> gp = (RoutedGaugePacket*)&*packet;
+	SmartPtr<RoutedPacket> gp = (RoutedPacket*)&*packet;
 	lock();
-	if( gp->key()>=0 && gp->key()<d->gauges.size() ) {
-		Gauge *gauge = d->gauges[gp->key()];
-		unlock();
-		gauge->receive( (RoutedGaugePacket*)&*gp->wrappee() );
+	
+	// metafile or gauge packet?
+	if( gp->key()>=1000000 ) {
+		// send to metafile channel
+		unsigned channel = gp->key()-1000000;
+		if( channel<d->metafileChannels.size() ) {
+			unlock();
+			d->metafileChannels[channel]->receive( gp->wrappee() );
+		} else
+			unlock();
 	} else {
-		unlock();
+		// send to gauge
+		if( gp->key()>=0 && gp->key()<d->gauges.size() ) {
+			Gauge *gauge = d->gauges[gp->key()];
+			unlock();
+			gauge->receive( (RoutedPacket*)&*gp->wrappee() );
+		} else
+			unlock();
 	}
 }
 
@@ -184,14 +254,25 @@ void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe,
 						   Connection::Priority prio, bool async ) {
 	if( async )
 		MulticrewModule::sendAsync( 
-			new RoutedGaugePacket(gauge, packet), 
+			new RoutedPacket(gauge, packet), 
 			safe,
 			prio );
 	else
 		MulticrewModule::send( 
-			new RoutedGaugePacket(gauge, packet), 
+			new RoutedPacket(gauge, packet), 
 			safe,
 			prio );
+}
+
+
+void MulticrewGauge::sendMetafilePacket( unsigned channel, 
+										 SmartPtr<Packet> packet, 
+										 bool safe,
+										 Connection::Priority prio ) {
+	MulticrewModule::sendAsync( 
+		new RoutedPacket(1000000+channel, packet), 
+		safe,
+		prio );
 }
 
 
@@ -276,7 +357,7 @@ void MulticrewGauge::detached( Gauge *gauge ) {
 
 SmartPtr<Packet> MulticrewGauge::createInnerModulePacket( SharedBuffer &buffer ) {
 	lock();
-	SmartPtr<RoutedGaugePacket> gp = new RoutedGaugePacket( buffer, &d->packetFactory );
+	SmartPtr<RoutedPacket> gp = new RoutedPacket( buffer, &d->packetFactory );
 	unlock();
 	return gp;
 }
