@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "signals.h"
 #include "network.h"
 
+struct Packet;
+struct ModulePacket;
 
 class DLLEXPORT MulticrewModule : protected Receiver, public Sender {
 public:
@@ -40,7 +42,7 @@ public:
 
 protected:
 	virtual void receive( void *data, unsigned size )=0;
-	void send( void *data, DWORD size, bool safe, Connection::Priority prio );
+	void send( void *data, DWORD size, bool safe, Connection::Priority prio, bool append=false );
 	std::string id();
 
 	virtual void sendCompleted( Packet *packet );

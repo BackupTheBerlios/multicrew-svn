@@ -42,16 +42,19 @@ struct MulticrewModule::Data {
 	SmartPtr<Connection> con;
 
 	unsigned minSendWait;
-	volatile bool sent;
+	volatile bool lastPacketSent;
 	CallbackAdapter1<DWORD, MulticrewModule, LPVOID> threadProcAdapter;
 	HANDLE thread;
 	HANDLE exitEvent;
 	HANDLE exitedEvent;
 
+	// packet send data
 	ModulePacket *packet;
+	unsigned fragmentStart;
 	unsigned maxPacketSize;
-	bool safe;
-	Connection::Priority priority;
+	bool nextIsSafeTransmission;
+	Connection::Priority nextPriority;
+	CRITICAL_SECTION sendCritSect;
 };
 
 MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode, 
@@ -61,12 +64,20 @@ MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode,
 	d->hostMode = hostMode;
 	d->minSendWait = minSendWait;
 	d->thread = 0;
-	d->sent = true;
+	d->registered = MulticrewCore::multicrewCore()->registerModule( this );
+
+	// packet setup
+	d->lastPacketSent = true;
 	d->maxPacketSize = 8192;
 	d->packet = (ModulePacket*)malloc(d->maxPacketSize);
 	strncpy( d->packet->module, this->moduleName().c_str(), 32 );
 	d->packet->id = modulePacket;
-	d->registered = MulticrewCore::multicrewCore()->registerModule( this );
+	d->packet->size = sizeof(ModulePacket);
+	d->nextPriority = Connection::LowPriority;
+	d->fragmentStart = 0;
+	d->nextIsSafeTransmission = false;
+
+	InitializeCriticalSection( &d->sendCritSect );
 }
 
 
@@ -77,6 +88,7 @@ MulticrewModule::~MulticrewModule() {
 	// unregister from core
 	if( d->registered ) MulticrewCore::multicrewCore()->unregisterModule( this );
 
+	DeleteCriticalSection( &d->sendCritSect );
 	delete d->packet;
 	delete d;
 }
@@ -108,8 +120,10 @@ void MulticrewModule::receive( ModulePacket *packet ) {
 }
 
 
-void MulticrewModule::send( void *data, DWORD size,	bool safe, Connection::Priority prio ) {
+void MulticrewModule::send( void *data, DWORD size,	bool safe, Connection::Priority prio, bool append ) {
 	if( !d->con.isNull() ) {
+		EnterCriticalSection( &d->sendCritSect );
+
 		// create packet buffer of sufficient size
 		if( d->maxPacketSize<d->packet->size+sizeof(DataFragment)+size ) {
 			while( d->maxPacketSize<d->packet->size+sizeof(DataFragment)+size )
@@ -117,31 +131,41 @@ void MulticrewModule::send( void *data, DWORD size,	bool safe, Connection::Prior
 			
 			d->packet = (ModulePacket*)realloc( d->packet, d->maxPacketSize );
 		}
-		
+
 		// append data to packet
-		DataFragment *dest = (DataFragment*)(((char*)d->packet)+d->packet->size);
-		dest->size = size;
-		memcpy( dest->data, data, size );
-		d->packet->size += sizeof(DataFragment)+size;
+		if( append ) {
+			DataFragment *dest = (DataFragment*)(((char*)d->packet)+d->fragmentStart);
+			memcpy( dest->data+dest->size, data, size );
+			dest->size += size;
+			d->packet->size += size;			
+		} else {
+			d->fragmentStart = d->packet->size;
+			DataFragment *dest = (DataFragment*)(((char*)d->packet)+d->fragmentStart);
+			memcpy( dest->data, data, size );
+			dest->size = size;
+			d->packet->size += sizeof(DataFragment)+size;			
+		}
 		
 		// update packet mode
-		d->safe = d->safe || safe;
-		if( (d->priority==Connection::LowPriority && prio==Connection::MediumPriority) ||
-			d->priority!=Connection::HighPriority && prio==Connection::HighPriority)
-			d->priority = prio;
+		d->nextIsSafeTransmission = d->nextIsSafeTransmission || safe;
+		if( (d->nextPriority==Connection::LowPriority && prio==Connection::MediumPriority) ||
+			d->nextPriority!=Connection::HighPriority && prio==Connection::HighPriority)
+			d->nextPriority = prio;
+
+		LeaveCriticalSection( &d->sendCritSect );
 	}
 }
 
 
 void MulticrewModule::sendCompleted( Packet *packet ) {
 	//dout << moduleName() << " send completed" << std::endl;
-	d->sent = true;
+	d->lastPacketSent = true;
 }
 
 
 void MulticrewModule::sendFailed( Packet *packet ) {
 	dout << moduleName() << " send failed" << std::endl;
-	d->sent = true;
+	d->lastPacketSent = true;
 }
 
 
@@ -154,7 +178,7 @@ void MulticrewModule::connect( SmartPtr<Connection> con ) {
 	dout << moduleName() << " connecting" << std::endl;
 	d->con = con;
 	d->con->addReceiver( this );
-	d->sent = true;
+	d->lastPacketSent = true;
 
     // start thread
 	if( d->minSendWait>0 ) {
@@ -210,23 +234,28 @@ DWORD MulticrewModule::threadProc( LPVOID param ) {
 
 	while( true ) {
 		// call send proc if previous packet has arrived
-		if( d->sent ) {
-			// default values
-			d->packet->size = sizeof(ModulePacket);
-			d->priority = Connection::LowPriority;
-			d->safe = false;
+		if( d->lastPacketSent ) {
+			EnterCriticalSection( &d->sendCritSect );
 
 			// prepare packet
 			sendProc();
 
 			// send packet
 			if( d->packet->size>sizeof(ModulePacket) ) {
-				d->sent = false;
-				if( !d->con->send( d->packet, d->safe, d->priority, this ) )
-					d->sent = true;
+				d->lastPacketSent = false;
+				if( !d->con->send( d->packet, d->nextIsSafeTransmission, d->nextPriority, this ) )
+					d->lastPacketSent = true;
 			} else {
-				d->sent = true;
+				d->lastPacketSent = true;
 			}
+
+			// default values
+			d->packet->size = sizeof(ModulePacket);
+			d->nextPriority = Connection::LowPriority;
+			d->fragmentStart = 0;
+			d->nextIsSafeTransmission = false;
+
+			LeaveCriticalSection( &d->sendCritSect );
 		}
 			
 		// wait an amount of milliseconds or exit thread

@@ -141,7 +141,7 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 	{
 		DPNMSG_RECEIVE *rec = (DPNMSG_RECEIVE*)pMessage;
 		Packet *packet = (Packet*)rec->pReceiveData;
-		//dout << "Received packet of type " << packet->id << std::endl;
+		dout << "Received packet of type " << packet->id << std::endl;
 		if( packet->id==modulePacket ) {
 			deliverModulePacket( (ModulePacket*)packet );
 		}
@@ -172,7 +172,7 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 	{
 		// group creation message, either host or client group
 		DPNMSG_CREATE_GROUP *info = (DPNMSG_CREATE_GROUP*)pMessage;
-		dout << "Getting group info for " << info->dpnidGroup << std::endl;
+		dout << "New group " << info->dpnidGroup << std::endl;
 		DPN_GROUP_INFO *groupInfo = new DPN_GROUP_INFO;
 		groupInfo->dwSize = sizeof(DPN_GROUP_INFO);
 		DWORD size = sizeof(DPN_GROUP_INFO);
@@ -201,9 +201,9 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 		char name[1024];
 		wcstombs( name, groupInfo->pwszName, 1024 );
 		dlog << "Group \"" << name << "\" created." << std::endl;
-		if( strcmp(name, "Host" ) )
+		if( strcmp(name, "Host" )==0 )
 			d->hostGroup = info->dpnidGroup;
-		else if( strcmp(name, "Client" ) ) {
+		else if( strcmp(name, "Client" )==0 ) {
 			d->clientGroup = info->dpnidGroup;
 		}
 		
@@ -269,7 +269,7 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 		
 		// add to group
 		if( group!=0 ) {
-			dlog << "Adding player to group." << std::endl;
+			dlog << "Adding player " << player->dpnidPlayer << " to " << group << std::endl;
 			HRESULT hr = d->peer->AddPlayerToGroup(
 				group,
 				player->dpnidPlayer,
@@ -280,6 +280,23 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 				dlog << "Failed: " << fe(hr).c_str() << std::endl;
 				return S_OK;
 			}
+		}
+	}
+	break;
+
+	case DPN_MSGID_ADD_PLAYER_TO_GROUP:
+	{
+		PDPNMSG_ADD_PLAYER_TO_GROUP msg = (PDPNMSG_ADD_PLAYER_TO_GROUP)pMessage;
+		dout << "Peer " << msg->dpnidPlayer << " joining group " << msg->dpnidGroup << std::endl;
+		HRESULT hr = d->peer->AddPlayerToGroup(
+			msg->dpnidGroup,
+			msg->dpnidPlayer,
+			NULL,
+			NULL,
+			DPNADDPLAYERTOGROUP_SYNC );
+		if( FAILED(hr) && hr!=DPNERR_PLAYERALREADYINGROUP ) {
+			dout << "Failed: " << fe(hr).c_str() << std::endl;
+			return S_OK;
 		}
 	}
 	break;
@@ -329,7 +346,7 @@ bool ConnectionImpl::send( Packet *packet, bool safe,
 		return false;
 	}
 
-	//dout << "send( ..., sender=0x" << &*sender << " )" << std::endl;
+	dout << "sending to " << (d->hostMode?d->clientGroup:d->hostGroup) << std::endl;
 
 	// send packet
 	DPN_BUFFER_DESC desc;
@@ -338,7 +355,7 @@ bool ConnectionImpl::send( Packet *packet, bool safe,
 	desc.dwBufferSize = packet->size;
 	DPNHANDLE asyncHandle;
 	HRESULT hr = d->peer->SendTo(
-		d->hostMode?d->clientGroup:d->hostGroup,
+		DPNID_ALL_PLAYERS_GROUP, //d->hostMode?d->clientGroup:d->hostGroup,
 		&desc,
 		1,
 		0,

@@ -32,6 +32,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using namespace Gdiplus;
 
+
+enum PacketType {
+	elementPacket=0,
+	mousePacket,
+};
+
+#pragma pack(push,1)
+struct BasePacket {	
+	PacketType type;
+};
+
+struct ElementPacket : public BasePacket {
+	int element;
+	char data[0];
+};
+
+struct MousePacket : public BasePacket {
+	int mouseRectNum;
+	PIXPOINT pix;
+	FLAGS32 flags;
+};
+#pragma pack(pop,1)
+
+
+
 static std::map<std::string, Gauge*> namedGauges;
 
 struct Gauge::Data {
@@ -43,6 +68,12 @@ struct Gauge::Data {
 	PGAUGE_CALLBACK originalGaugeCallback;
 	VoidCallbackAdapter3<Gauge, PGAUGEHDR, SINT32, UINT32> callbackAdapter;
 
+	// mouse data
+	std::deque<PMOUSE_FUNCTION> originalMouseCallbacks;
+	typedef UserCallbackAdapter2<BOOL, Gauge, int, PPIXPOINT, FLAGS32> MouseCallback;
+	std::deque<MouseCallback*> mouseCallbackAdapters;
+
+	// general gauge data
 	std::deque<Element *> elements;	
 	std::string name;
 	std::string parameters;
@@ -69,6 +100,24 @@ Gauge::Gauge( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader ) {
 	d->originalGaugeCallback = d->gaugeHeader->gauge_callback;
 	if( d->originalGaugeCallback!=NULL )		
 		d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
+
+	// setup mouse callbacks
+	if( d->gaugeHeader->mouse_rect!=0 ) {
+		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
+		int num = 0;
+	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
+			d->originalMouseCallbacks.push_back( rect->mouse_function );
+			//if( rect->mouse_function!=0 ) {
+				dout << "Wrapping mouse callback for " << d->name << std::endl;
+				Data::MouseCallback *callback = new Data::MouseCallback( this, Gauge::mouseCallback, num );
+				d->mouseCallbackAdapters.push_back( callback );
+				//}
+				rect->mouse_function = callback->callback();
+
+			num++;
+			rect++;
+		}
+	}
 }
 
 void Gauge::createElements() {
@@ -98,16 +147,22 @@ void Gauge::createElements() {
 
 Gauge::~Gauge() {
 	dout << "~Gauge " << name() << " " << parameter() << std::endl;			
+	EnterCriticalSection( &d->cs );
 
 	// delete all elements
-	EnterCriticalSection( &d->cs );
 	std::deque<Element*>::iterator it = d->elements.begin();
 	while( it!=d->elements.end() ) delete *it++;
 	d->elements.clear();
-	LeaveCriticalSection( &d->cs );
 
+	// delete mouse callbacks
+	std::deque<Data::MouseCallback*>::iterator it2 = d->mouseCallbackAdapters.begin();
+	while( it2!=d->mouseCallbackAdapters.end() ) delete *it2++;
+	d->mouseCallbackAdapters.clear();
+
+	// delete from global map
 	namedGauges.erase( name() + "§" + parameter() );
 
+	LeaveCriticalSection( &d->cs );
 	DeleteCriticalSection( &d->cs );
 	delete d;
 }
@@ -143,16 +198,39 @@ MulticrewGauge *Gauge::mgauge() {
 }
 
 
-void Gauge::send( int element, void *data, unsigned size, bool safe ) {
-	d->mgauge->send( id(), element, data, size, safe );
+void Gauge::send( int element, void *data, unsigned size, bool safe, bool append ) {
+	if( !append ) {
+		// add route
+		ElementPacket p;
+		p.type = elementPacket;
+		p.element = element;
+		d->mgauge->send( id(), &p, sizeof(ElementPacket), safe );
+	}
+	
+	// add data
+	d->mgauge->send( id(), data, size, safe, true );
 }
 
 
-void Gauge::receive( int element, void *data, unsigned size ) {
-	EnterCriticalSection( &d->cs );
-	if( element<d->elements.size() && element>=0 )
-		d->elements[element]->receive( data, size );
-    LeaveCriticalSection( &d->cs );
+void Gauge::receive( void *data, unsigned size ) {
+	BasePacket *p = (BasePacket*)data;
+	switch( p->type ) {
+	case elementPacket: 
+	{
+		ElementPacket *ep = (ElementPacket*)p;
+		EnterCriticalSection( &d->cs );
+		if( ep->element>=0 && ep->element<d->elements.size() ) {
+			Element *element = d->elements[ep->element];
+			LeaveCriticalSection( &d->cs );
+			element->receive( ep->data, size-sizeof(ElementPacket) );
+		} else {
+			LeaveCriticalSection( &d->cs );
+		}
+	}
+	break;
+	default:
+		break;
+	}
 }
 
 
@@ -269,6 +347,56 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 	//dout << "< Gauge::callback" << std::endl;
 }
 
+
+void GaugeRecorder::receive( void *data, unsigned size ) {
+	BasePacket *p = (BasePacket*)data;
+	switch( p->type ) {
+	case mousePacket:
+	{
+		// emit mouse event
+		MousePacket *mp = (MousePacket*)data;
+		EnterCriticalSection( &d->cs );
+
+		dout << "mouse packet for " << d->name << " mouserect " << mp->mouseRectNum << std::endl;
+
+		if( mp->mouseRectNum>=0 && mp->mouseRectNum<d->originalMouseCallbacks.size() ) {
+			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mp->mouseRectNum];
+			PMOUSERECT rect = d->gaugeHeader->mouse_rect + mp->mouseRectNum;
+
+			// has callback?
+			if( cb!=0 ) {
+				// call callback
+				dout << "Call mouse callback for " << d->name << std::endl;
+				cb( &mp->pix, mp->flags );
+			} else {
+				// has eventid?
+				if( rect->event_id!=0 ) {
+					// trigger event
+					dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
+					trigger_key_event( rect->event_id, 0 );
+				}
+			}			 
+		} 
+		LeaveCriticalSection( &d->cs );
+	}
+	break;
+	default:
+		Gauge::receive( data, size );
+		break;
+	}
+}
+
+
+BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
+	if( mouseRectNum>=0 && mouseRectNum<d->originalMouseCallbacks.size() && d->originalMouseCallbacks[mouseRectNum]!=0 ) {
+		dout << "mouseCallback for " << d->name << std::endl;
+		return d->originalMouseCallbacks[mouseRectNum]( pix, flags );
+	}
+	
+	return TRUE;
+}
+
+
 /************************************************************************************/
 
 GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader ) 
@@ -293,4 +421,17 @@ Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 	case ELEMENT_TYPE_STATIC_IMAGE: return new StaticViewer( id, *this, (ELEMENT_STATIC_IMAGE*)pelement );			
 	default: return 0;			
 	}
+}
+
+BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
+	dout << "mouseCallback for " << d->name << std::endl;
+	MousePacket p;
+	p.type = mousePacket;
+	memcpy( &p.pix, pix, sizeof(PIXPOINT) );
+	p.flags = flags;
+	p.mouseRectNum = mouseRectNum;
+
+	d->mgauge->send( id(), &p, sizeof(MousePacket), true );
+	
+	return TRUE;
 }

@@ -40,10 +40,14 @@ std::string formatError( HRESULT hr ) {
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
         (LPTSTR) &buf,
         0, NULL );
-	char numstr[16];
-	sprintf( numstr, "0x%x", (int)hr );
-	if( buf==0 ) return numstr;
-	return buf;
+	char ret[1024];
+	sprintf( ret, "%s 0x%x", (int)hr );
+	if( buf==0 ) {
+		sprintf( ret, "0x%x", (int)hr );
+	} else {
+		sprintf( ret, "%s (0x%x)", buf, (int)hr );
+	}
+	return ret;
 }
 
 

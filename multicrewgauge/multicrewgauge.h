@@ -22,7 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gauges.h"
 #include "../multicrewcore/multicrewcore.h"
-#include "../multicrewcore/packets.h"
 
 
 // general
@@ -214,8 +213,8 @@ public:
 	MulticrewGauge *mgauge();
 	virtual void sendProc();
 
-	void send( int element, void *data, unsigned size, bool safe );
-	virtual void receive( int element, void *data, unsigned size );
+	void send( int element, void *data, unsigned size, bool safe, bool append=false );
+	virtual void receive( void *data, unsigned size );
 
 	static Gauge &gauge( const std::string &name, const std::string &parameter );
 
@@ -223,6 +222,7 @@ public:
 	void createElements();
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data )=0;
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement )=0;
+	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags )=0;
 
 	struct Data;
 	friend Data;
@@ -234,10 +234,12 @@ class GaugeRecorder : public Gauge {
 public:
 	GaugeRecorder( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader );
 	virtual ~GaugeRecorder();
+	virtual void receive( void *data, unsigned size );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
+	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
 };
 
 
@@ -249,6 +251,7 @@ public:
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
+	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
 };
 
 class MulticrewGauge : public MulticrewModule {
@@ -257,7 +260,7 @@ class MulticrewGauge : public MulticrewModule {
 	virtual ~MulticrewGauge();
 	bool init();
 
-	void send( int gauge, int element, void *data, unsigned size, bool safe );
+	void send( int gauge, void *data, unsigned size, bool safe, bool append=false );
 	PGAUGE_CALLBACK installCallback();
 
  protected:	

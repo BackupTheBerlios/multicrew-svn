@@ -36,10 +36,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define WAITTIME 5
 
+enum PacketType {
+	gaugePacket=0,
+	eventPacket,
+};
+
 #pragma pack(push,1)
-struct Route {
+struct BasePacket {	
+	PacketType type;
+};
+
+struct GaugePacket : public BasePacket {
 	int gauge;
-	int element;
+	char data[0];
+};
+
+struct EventPacket : public BasePacket {
+	ID id;
 };
 #pragma pack(pop,1)
 
@@ -55,9 +68,6 @@ struct MulticrewGauge::Data {
 	int gaugeCounter;
 	std::deque<Gauge*> gauges;
 
-	int routeGauge;
-	int routeElement;
-	bool nextData;
 	CRITICAL_SECTION cs;
 };
 
@@ -66,7 +76,6 @@ MulticrewGauge::MulticrewGauge( bool hostMode, std::string moduleName )
 	d = new Data( this );
 	d->core = MulticrewCore::multicrewCore();
 	d->gaugeCounter = 0;
-	d->nextData = false;
 	InitializeCriticalSection( &d->cs );
 }
 
@@ -131,37 +140,38 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 
 
 void MulticrewGauge::receive( void *data, unsigned size ) {
-	if( d->nextData ) {
-		// fragment is the real data (route is filled by previous call)
+	BasePacket *p = (BasePacket*)data;
+	switch( p->type ) {
+	case gaugePacket: 
+	{
+		GaugePacket *gp = (GaugePacket*)p;
 		EnterCriticalSection( &d->cs );
-		if( d->routeGauge>=0 && d->routeGauge<d->gauges.size() ) {
-			Gauge *gauge = d->gauges[d->routeGauge];
+		if( gp->gauge>=0 && gp->gauge<d->gauges.size() ) {
+			Gauge *gauge = d->gauges[gp->gauge];
 			LeaveCriticalSection( &d->cs );
-			gauge->receive( d->routeElement, data, size );
+			gauge->receive( gp->data, size-sizeof(GaugePacket) );
 		} else {
 			LeaveCriticalSection( &d->cs );
 		}
-	} else {
-		// fragment is route data
-		Route *route = (Route*)data;
-		d->routeGauge = route->gauge;
-		d->routeElement = route->element;
 	}
-
-	// switch between data and route
-	d->nextData = !d->nextData;
+	break;
+	default:
+		break;
+	}
 }
 
 
-void MulticrewGauge::send( int gauge, int element, void *data, unsigned size, bool safe ) {
-	// add route
-	Route route;
-	route.gauge = gauge;
-	route.element = element;
-	MulticrewModule::send( &route, sizeof(Route), safe, Connection::MediumPriority );
-
+void MulticrewGauge::send( int gauge, void *data, unsigned size, bool safe, bool append ) {
+	if( !append ) {
+		// add route
+		GaugePacket p;
+		p.type = gaugePacket;
+		p.gauge = gauge;
+		MulticrewModule::send( &p, sizeof(GaugePacket), safe, Connection::MediumPriority );
+	}
+	
 	// add data
-	MulticrewModule::send( data, size, safe, Connection::MediumPriority );
+	MulticrewModule::send( data, size, safe, Connection::MediumPriority, true );
 }
 
 

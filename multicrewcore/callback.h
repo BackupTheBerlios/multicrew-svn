@@ -172,6 +172,37 @@ private:
 };
 
 
+template <class R, class C, class U, class P1, class P2>
+class UserCallbackAdapter2 : public CallbackAdapterBase {
+public:
+	typedef R (__stdcall *Callback)(P1, P2);
+	typedef R (C::*Member)( U, P1, P2 );
+	UserCallbackAdapter2( C *target, Member member, U u ) 
+		: CallbackAdapterBase( &methodThunk ) {
+		this->target = target;
+		this->member = member;
+		this->user = u;
+	}
+	UserCallbackAdapter2( Member member, U u ) : CallbackAdapterBase( NULL, &methodThunk ) {
+		this->target = 0;
+		this->member = member;
+		this->user = u;
+	}
+	Callback callback() { return (Callback)CallbackAdapterBase::callback(); }
+	void setTarget( C *target ) { CallbackAdapterBase::setTarget( target ); }
+
+private:
+	C *target;
+	Member member;
+	U user;
+	static R __stdcall methodThunk( P1 p1, P2 p2 ) {
+		UserCallbackAdapter2<R, C, U, P1, P2> *_this;
+		__asm mov _this, edx
+		return ((_this->target)->*(_this->member))( _this->user, p1, p2 );
+	}
+};
+
+
 template <class C>
 class VoidCallbackAdapter : public CallbackAdapterBase {
 public:
