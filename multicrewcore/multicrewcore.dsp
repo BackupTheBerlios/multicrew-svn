@@ -92,6 +92,10 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
+SOURCE=.\artconf.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\callback.cpp
 # End Source File
 # Begin Source File
@@ -105,6 +109,18 @@ SOURCE=.\config.cpp
 # Begin Source File
 
 SOURCE=.\connection.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\fileconfig.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipc.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipcmodule.cpp
 # End Source File
 # Begin Source File
 
@@ -134,6 +150,14 @@ SOURCE=.\position.cpp
 
 SOURCE=.\shared.cpp
 # End Source File
+# Begin Source File
+
+SOURCE=.\thread.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\thread.h
+# End Source File
 # End Group
 # Begin Group "fsuipc"
 
@@ -160,6 +184,10 @@ SOURCE=.\fsuipc\IPCuser.h
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
+SOURCE=.\artconf.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\callback.h
 # End Source File
 # Begin Source File
@@ -169,6 +197,14 @@ SOURCE=.\common.h
 # Begin Source File
 
 SOURCE=.\config.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipc.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipcmodule.h
 # End Source File
 # Begin Source File
 

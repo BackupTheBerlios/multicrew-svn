@@ -57,7 +57,7 @@ typedef PacketFactory<Packet> ModulePacketFactory;
 
 class Connection : public Shared {
 public:
-	enum Priority { HighPriority, MediumPriority, LowPriority };	
+	enum Priority { highPriority, mediumPriority, lowPriority };	
 
 	virtual void addModule( MulticrewModule *module )=0;
 	virtual void removeModule( MulticrewModule *module )=0;

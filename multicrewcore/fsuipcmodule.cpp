@@ -22,11 +22,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <deque>
 #include <windows.h>
 
-#include "fsuipc/FSUIPC_User.h"
 #include "../multicrewgauge/gauges.h"
-
 #include "streams.h"
 #include "fsuipcmodule.h"
+#include "fsuipc.h"
 #include "log.h"
 #include "callback.h"
 #include "packets.h"
@@ -77,11 +76,14 @@ protected:
 
 class FsuipcWatch : public Shared {
 public:
-	FsuipcWatch( WORD id, BYTE size ) {
+	FsuipcWatch( SmartPtr<Fsuipc> fsuipc, WORD id, BYTE size, Connection::Priority prio, bool safe ) {
 		this->id = id;
 		this->size = size;
+		this->_prio = prio;
+		this->_safe = safe;
 		this->data = malloc(size);
 		this->oldData = malloc(size);
+		this->fsuipc = fsuipc;
 		ZeroMemory( this->data, size );
 		ZeroMemory( this->oldData, size );
 	}
@@ -91,56 +93,61 @@ public:
 		delete oldData;
 	}
 
-	SmartPtr<FsuipcPacket> update() {
-		DWORD res;
-		bool ok = FSUIPC_Read( id, size, data, &res );
-		ok = ok && FSUIPC_Process( &res );	
+	void update() {
+		bool ok = fsuipc->read( id, size, data );
 		if( !ok ) {
 			dout << "FSUIPC error for id " << id << std::endl;
-		} else {
-			if( memcmp( oldData, data, size )!=0 ) {
-				// changed
-				dout << "FSUIPC change for id " << id << std::endl;
-				memcpy( oldData, data, size );
-				return new FsuipcPacket( id, size, data );
-			}
+		}
+	}
+
+	SmartPtr<FsuipcPacket> process() {
+		if( memcmp( oldData, data, size )!=0 ) {
+			// changed
+			dout << "FSUIPC change for id " << id << std::endl;
+			memcpy( oldData, data, size );
+			return new FsuipcPacket( id, size, data );
 		}
 		
 		return 0;
 	}
 
+	bool safe() {
+		return _safe;
+	}
+
+	Connection::Priority priority() {
+		return _prio;
+	}
+
 private:
 	WORD id;
 	BYTE size;
+	Connection::Priority _prio;
+	bool _safe;
 	void *data;
 	void *oldData;
+	SmartPtr<Fsuipc> fsuipc;
 };
 
 
 struct FsuipcModule::Data {
 	typedef SmartPtr<FsuipcWatch> SmartFsuipcWatch;
 	std::deque<SmartFsuipcWatch> watches;
+	SmartPtr<Fsuipc> fsuipc;
 };
 
 
 FsuipcModule::FsuipcModule( bool hostMode ) 
 	: MulticrewModule( "FSUIPC", hostMode, hostMode?WAITTIME:-1 ) {
 	d = new Data;
+	d->fsuipc = Fsuipc::fsuipc();
 
 	MulticrewCore::multicrewCore()->registerModule( this );
-
-	// connect to FSUIPC
-	DWORD res;
-	if( !FSUIPC_Open( SIM_ANY, &res ) )
-		dlog << "Cannot connect to FSUIPC" << std::endl;
 }
 
 
 FsuipcModule::~FsuipcModule() {
 	MulticrewCore::multicrewCore()->unregisterModule( this );
-
-	// disconnect from FSUIPC
-	FSUIPC_Close();
 
 	d->watches.clear();
 	delete d;
@@ -153,10 +160,23 @@ SmartPtr<Packet> FsuipcModule::createPacket( SharedBuffer &buffer ) {
 
 
 void FsuipcModule::sendProc() {
+	d->fsuipc->begin();
+
+	// let watches call read
 	for( int i=0; i<d->watches.size(); i++ ) {
-		SmartPtr<FsuipcPacket> packet = d->watches[i]->update();
-		if( !packet.isNull() ) {
-			send( &*packet, true, Connection::HighPriority );
+		d->watches[i]->update();
+	}
+
+	// process reads
+	bool ok = d->fsuipc->end();
+
+	// let watches process read results
+	if( ok ) {
+		for( i=0; i<d->watches.size(); i++ ) {
+			SmartPtr<FsuipcPacket> packet = d->watches[i]->process();
+			if( !packet.isNull() ) {
+				send( &*packet, d->watches[i]->safe(), d->watches[i]->priority() );
+			}
 		}
 	}
 }
@@ -166,16 +186,17 @@ void FsuipcModule::handlePacket( SmartPtr<Packet> packet ) {
 	SmartPtr<FsuipcPacket> pp = (FsuipcPacket*)&*packet;
 	
 	// write variables from the FS
-	DWORD res;
-	bool ok = true;
-	ok = FSUIPC_Write( pp->id(), pp->size(), pp->data(), &res );
-	ok = ok && FSUIPC_Process( &res );
+	d->fsuipc->begin();
+	bool ok = d->fsuipc->write( pp->id(), pp->size(), pp->data() );
+	ok = ok && d->fsuipc->end();
 	if( !ok ) {
 		dout << "FSUIPC write error id " << pp->id() << std::endl;
 	}
 }
 
 
-void FsuipcModule::watch( WORD id, BYTE size ) {
-	d->watches.push_back( new FsuipcWatch( id, size ) );
+void FsuipcModule::watch( WORD id, BYTE size, bool safe, bool highPrio ) {
+	d->watches.push_back( new FsuipcWatch( d->fsuipc, id, size, 
+										   highPrio?Connection::highPriority:
+										   Connection::mediumPriority, safe ));
 }

@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "signals.h"
 #include "multicrewcore.h"
 #include "position.h"
+#include "log.h"
 #include "fsuipcmodule.h"
 
 static MulticrewCore *multicrewCore = 0;
@@ -45,6 +46,9 @@ struct MulticrewCore::Data {
 	std::map<std::string, MulticrewModule*> modules;
 	SmartPtr<PositionModule> posModule;
 	SmartPtr<FsuipcModule> fsuipcModule;
+
+	__int64 perfTimerFreq;
+	__int64 startTime;
 };
 
 
@@ -52,17 +56,26 @@ MulticrewCore::MulticrewCore() {
 	d = new Data;
 	CoInitializeEx( NULL, COINIT_MULTITHREADED );
 	dout << "MulticrewCore" << std::endl;
+
+	if( !QueryPerformanceFrequency((LARGE_INTEGER*)&d->perfTimerFreq) )
+		dlog << "No performance timer available" << std::endl;
+	QueryPerformanceCounter( (LARGE_INTEGER*)&d->startTime );
 }
 
 
 MulticrewCore::~MulticrewCore() {
 	dout << "~MulticrewCore" << std::endl;
-	d->posModule = 0;
-	d->fsuipcModule = 0;
 	d->modules.clear();
 	::multicrewCore = 0;
 	CoUninitialize();
 	delete d;
+}
+
+
+double MulticrewCore::time() {
+	__int64 now;
+	QueryPerformanceCounter( (LARGE_INTEGER*)&now );
+	return ((double)now-d->startTime)/d->perfTimerFreq;
 }
 
 
@@ -86,34 +99,34 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 	// first module?
 	if( d->modules.size()==1 ) {	
 		// position module (automatically registers to the modules list)
-		/*if( d->hostMode )
+		if( d->hostMode )
 			d->posModule = new PositionHostModule();
 		else
-		d->posModule = new PositionClientModule();	   */
+		d->posModule = new PositionClientModule();
 
 		// FSUIPC module
 		d->fsuipcModule = new FsuipcModule( d->hostMode );
-		d->fsuipcModule->watch( 0xbdc, 4 ); // flaps control
-		d->fsuipcModule->watch( 0xbd0, 4 ); // spoiler control
-		d->fsuipcModule->watch( 0xbb2, 2 ); // elevator control
-		d->fsuipcModule->watch( 0xbb6, 2 ); // ailerons control
-		d->fsuipcModule->watch( 0xbba, 2 ); // rudder control
-		d->fsuipcModule->watch( 0xbc8, 2 ); // parking brake
-		d->fsuipcModule->watch( 0xbe8, 4 ); // gears commanded
-		d->fsuipcModule->watch( 0x88c, 8 ); // engine 1
-		d->fsuipcModule->watch( 0x924, 8 ); // engine 2
-		d->fsuipcModule->watch( 0x3bfc, 4 ); // ZFW
-		d->fsuipcModule->watch( 0x280, 2 ); // nav + strobe lights 
-		d->fsuipcModule->watch( 0x28c, 2 ); // landing lights
-		d->fsuipcModule->watch( 0xd0c, 4 ); // light (FS2000+)
-		d->fsuipcModule->watch( 0x560, 36 ); // position
-		//d->fsuipcModule->watch( 0x3060, 8*12 ); // acceleration
-		d->fsuipcModule->watch( 0x3090, 4*12 ); // velocity
-		d->fsuipcModule->watch( 0x281c, 2 ); // master battery switch
-		d->fsuipcModule->watch( 0x2e80, 4 ); // avionics master switch
-		d->fsuipcModule->watch( 0x3100, 4 ); // alternator, battery, avionics
-		d->fsuipcModule->watch( 0x2e80, 4 ); // avionics master switch
-		d->fsuipcModule->watch( 0x3125, 4 ); // fuel pumps
+		d->fsuipcModule->watch( 0xbdc, 4, true ); // flaps control
+		d->fsuipcModule->watch( 0xbd0, 4, false ); // spoiler control
+		d->fsuipcModule->watch( 0xbb2, 2, false ); // elevator control
+		d->fsuipcModule->watch( 0xbb6, 2, false ); // ailerons control
+		d->fsuipcModule->watch( 0xbba, 2, false ); // rudder control
+		d->fsuipcModule->watch( 0xbc8, 2, true ); // parking brake
+		d->fsuipcModule->watch( 0xbe8, 4, true, true ); // gears commanded
+		d->fsuipcModule->watch( 0x88c, 8, true ); // engine 1
+		d->fsuipcModule->watch( 0x924, 8, true ); // engine 2
+		d->fsuipcModule->watch( 0x3bfc, 4, true ); // ZFW
+		d->fsuipcModule->watch( 0x280, 2, true ); // nav + strobe lights 
+		d->fsuipcModule->watch( 0x28c, 2, true ); // landing lights
+		d->fsuipcModule->watch( 0xd0c, 4, true ); // light (FS2000+)
+		//d->fsuipcModule->watch( 0x560, 36, false ); // position
+		//d->fsuipcModule->watch( 0x3060, 6*8 ); // acceleration
+		//d->fsuipcModule->watch( 0x3090, 6*8, false ); // velocity
+		d->fsuipcModule->watch( 0x281c, 2, true ); // master battery switch
+		d->fsuipcModule->watch( 0x2e80, 4, true ); // avionics master switch
+		d->fsuipcModule->watch( 0x3100, 4, true ); // alternator, battery, avionics
+		d->fsuipcModule->watch( 0x2e80, 4, true ); // avionics master switch
+		d->fsuipcModule->watch( 0x3125, 4, true ); // fuel pumps
 
 		// emit signal
 		planeLoaded.emit();

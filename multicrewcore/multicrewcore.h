@@ -29,11 +29,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "network.h"
 #include "packets.h"
 #include "multicrewcore.h"
+#include "thread.h"
 
 
-
-
-class DLLEXPORT MulticrewModule : public ModulePacketFactory, public Shared {
+class DLLEXPORT MulticrewModule : public ModulePacketFactory, 
+	public Shared, 
+	public Thread {
 public:
 	MulticrewModule( std::string moduleName, bool hostMode, unsigned minSendWait=-1 );
 	virtual ~MulticrewModule();
@@ -58,7 +59,7 @@ protected:
 private:
 	friend class MulticrewCore;
 	void connect( SmartPtr<Connection> con );
-	DWORD threadProc( LPVOID param );
+	virtual unsigned threadProc( void *param );
 
 private:
 	struct Data;
@@ -84,6 +85,7 @@ public:
 
 	void log( std::string line );
 	Signal1<const char *> logged;
+	double time();
 
 private:
 	MulticrewCore();

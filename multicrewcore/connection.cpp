@@ -407,8 +407,8 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 		0,
 		&*sender,
 		&asyncHandle,
-		((prio==HighPriority)?DPNSEND_PRIORITY_HIGH:0) |
-		((prio==LowPriority)?DPNSEND_PRIORITY_LOW:0) |
+		((prio==highPriority)?DPNSEND_PRIORITY_HIGH:0) |
+		((prio==lowPriority)?DPNSEND_PRIORITY_LOW:0) |
 		(safe?DPNSEND_GUARANTEED:0) |
 		DPNSEND_NOLOOPBACK | DPNSEND_COALESCE );
 

@@ -17,28 +17,27 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#ifndef MULTICREWCORE_FSUIPCMODULE_H_INCLUDED
-#define MULTICREWCORE_FSUIPCMODULE_H_INCLUDED
+#ifndef MULTICREWCORE_FSUIPC_H_INCLUDED
+#define MULTICREWCORE_FSUIPC_H_INCLUDED
 
 #include "multicrewcore.h"
 
 
-class FsuipcModule : public MulticrewModule {
+class Fsuipc : public Shared {
+	Fsuipc();
  public:
-	FsuipcModule( bool hostMode );
-	virtual ~FsuipcModule();
+	virtual ~Fsuipc();
+	static SmartPtr<Fsuipc> fsuipc();
 
-	virtual void handlePacket( SmartPtr<Packet> packet );
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
-	virtual void sendProc();
-
-	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
+	void begin();
+	bool read( WORD id, unsigned size, void *data );
+	bool write( WORD id, unsigned size, void *data );
+	bool end();
 	
  private:
 	struct Data;
 	friend Data;
 	Data *d;	
 };
-
 
 #endif

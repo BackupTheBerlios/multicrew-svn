@@ -20,25 +20,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 
 #include <windows.h>
-#include "fsuipc/FSUIPC_User.h"
-#include "../multicrewgauge/gauges.h"
 
+#include "../multicrewgauge/gauges.h"
 #include "streams.h"
 #include "position.h"
 #include "log.h"
+#include "fsuipc.h"
 #include "callback.h"
 #include "packets.h"
 
 
 #define WAITTIME 100
 
-
 struct PositionStruct {
-	DWORD lat[2];
-	DWORD lon[2];
-	DWORD alt[2];
+	double timestamp; // time since last packet
+	FLOAT64 pos[3];
 	DWORD dir[3];
-	FLOAT64 accel[6];
+//	FLOAT64 accel[6];
 	FLOAT64 vel[6];
 };
 
@@ -66,42 +64,40 @@ SmartPtr<Packet> PositionModule::createPacket( SharedBuffer &buffer ) {
 
 struct PositionHostModule::Data {
 	Data( PositionHostModule *mod ) {
+		fsuipc = Fsuipc::fsuipc();
 	}
+
+	SmartPtr<Fsuipc> fsuipc;
+	PositionStruct data;
 };
 
 
 PositionHostModule::PositionHostModule() 
 	: PositionModule( true ) {
 	d = new Data( this );
-	
-	// connect to FSUIPC
-	DWORD res;
-	if( !FSUIPC_Open( SIM_ANY, &res ) )
-		dlog << "Cannot connect to FSUIPC" << std::endl;
 }
 
 
 PositionHostModule::~PositionHostModule() {
-	// disconnect from FSUIPC
-	FSUIPC_Close();
-
 	delete d;
 }
 
 
 void PositionHostModule::sendProc() {
-    // read variables from the FS
-	PositionStruct data;
-	DWORD res;
-	bool ok = true;
-	ok = ok && FSUIPC_Read( 0x560, 36, data.lat, &res );
-	ok = ok && FSUIPC_Read( 0x3060, 8*12, data.accel, &res );
-	ok = ok && FSUIPC_Process( &res );
+	// calculate time difference to previous packet
+	d->data.timestamp = MulticrewCore::multicrewCore()->time();
+
+    // read variables from the FS	
+	d->fsuipc->begin();	
+	bool ok = d->fsuipc->read( 0x560, 9*sizeof(DWORD), d->data.pos );
+	//ok = ok && d->fsuipc->read( 0x3060, 6*8, data.accel );
+	ok = ok && d->fsuipc->read( 0x3090, 6*sizeof(FLOAT64), d->data.vel );
+	ok = ok && d->fsuipc->end();
 	if( !ok )
-		dout << "FSUIPC read error" << std::endl;
+		dout << "FSUIPC position read error" << std::endl;
 	else
 		// and send packet
-		send( new PositionPacket(data), false, Connection::MediumPriority );
+		send( new PositionPacket(d->data), false, Connection::mediumPriority );
 }
 
 
@@ -110,25 +106,23 @@ void PositionHostModule::sendProc() {
 
 struct PositionClientModule::Data {
 	Data( PositionClientModule *mod ) {
+		fsuipc = Fsuipc::fsuipc();
 	}
+
+	SmartPtr<Fsuipc> fsuipc;
+	double timediff; // mean value of time difference to host
+	double meanLatency; // mean value of latency derivation
 };
 
 PositionClientModule::PositionClientModule() 
 	: PositionModule( false ) {
 	d = new Data( this );
-
-	// connect to FSUIPC
-	DWORD res;
-	if( !FSUIPC_Open( SIM_ANY, &res ) ) {
-		dlog << "Cannot connect to FSUIPC" << std::endl;
-	}
+	d->timediff = 0;
+	d->meanLatency = 0;
 }
 
 
 PositionClientModule::~PositionClientModule() {
-	// disconnect from FSUIPC
-	FSUIPC_Close();
-	
 	delete d;
 }
 
@@ -136,14 +130,31 @@ PositionClientModule::~PositionClientModule() {
 void PositionClientModule::handlePacket( SmartPtr<Packet> packet ) {
 	SmartPtr<PositionPacket> pp = (PositionPacket*)&*packet;
 	//dout << "position packet received" << std::endl;
+
+	// calculate time difference to host and latency
+	double now = MulticrewCore::multicrewCore()->time() - d->timediff;
+	double latency = now-pp->data().timestamp;
+	d->timediff += latency/10.0;
+	d->meanLatency = (d->meanLatency*9.0 + ((latency<0)?-latency:latency))/10.0;
+	dout << "timediff=" << d->timediff << " meanLat=" << d->meanLatency << " latency=" << latency << std::endl;
 	
+
+	// interpolate
+/*	FLOAT64 pos[3];
+	pos[0] = pp->data().pos[0] + latency*65536.0*65536.0*pp->data().vel[1]/0.3048;
+	pos[1] = pp->data().pos[1] + latency*65536.0*65536.0*65536.0*65536.0
+	pp->data().vel[0]/0.3048;*/
+
 	// write variables from the FS
-	DWORD res;
-	bool ok = true;
-	ok = ok && FSUIPC_Write( 0x560, 36, pp->data().lat, &res );
-	ok = ok && FSUIPC_Write( 0x3060, 8*12, pp->data().accel, &res );
-	ok = ok && FSUIPC_Process( &res );
-	if( !ok ) {
-		dout << "FSUIPC write error" << std::endl;
+	if( latency<0 ) latency=-latency;
+	if( latency<d->meanLatency ) {
+		d->fsuipc->begin();
+		bool ok = d->fsuipc->write( 0x560, 9*sizeof(DWORD), pp->data().pos );
+		//ok = ok && d->fsuipc->write( 0x3060, 6*8, pp->data().accel );
+		ok = ok && d->fsuipc->write( 0x3090, 6*sizeof(FLOAT64), pp->data().vel );
+		ok = ok && d->fsuipc->end();
+		if( !ok ) {
+			dout << "FSUIPC position write error" << std::endl;
+		}
 	}
 }

@@ -17,27 +17,30 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#ifndef MULTICREWCORE_FSUIPCMODULE_H_INCLUDED
-#define MULTICREWCORE_FSUIPCMODULE_H_INCLUDED
+#ifndef MULTICREWCORE_THREAD_H_INCLUDED
+#define MULTICREWCORE_THREAD_H_INCLUDED
 
-#include "multicrewcore.h"
+#include "common.h"
 
-
-class FsuipcModule : public MulticrewModule {
+class DLLEXPORT Thread {
  public:
-	FsuipcModule( bool hostMode );
-	virtual ~FsuipcModule();
+	Thread();
+	virtual ~Thread();
 
-	virtual void handlePacket( SmartPtr<Packet> packet );
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
-	virtual void sendProc();
+	void startThread( void *param );
+	unsigned stopThread();
+	bool setPriority( int priority );
 
-	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
-	
+ protected:
+	virtual unsigned threadProc( void *param )=0;
+	bool shouldExit( unsigned wait=0 );
+
  private:
+	DWORD threadProcImpl( LPVOID param );
+
 	struct Data;
 	friend Data;
-	Data *d;	
+	Data *d;
 };
 
 

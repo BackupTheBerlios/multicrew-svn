@@ -29,8 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 struct MulticrewModule::Data {
 	Data( MulticrewModule *mod ) 
-		: con( __FILE__, __LINE__ ),
-		  threadProcAdapter( mod, MulticrewModule::threadProc ) {
+		: con( __FILE__, __LINE__ ) {
 	}
 
 	SmartPtr<MulticrewCore> core;
@@ -39,19 +38,14 @@ struct MulticrewModule::Data {
 	bool registered;
 	SmartPtr<Connection> con;
 
-	unsigned minSendWait;
-	volatile bool lastPacketSent;
-	CallbackAdapter1<DWORD, MulticrewModule, LPVOID> threadProcAdapter;
-	HANDLE thread;
-	HANDLE exitEvent;
-	HANDLE exitedEvent;
-
 	// packet send data
 	SmartPtr<ModulePacket> packet;
 	unsigned fragmentStart;
 	int packetSize;
 	unsigned maxPacketSize;
 	bool nextIsSafeTransmission;
+	volatile bool lastPacketSent;
+	unsigned minSendWait;
 	Connection::Priority nextPriority;
 	CRITICAL_SECTION sendCritSect;
 };
@@ -62,14 +56,13 @@ MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode,
 	d->moduleName = moduleName;
 	d->hostMode = hostMode;
 	d->minSendWait = minSendWait;
-	d->thread = 0;
 	d->core = MulticrewCore::multicrewCore();
 	d->registered = d->core->registerModule( this );
 
 	// packet setup
 	d->packet = new ModulePacket();
 	d->lastPacketSent = true;
-	d->nextPriority = Connection::LowPriority;
+	d->nextPriority = Connection::lowPriority;
 	d->nextIsSafeTransmission = false;
 
 	InitializeCriticalSection( &d->sendCritSect );
@@ -122,8 +115,8 @@ void MulticrewModule::send( SmartPtr<Packet> packet, bool safe, Connection::Prio
 		
 		// update packet mode
 		d->nextIsSafeTransmission = d->nextIsSafeTransmission || safe;
-		if( (d->nextPriority==Connection::LowPriority && prio==Connection::MediumPriority) ||
-			d->nextPriority!=Connection::HighPriority && prio==Connection::HighPriority)
+		if( (d->nextPriority==Connection::lowPriority && prio==Connection::mediumPriority) ||
+			d->nextPriority!=Connection::highPriority && prio==Connection::highPriority)
 			d->nextPriority = prio;
 	}
 }
@@ -149,23 +142,10 @@ void MulticrewModule::connect( SmartPtr<Connection> con ) {
 	d->con = con;
 	d->con->addModule( this );
 	d->lastPacketSent = true;
-
+	
     // start thread
 	if( d->minSendWait>0 ) {
-		d->exitEvent = CreateEvent( NULL, TRUE, FALSE, NULL );
-		d->exitedEvent = CreateEvent( NULL, TRUE, FALSE, NULL );
-		d->thread = CreateThread(
-			NULL,
-			0,
-			d->threadProcAdapter.callback(),
-			0,
-			0,
-			NULL );
-		if( d->thread==NULL ) {
-			CloseHandle( d->exitEvent );
-			d->exitEvent = 0;
-			dlog << "Cannot create FSUIPC thread" << std::endl;
-		}
+		startThread( 0 );
 	}
 }
 
@@ -173,17 +153,7 @@ void MulticrewModule::connect( SmartPtr<Connection> con ) {
 void MulticrewModule::disconnect() {
 	dout << moduleName() << " disconnecting" << std::endl;
 	if( !d->con.isNull() ) {
-
-		// stop thread
-		if( d->thread!=0 ) { 
-			SetEvent( d->exitEvent );
-			WaitForSingleObject( d->exitedEvent, INFINITE );
-			dout << moduleName() << " has exited" << std::endl;
-			CloseHandle( d->thread );
-			CloseHandle( d->exitEvent );
-			CloseHandle( d->exitedEvent );
-			d->thread = 0;
-		}
+		stopThread();
 		
 		// disconnect from connection
 		d->con->removeModule( this );
@@ -199,7 +169,7 @@ void MulticrewModule::sendProc() {
 }
 
 
-DWORD MulticrewModule::threadProc( LPVOID param ) {
+unsigned MulticrewModule::threadProc( void *param ) {
 	dout << moduleName() << " thread started" << std::endl;
 
 	while( true ) {
@@ -221,18 +191,16 @@ DWORD MulticrewModule::threadProc( LPVOID param ) {
 
 			// default values
 			d->packet = new ModulePacket;
-			d->nextPriority = Connection::LowPriority;
+			d->nextPriority = Connection::lowPriority;
 			d->nextIsSafeTransmission = false;
 		}
 			
 		// wait an amount of milliseconds or exit thread
-		if( WaitForSingleObject( d->exitEvent, d->minSendWait )==WAIT_OBJECT_0 )
+		if( shouldExit( d->minSendWait ) )
 			break;
 	}
-
-	dout << moduleName() << " thread exits" << std::endl;
-	SetEvent( d->exitedEvent );
 	
     // exit the thread
+	dout << moduleName() << " thread exits" << std::endl;
 	return 0;
 }
