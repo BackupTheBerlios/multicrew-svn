@@ -106,6 +106,7 @@ StringViewer::~StringViewer() {
 
 FLOAT64 StringViewer::callback( PELEMENT_STRING pelement ) {
 	FLOAT64 ret = (*d->origCallback)( pelement );
+	pelement->string = (char*)0x4d434d43;
 	pelement->string = d->buffer;
 	strcpy( d->buffer, d->oldValue );
 	return ret;

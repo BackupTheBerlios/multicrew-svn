@@ -39,6 +39,7 @@ NeedleElement::NeedleElement( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader
 	d = new Data( this );
 	d->needleHeader = needleHeader;
 	d->origCallback = needleHeader->update_cb;
+	d->oldValue = (FLOAT64)0x57524320;
 	d->oldValue = 0.0;
 
 	// debug code for MasterCaution gauge

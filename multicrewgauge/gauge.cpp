@@ -192,10 +192,11 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 				Graphics *metaGraphics = new Graphics( &metafile );
 				metaGraphics->SetSmoothingMode( SmoothingModeAntiAlias );
 				staticImage->hdc = metaGraphics->GetHDC();				
-				(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );				
+				(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
 				metaGraphics->ReleaseHDC( staticImage->hdc );
 				delete metaGraphics;
 				staticImage->hdc = origHdc;
+				origHdc = (HDC)0x204c5047;
 				
 				// display metafile
 				Graphics graphics( staticImage->hdc );

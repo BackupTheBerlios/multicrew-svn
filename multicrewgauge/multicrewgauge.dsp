@@ -119,6 +119,10 @@ SOURCE=.\needleelement.cpp
 
 SOURCE=.\staticelement.cpp
 # End Source File
+# Begin Source File
+
+SOURCE=.\stringelement.cpp
+# End Source File
 # End Group
 # Begin Group "Header-Dateien"
 
