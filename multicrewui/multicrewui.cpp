@@ -68,9 +68,7 @@ MulticrewUI::MulticrewUI( HWND hwnd ) {
 	d->mainWindow= new wxWindow();
 	d->mainWindow->SetHWND( (WXHWND)hwnd );
 	d->statusDlg = new StatusDialog( d->mainWindow );
-#ifdef SHARED_DEBUG
 	d->mainWindow.Enable( false );
-#endif
 }
 
 
@@ -92,7 +90,9 @@ MulticrewUI::~MulticrewUI() {
 	d->mainWindow->Destroy();
 	delete d;
 
+#ifdef SHARED_DEBUG
 	SmartPtrBase::dumpPointers();
+#endif
 	dout << "< ~MulticrewUI()" << std::endl;
 }
 

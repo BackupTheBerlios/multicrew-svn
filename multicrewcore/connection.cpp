@@ -271,7 +271,7 @@ void ConnectionImpl::disconnect() {
 		d->peer->TerminateSession( NULL, 0, 0 );
 		
 		log << "Closing peer" << std::endl;
-		d->peer->Close();
+		d->peer->Close( 0 );
 		disconnected.emit();
 		deref();
 	}
