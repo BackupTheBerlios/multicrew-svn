@@ -109,6 +109,10 @@ SOURCE=.\main.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\metafile.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\multicrewgauge.cpp
 # End Source File
 # Begin Source File
@@ -134,6 +138,10 @@ SOURCE=.\common.h
 # Begin Source File
 
 SOURCE=.\GAUGES.H
+# End Source File
+# Begin Source File
+
+SOURCE=.\metafile.h
 # End Source File
 # Begin Source File
 
