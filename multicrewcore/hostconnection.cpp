@@ -26,6 +26,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "network.h"
 #include "callback.h"
 
+
+#if defined (_DEBUG)
+const GUID CLSID_NETWORKSIMULATOR_DP8SP_TCPIP = 
+{ 0x8d3f9e5e, 0xa3bd, 0x475b, 0x9e, 0x49, 0xb0, 0xe7, 0x71, 0x39, 0x14, 0x3c };
+#endif
+
+
 class HostConnectionImpl : public HostConnection {
 public:
 	HostConnectionImpl( IDirectPlay8Peer *peer );
@@ -294,11 +301,21 @@ SmartPtr<HostConnection> HostConnectionSetup::host( int port, std::wstring sessi
     
     // Set the SP for our Device Address
 	log << "Setting service provider to TCPIP" << std::endl;
-	hr = d->deviceAddress->SetSP(&CLSID_DP8SP_TCPIP );
-    if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
-        return 0;
-    }
+#if defined (_DEBUG)
+	hr = d->deviceAddress->SetSP( &CLSID_NETWORKSIMULATOR_DP8SP_TCPIP );
+	if( FAILED(hr) ) {
+#endif
+		hr = d->deviceAddress->SetSP( &CLSID_DP8SP_TCPIP );
+		if( FAILED(hr) ) {
+			log << "Failed: " << fe(hr).c_str() << std::endl;
+			return 0;
+		}
+#if defined (_DEBUG)
+		else {
+			dout << "Using network simulator"  std::endl;
+		}
+	}
+#endif
 
 	// host the game
 	DPN_APPLICATION_DESC appDesc;
