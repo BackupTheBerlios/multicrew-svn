@@ -31,7 +31,7 @@ public:
  ConnectWizard(wxWindow* parent, wxWindowID id = -1, const wxString& title = wxT(""),const wxBitmap& bitmap = wxNullBitmap, const wxPoint& pos = wxDefaultPosition);
  virtual ~ConnectWizard();
 
- SmartPtr<ClientConnection> RunWizard();
+ SmartPtr<Connection> RunWizard();
 
 private:
  wxWizardPageSimple *startPage;

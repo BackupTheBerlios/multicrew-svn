@@ -20,8 +20,17 @@
 #ifndef SHARED_H_INCLUDED
 #define SHARED_H_INCLUDED
 
+//#define SHARED_DEBUG
+
+#pragma warning (disable : 4231)
+#pragma warning (disable : 4251)
+
 #include "common.h"
 #include "debug.h"
+
+#ifdef SHARED_DEBUG
+#include <set>
+#endif
 
 class SharedBase {
  public:
@@ -33,46 +42,109 @@ class SharedBase {
 class DLLEXPORT Shared : public SharedBase {
  public:
   Shared() { 
-	  dout << (void*)this << "Shared" << std::endl;
+#ifdef SHARED_DEBUG
+	  dout << (void*)this << ":" << typeid(*this).name() 
+		   << " constructor" << std::endl;
+#endif
 	  refcount = 0; 
   }
   virtual ~Shared() {
-	  dout << (void*)this << " ~Shared" << std::endl;
+#ifdef SHARED_DEBUG
+	  dout << (void*)this << ":" << typeid(*this).name() 
+		   << " destructor" << std::endl;
+#endif
   }
 
-  int ref() { 
-		return refcount++; 
-		dout << (void*)this << "->ref() = " << refcount << std::endl;
+  int ref() {
+#ifdef SHARED_DEBUG 
+	  dout << (void*)this << ":" << typeid(*this).name() 
+		   << "::ref() = " << refcount+1 << std::endl;
+#endif
+	  return refcount++;
   } 
+
   int deref() {
-		int ret = --refcount;
-		dout << (void*)this << "->deref() = " << refcount << std::endl;
-		if( ret==0 ) {
-			dout << (void*)this << " deleting itself" << std::endl;
-			delete this; 
-		}
-		return ret;
+	  refcount--;
+	  int ret = refcount;
+#ifdef SHARED_DEBUG
+	  dout << (void*)this << ":" << typeid(*this).name() 
+		   << "::deref() = " << refcount << std::endl;
+#endif
+	  if( ret==0 ) {
+#ifdef SHARED_DEBUG
+		  dout << (void*)this << ":" << typeid(*this).name() 
+			   << " deleting itself" << std::endl;
+#endif
+		  delete this; 
+	  }
+
+	  return ret;
   }
 
  private:
   int refcount;
 };
 
-//template< class T > class DLLEXPORT SmartPtr;
+
+class DLLEXPORT SmartPtrBase {
+ public:
+	SmartPtrBase( char *file, int line ) {
+#ifdef SHARED_DEBUG
+		this->file = file;
+		this->line = line;
+		pointers.insert( this );
+#endif
+	}
+
+	SmartPtrBase() {
+#ifdef SHARED_DEBUG
+		this->file = "";
+		this->line = 0;
+		pointers.insert( this );
+#endif
+	}
+
+	virtual ~SmartPtrBase() {
+#ifdef SHARED_DEBUG
+		pointers.erase( this );
+#endif
+	}
+
+#ifdef SHARED_DEBUG
+	char *file;
+	int line;
+
+	static void dumpPointers() {
+		std::set<SmartPtrBase*>::iterator it = pointers.begin();
+		while( it!=pointers.end() ) {
+			dout << "SmartPtr leak " << (*it)->file << ":" << (*it)->line << std::endl;
+			it++;
+		}
+	}
+
+ private:
+	static std::set<SmartPtrBase*> pointers;
+
+#endif
+};
 
 template< class T >
-class SmartPtr {
+class SmartPtr : public SmartPtrBase {
  public:
-  SmartPtr() {
+  SmartPtr( char *file, int line ) : SmartPtrBase( file, line ) {
     obj = 0;
   }
 
-  SmartPtr( T *other ) {
+  SmartPtr() : SmartPtrBase() {
+    obj = 0;
+  }
+
+  SmartPtr( T *other ) : SmartPtrBase() {
     obj = (SharedBase*)other;
     if( obj ) obj->ref();
   }
 
-  SmartPtr( const SmartPtr<T>& other ) {
+  SmartPtr( const SmartPtr<T>& other ) : SmartPtrBase() {
     obj = other.obj;
     if( obj ) obj->ref();
   }

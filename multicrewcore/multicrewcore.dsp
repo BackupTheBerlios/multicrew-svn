@@ -180,6 +180,10 @@ SOURCE=.\network.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\networkimpl.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\packets.h
 # End Source File
 # Begin Source File

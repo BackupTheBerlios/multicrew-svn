@@ -94,9 +94,6 @@ LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				case ID_HOST_MENUITEM:
 					ui->host();
 					return 0;
-				case ID_TERMINATE_MENUITEM:
-					ui->terminate();
-					return 0;
 				case ID_CONNECT_MENUITEM:
 					ui->connect();
 					return 0;

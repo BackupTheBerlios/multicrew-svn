@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multicrewcore.h"
 #include "debug.h"
 #include "callback.h" 
+#include "shared.h" 
 
 BOOL APIENTRY DllMain( HANDLE hModule, 
                        DWORD  ul_reason_for_call, 
@@ -38,6 +39,9 @@ BOOL APIENTRY DllMain( HANDLE hModule,
 		break;
 	case DLL_PROCESS_DETACH:
 		dout << "core detach" << std::endl;
+#ifdef _DEBUG
+		//SmartPtrBase::dumpPointers();
+#endif
 		break;
 	}
     return TRUE;

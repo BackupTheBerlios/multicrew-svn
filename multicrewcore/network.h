@@ -29,7 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "signals.h"
 #include "packets.h"
 
-extern const GUID gMulticrewGuid;
 #define MULTICREW_PORT "1299"
 
 class Receiver {
@@ -41,25 +40,13 @@ public:
 
 class Connection : public Shared {
 public:
-	virtual bool send( Packet *packet, bool safe, bool sync=false )=0;
-
-	void addReceiver( Receiver *receiver );
-	void removeReceiver( Receiver *receiver );
-
-protected:
-	std::map<std::string,Receiver*> receivers;
-	void deliverModulePacket( ModulePacket *packet );
-};
-
-
-class HostConnection : public Connection {
-public:
-	virtual void disconnect()=0;
-	Signal disconnected;
-
-	virtual bool send( Packet *packet, bool safe, bool sync=false )=0;
+	virtual void addReceiver( Receiver *receiver )=0;
+	virtual void removeReceiver( Receiver *receiver )=0;
 
 	virtual void start()=0;
+	virtual bool send( Packet *packet, bool safe, bool sync=false )=0;
+	virtual void disconnect()=0;
+	Signal disconnected;
 };
 
 
@@ -68,22 +55,11 @@ public:
 	HostConnectionSetup();
 	virtual ~HostConnectionSetup();
 
-	SmartPtr<HostConnection> host( int port, std::wstring sessionName, bool passwordEnabled, std::wstring password );
+	SmartPtr<Connection> host( int port, std::wstring sessionName, bool passwordEnabled, std::wstring password );
 
 private:
 	struct Data;
 	Data *d;
-};
-
-
-class ClientConnection : public Connection {
-public:
-	virtual void disconnect()=0;
-	Signal disconnected;
-
-	virtual bool send( Packet *packet, bool safe, bool sync=false )=0;
-
-	virtual void start()=0;
 };
 
 
@@ -102,14 +78,11 @@ public:
 		virtual std::wstring description()=0;
 	};
 
-	typedef SmartPtr<FoundHost> SmartFoundHost;
-
-	//DLLEXPORT_TEMPLATE template class DLLEXPORT Signal1<SmartFoundHost>;
-
 	Signal newSearch;
+	typedef SmartPtr<FoundHost> SmartFoundHost;
 	Signal1<SmartFoundHost> hostFound;
 
-	SmartPtr<ClientConnection> connect( SmartPtr<FoundHost> host );
+	SmartPtr<Connection> connect( SmartPtr<FoundHost> host );
 
 private:
 	void hostFoundCallback( struct _DPNMSG_ENUM_HOSTS_RESPONSE * );

@@ -31,11 +31,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 struct ConnectWizard::Data {
 	Data( ConnectWizard *wizard ) 
 		: setup(), 
-		foundHostSlot( &setup.hostFound, wizard, ConnectWizard::OnHostFound  ) {
+		  con( __FILE__, __LINE__ ), 
+		  foundHostSlot( &setup.hostFound, wizard, ConnectWizard::OnHostFound  ) {
 	}
 
 	ClientConnectionSetup setup;
-	SmartPtr<ClientConnection> con;
+	SmartPtr<Connection> con;
 	typedef SmartPtr<ClientConnectionSetup::FoundHost> SmartFoundHost;
 	Slot1<ConnectWizard, SmartFoundHost> foundHostSlot;
 	std::deque<SmartFoundHost> hosts;
@@ -100,6 +101,7 @@ void ConnectWizard::VwXinit() {
    hostName->SetLabel(wxT("Text"));
  port=new wxTextCtrl(hostPage,-1,wxT(""),wxPoint(55,190),wxSize(45,21));
    port->SetLabel(wxT("Text"));
+   port->Enable(false);
  hostNameStatic=new wxStaticText(hostPage,-1,wxT(""),wxPoint(10,140),wxSize(135,13),wxST_NO_AUTORESIZE);
    hostNameStatic->Enable(false);
    hostNameStatic->SetLabel(wxT("Hostname or IP address:"));
@@ -124,7 +126,7 @@ void ConnectWizard::VwXinit() {
  //Refresh();
 }
 
-SmartPtr<ClientConnection> ConnectWizard::RunWizard() {
+SmartPtr<Connection> ConnectWizard::RunWizard() {
 	// init connection object
 	bool ret = d->setup.init();
 	if( !ret ) {

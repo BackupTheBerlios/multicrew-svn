@@ -20,6 +20,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multicrewcore.h"
 
 struct MulticrewModule::Data {
+	Data() 
+		: con( __FILE__, __LINE__ ) {
+	}
+
 	std::string moduleName;
 	bool hostMode;
 	SmartPtr<Connection> con;
@@ -33,6 +37,7 @@ MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode ) {
 
 
 MulticrewModule::~MulticrewModule() {
+	dout << "~MulticrewModule()" << std::endl;
 	delete d;
 }
 

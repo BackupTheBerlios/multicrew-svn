@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 ErrorStream derr;
 
-
 std::string formatError( HRESULT hr ) {
 	char *buf;
 	FormatMessage(
@@ -32,5 +31,8 @@ std::string formatError( HRESULT hr ) {
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
         (LPTSTR) &buf,
         0, NULL );
+	char numstr[16];
+	sprintf( numstr, "0x%x", (int)hr );
+	if( buf==0 ) return numstr;
 	return buf;
 }

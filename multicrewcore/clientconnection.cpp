@@ -23,223 +23,48 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "log.h"
 #include "debug.h"
 #include "error.h"
-#include "network.h"
+#include "networkimpl.h"
 #include "callback.h"
 
 
-class ClientConnectionImpl  : public ClientConnection {
+class ClientConnectionImpl  : public ConnectionImpl {
 public:
 	ClientConnectionImpl( IDirectPlay8Peer *peer );
 	virtual ~ClientConnectionImpl();
-
-	virtual void disconnect();
-	virtual void start();
-	virtual bool send( Packet *packet, bool safe, bool sync=false );
-
+	
 	Signal1<DPNMSG_ENUM_HOSTS_RESPONSE*> hostFound;
-	PFNDPNMESSAGEHANDLER callback();
 
-	HRESULT callback( PVOID pvUserContext, DWORD dwMessageType, PVOID pMessage );
-
-private:
-	struct Data;
-	Data *d;
+protected:	
+	virtual HRESULT messageCallback( PVOID pvUserContext, DWORD dwMessageType, PVOID pMessage );
 };
 
-struct ClientConnectionImpl::Data {
-	Data( ClientConnectionImpl *con ) 
-		: callbackAdapter( con, ClientConnectionImpl::callback ) {
-	}
 
-	bool disconnecting;
-	DPNID clientGroup;
-	DPNID hostGroup;
-	DPNID clientPlayer;
-	IDirectPlay8Peer *peer;
-	CallbackAdapter3<HRESULT, class ClientConnectionImpl, 
-					 PVOID, DWORD, PVOID> callbackAdapter;
-};
-
-ClientConnectionImpl::ClientConnectionImpl( IDirectPlay8Peer *peer ) {
-	d = new Data( this );
-	d->peer = peer;
-	d->hostGroup = 0;
-	d->clientGroup = 0;
-	d->clientPlayer = 0;
-	d->peer->AddRef();
-	d->disconnecting = false;
+ClientConnectionImpl::ClientConnectionImpl( IDirectPlay8Peer *peer )
+	: ConnectionImpl( peer ) {
 }
+
 
 ClientConnectionImpl::~ClientConnectionImpl() {
-	if( d->peer ) d->peer->Release();
-	delete d;
 }
 
-PFNDPNMESSAGEHANDLER ClientConnectionImpl::callback() {
-	return d->callbackAdapter.callback();
-}
 
-HRESULT ClientConnectionImpl::callback( PVOID pvUserContext, DWORD dwMessageType, 
+HRESULT ClientConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageType, 
 										PVOID pMessage ) {
-	dout << "DirectPlay message of type " << dwMessageType << std::endl;
-	
 	switch( dwMessageType ) {
-	case DPN_MSGID_RECEIVE: 
-	{
-		DPNMSG_RECEIVE *rec = (DPNMSG_RECEIVE*)pMessage;
-		Packet *packet = (Packet*)rec->pReceiveData;
-		dout << "Received packet of type " << packet->id << std::endl;
-		if( packet->id>=firstModulePacket )
-			deliverModulePacket( (ModulePacket*)packet );
-	}
-	break;
-			
-	case DPN_MSGID_CREATE_GROUP: 
-	{
-		// group creation message, either host or client group
-		DPNMSG_CREATE_GROUP *info = (DPNMSG_CREATE_GROUP*)pMessage;
-		dout << "Getting group info for " << info->dpnidGroup << std::endl;
-		DPN_GROUP_INFO *groupInfo = new DPN_GROUP_INFO;
-		groupInfo->dwSize = sizeof(DPN_GROUP_INFO);
-		DWORD size = sizeof(DPN_GROUP_INFO);
-		HRESULT hr = d->peer->GetGroupInfo( 
-			info->dpnidGroup,
-			groupInfo,
-			&size,
-			0);
-		if( hr==DPNERR_BUFFERTOOSMALL ) {
-			delete groupInfo;
-			groupInfo = (DPN_GROUP_INFO *)new char[size];
-			groupInfo->dwSize = sizeof(DPN_GROUP_INFO);
-			hr = d->peer->GetGroupInfo( 
-				info->dpnidGroup,
-				groupInfo,
-				&size,
-				0);
-		}
-		if( FAILED(hr) ) {
-			log << "Failed: " << fe(hr).c_str() << std::endl;
-			delete groupInfo;
-			return S_OK;
-		}
-		
-		// copy info
-		char name[1024];
-		wcstombs( name, groupInfo->pwszName, 1024 );
-		dout << "Group \"" << name << "\" created." << std::endl;
-		if( strcmp(name, "Host" ) )
-			d->hostGroup = info->dpnidGroup;
-		else if( strcmp(name, "Client" ) ) {
-			d->clientGroup = info->dpnidGroup;
-
-			if( d->clientPlayer!=0 ) {
-				// add to client group
-				dout << "Add to client group" << std::endl;
-				HRESULT hr = d->peer->AddPlayerToGroup(
-					d->clientGroup,
-					d->clientPlayer,
-					NULL,
-					NULL,
-					DPNADDPLAYERTOGROUP_SYNC );
-				if( FAILED(hr) ) {
-					log << "Failed: " << fe(hr).c_str() << std::endl;
-					return false;
-				}
-			}
-		}
-		
-		// delete buffer
-		delete groupInfo;
-	}
-	break;
-		
-		
-	case DPN_MSGID_CREATE_PLAYER: 
-	{
-		// player found, the first is the client
-		DPNMSG_CREATE_PLAYER *player = (DPNMSG_CREATE_PLAYER*)pMessage;
-		dout << "New player " << player->dpnidPlayer << std::endl;
-		if( d->clientPlayer==0 ) {
-			dout << "Oh, that's me." << std::endl;
-			d->clientPlayer = player->dpnidPlayer;
-		} else 
-			
-		if( d->clientGroup!=0 ) {
-			// add to client group
-			dout << "Add to client group" << std::endl;
-			HRESULT hr = d->peer->AddPlayerToGroup(
-				d->clientGroup,
-				player->dpnidPlayer,
-				NULL,
-				NULL,
-				DPNADDPLAYERTOGROUP_SYNC );
-			if( FAILED(hr) ) {
-				dout << "Failed: " << fe(hr).c_str() << std::endl;
-				return false;
-			}
-		}
-	}
-	break;
-	
 	case DPN_MSGID_ENUM_HOSTS_RESPONSE:
 		hostFound.emit( (DPNMSG_ENUM_HOSTS_RESPONSE*)pMessage );
 		break;
 
-	case DPN_MSGID_TERMINATE_SESSION:
-		if( !d->disconnecting ) {
-			log << "Session terminated" << std::endl;
-			ref();
-			disconnected.emit();
-			d->peer->Close( 0 );
-			deref();
-		}
-		break;
-	
+	default:
+		return ConnectionImpl::messageCallback( pvUserContext, dwMessageType, pMessage );
 	};
 
 	return S_OK;
 }
 
-void ClientConnectionImpl::disconnect() {
-	log << "Closing peer" << std::endl;
-	d->disconnecting = true;
-	
-	ref();
-	d->peer->Close( 0 );
- 	disconnected.emit();
-	deref();
-}
-
-void ClientConnectionImpl::start() {
-}
-
-bool ClientConnectionImpl::send( Packet *packet, bool safe, bool sync ) {
-	if( !d->peer ) return false;
-	
-	DPNHANDLE asyncHandle;
-	DPN_BUFFER_DESC desc;
-	ZeroMemory( &desc, sizeof(DPN_BUFFER_DESC) );
-	desc.pBufferData = (BYTE*)packet;
-	desc.dwBufferSize = packet->size;
-	HRESULT hr = d->peer->SendTo(
-		d->hostGroup, //DPNID_ALL_PLAYERS_GROUP,
-		&desc,
-		1,
-		0,
-		NULL,
-		&asyncHandle,
-		(sync?DPNSEND_SYNC:0) |
-		(safe?DPNSEND_GUARANTEED:0) |
-		DPNSEND_NOLOOPBACK | DPNSEND_COALESCE );
-	if( FAILED(hr) ) {
-		dout << "Failed to send packet: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-	
-	return true;
-}
 
 /******************************************************************/
+
 
 struct ClientConnectionSetup::Data {
 	Data( ClientConnectionSetup *setup ) 
@@ -298,7 +123,7 @@ bool ClientConnectionSetup::init() {
 
 	// create connection object
 	ClientConnectionImpl *conImpl = new ClientConnectionImpl( d->peer );
-	SmartPtr<ClientConnection> con( conImpl );
+	SmartPtr<ClientConnectionImpl> con( conImpl );
 	d->hostFoundSlot.connect( &conImpl->hostFound );
 
 	// initialize
@@ -327,6 +152,25 @@ bool ClientConnectionSetup::init() {
 		log << "Failed: " << fe(hr).c_str() << std::endl;
         return false;
     }
+
+	// set player info
+	DPN_PLAYER_INFO playerInfo;
+    ZeroMemory( &playerInfo, sizeof(DPN_PLAYER_INFO) );
+	playerInfo.dwSize = sizeof(DPN_PLAYER_INFO);
+	playerInfo.dwInfoFlags = DPNINFO_NAME;
+	wchar_t name[16];
+	mbstowcs( name, "Client", 16 );
+	playerInfo.pwszName = name;
+	log << "Setting player information" << std::endl;
+	hr = d->peer->SetPeerInfo( 
+		&playerInfo,
+		NULL,
+		NULL,
+		DPNSETPEERINFO_SYNC );
+	if( FAILED(hr) ) {
+		log << "Failed: " << fe(hr).c_str() << std::endl;
+		return false;
+	}
 
 	// save for later use
 	d->con = conImpl;
@@ -465,7 +309,7 @@ void ClientConnectionSetup::hostFoundCallback( _DPNMSG_ENUM_HOSTS_RESPONSE *resp
 }
 
 
-SmartPtr<ClientConnection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) {
+SmartPtr<Connection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) {
 	char desc[1024];
 	wcstombs( desc, host->description().c_str(), 1024 );
 

@@ -68,7 +68,8 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 	} else {
 		// valid hostMode?
 		if( module->isHostMode()!=d->hostMode ) {
-			derr << "Host and client mode cannot be mixed which is the case for \"" << module->moduleName().c_str() << "\"" << std::endl;
+			derr << "Host and client mode cannot be mixed which is the case for \"" 
+				 << module->moduleName().c_str() << "\"" << std::endl;
 			return false;
 		}
 	}
@@ -77,14 +78,7 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 	d->modules[module->moduleName().c_str()] = module;	
 
 	// first module?
-	if( d->modules.size()==1 ) {
-		// create FSUIPC object
-		if( d->hostMode )
-			d->posModule = new PositionHostModule();
-		else
-			d->posModule = new PositionClientModule();
-		d->posModule->start();
-		
+	if( d->modules.size()==1 ) {	
 		// emit signal
 		planeLoaded.emit();
 	}
@@ -103,9 +97,6 @@ void MulticrewCore::unregisterModule( MulticrewModule *module ) {
 		if( d->modules.empty() ) {
 			dout << "unload" << std::endl;
 			planeUnloaded.emit();
-
-			// destroy position module
-			delete d->posModule; d->posModule=0;
 		}
 	}
 	dout << "< unregisterModule" << std::endl;
@@ -128,6 +119,14 @@ void MulticrewCore::log( std::string line ) {
 
 
 void MulticrewCore::prepare( SmartPtr<Connection> con ) {
+	// create FSUIPC object
+	if( d->hostMode )
+		d->posModule = new PositionHostModule();
+	else
+		d->posModule = new PositionClientModule();
+	d->posModule->start();
+
+	// prepare modules for connection
 	std::map<std::string, MulticrewModule*>::iterator it = d->modules.begin();
 	while( it!=d->modules.end() ) {
 		it->second->connect( con );
@@ -142,4 +141,8 @@ void MulticrewCore::unprepare() {
 		it->second->disconnect();
 		it++;
 	}
+
+	// destroy FSUIPC module
+	delete d->posModule; 
+	d->posModule = 0;
 }

@@ -25,7 +25,6 @@ public:
 	virtual ~MulticrewUI();	
 
 	void host();
-	void terminate();
 	void connect();
 	void disconnect();
 	void status();
@@ -38,8 +37,7 @@ private:
 	Data *d;
 
 	void updateMenu();
-	void hostDisconnected();
-	void clientDisconnected();
+	void disconnected();
 	void planeRegistered();
 	void planeUnregistered();
 };
