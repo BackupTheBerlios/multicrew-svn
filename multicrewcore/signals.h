@@ -17,8 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#ifndef SIGNALS_H_INCLUDED
-#define SIGNALS_H_INCLUDED
+#ifndef MULTICREWCORE_SIGNALS_H_INCLUDED
+#define MULTICREWCORE_SIGNALS_H_INCLUDED
 
 #pragma warning (disable : 4231)
 #pragma warning (disable : 4251)
@@ -29,7 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <set>
 
 #include "callback.h"
-#include "debug.h"
 
 class DLLEXPORT SlotBase;
 class DLLEXPORT Signal;
@@ -39,7 +38,6 @@ template <class Q1, class Q2, class Q3> class DLLEXPORT Signal3;
 template <class Q1, class Q2, class Q3, class Q4> class DLLEXPORT Signal4;
 
 DLLEXPORT_TEMPLATE template class DLLEXPORT std::list<void*>;
-//DLLEXPORT_TEMPLATE template class DLLEXPORT std::allocator<void*>;
 DLLEXPORT_TEMPLATE template class DLLEXPORT std::list<SlotBase*>;
 
 class DLLEXPORT SlotBase {
@@ -69,7 +67,7 @@ public:
 	}
 
 	~Slot() {
-		signal->disconnect( adapter.callback(), this );
+		if( signal ) signal->disconnect( adapter.callback(), this );
 	}
 
 	void connect( Signal *signal ) {
@@ -102,7 +100,7 @@ public:
 	}
 
 	~Slot1() {
-		signal->disconnect( adapter.callback(), this );
+		if( signal ) signal->disconnect( adapter.callback(), this );
 	}
 
 	void connect( Signal1<P1> *signal ) {
@@ -133,7 +131,7 @@ public:
 	}
 
 	~Slot2() {
-		signal->disconnect( adapter.callback(), this );
+		if( signal ) signal->disconnect( adapter.callback(), this );
 	}
 
 	void connect( Signal2<P1,P2> *signal ) {
@@ -164,7 +162,7 @@ public:
 	}
 
 	~Slot3() {
-		signal->disconnect( adapter.callback(), this );
+		if( signal ) signal->disconnect( adapter.callback(), this );
 	}
 
 	void connect( Signal3<P1,P2,P3> *signal ) {
@@ -195,7 +193,7 @@ public:
 	}
 
 	~Slot4() {
-		signal->disconnect( adapter.callback(), this );
+		if( signal ) signal->disconnect( adapter.callback(), this );
 	}
 
 	void connect( Signal4<P1,P2,P3,P4> *signal ) {

@@ -23,8 +23,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <wx/socket.h>
 
 #include "resource.h"
-#include "../multicrewcore/shared.h"
 #include "../multicrewcore/network.h"
+#include "../multicrewcore/shared.h"
+
 
 class ConnectWizard : public wxWizard { 
 public:

@@ -17,6 +17,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#ifndef MULTICREWCORE_POSITION_H_INCLUDED
+#define MULTICREWCORE_POSITION_H_INCLUDED
+
 #include "multicrewcore.h"
 
 class PositionModule : public MulticrewModule {
@@ -24,7 +27,7 @@ class PositionModule : public MulticrewModule {
 	PositionModule( bool hostMode );
 	virtual ~PositionModule();
 
-	virtual bool start()=0;
+	virtual void receive( void *data, unsigned size ) {}
 
  private:
 	struct Data;
@@ -37,11 +40,8 @@ class PositionHostModule : public PositionModule {
 	PositionHostModule();
 	virtual ~PositionHostModule();
 
-	virtual bool start();
-
  private:
-	virtual void receive( ModulePacket *packet ) {}
-	DWORD threadProc( LPVOID param );
+	virtual void sendProc();
 
 	struct Data;
 	friend Data;
@@ -53,12 +53,12 @@ class PositionClientModule : public PositionModule {
 	PositionClientModule();
 	virtual ~PositionClientModule();
 
-	virtual bool start();
-
  private:
-	virtual void receive( ModulePacket *packet );
+	virtual void receive( void *data, unsigned size );
 
 	struct Data;
 	friend Data;
 	Data *d;	
 };
+
+#endif

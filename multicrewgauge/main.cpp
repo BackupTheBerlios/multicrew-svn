@@ -25,8 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gauges.h"
 #include "multicrewgauge.h"
-#include "../multicrewcore/debug.h"
-#include "../multicrewcore/error.h"
+#include "../multicrewcore/streams.h"
 #include "../multicrewcore/config.h"
 #include "../multicrewcore/log.h"
 #include "../multicrewcore/shared.h"
@@ -78,7 +77,7 @@ static HMODULE gGaugeLibrary = NULL;
 static GAUGESLINKAGE *gGaugeLinkage = NULL;
 static GAUGESIMPORT *gGaugeImportTable = NULL;
 static std::deque<PGAUGE_CALLBACK> gOldCallbacks;
-static MulticrewGauge *mg = 0;
+static SmartPtr<MulticrewGauge> mg;
 
 
 //////////////////////////////////////////////
@@ -115,7 +114,7 @@ void FSAPI module_init( void ) {
 		return;
 	}
 
-	log << "Wrapping gauge library \"" << gaugeModule << "\" in " << 
+	dlog << "Wrapping gauge library \"" << gaugeModule << "\" in " << 
 		(prefix[9]=='h'?"host mode":"client mode")
 		<< std::endl;
 	
@@ -143,7 +142,7 @@ void FSAPI module_init( void ) {
 	memcpy( gGaugeImportTable, &ImportTable, sizeof(GAUGESIMPORT) );
 
 	// call module init
-	log << "Init gauge module \"" << gaugeModule << "\"" << std::endl; 
+	dlog << "Init gauge module \"" << gaugeModule << "\"" << std::endl; 
 	if( gGaugeLinkage->ModuleInit!=NULL ) (*gGaugeLinkage->ModuleInit)();
 
 	// setup multicrew Linkage
@@ -162,12 +161,12 @@ void FSAPI module_init( void ) {
 	// update ImportTable if changed
 	memcpy( gGaugeImportTable, &ImportTable, sizeof(GAUGESIMPORT) );
 
-	log << "Multicrew plane loaded" << std::endl;
+	dlog << "Multicrew plane loaded" << std::endl;
 }
 
 void FSAPI module_deinit(void) {
 	// restore old callbacks, might be needed in deinit
-	delete mg;
+	mg = 0;
 
 	for( unsigned i=0; i<gOldCallbacks.size(); i++ ) {
 		gGaugeLinkage->gauge_header_ptr[i]->gauge_callback = gOldCallbacks[i];

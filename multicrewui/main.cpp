@@ -20,7 +20,7 @@
 /*
  * FS linking
  */
-DLLEXPORT MODULE_IMPORT ImportTable = {
+UI_DLLEXPORT MODULE_IMPORT ImportTable = {
 	{0x00000000, NULL},
 	{0x00000000, NULL}
 };
@@ -28,8 +28,8 @@ DLLEXPORT MODULE_IMPORT ImportTable = {
 void FSAPI module_init(void) {}
 void FSAPI module_deinit(void) {}
 
-extern "C" DLLEXPORT MODULE_LINKAGE Linkage;
-DLLEXPORT MODULE_LINKAGE Linkage = {
+extern "C" UI_DLLEXPORT MODULE_LINKAGE Linkage;
+UI_DLLEXPORT MODULE_LINKAGE Linkage = {
 	0x00000000,
 	module_init,
 	module_deinit,
@@ -102,6 +102,9 @@ LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 					return 0;
 				case ID_STATUS_MENUITEM:
 					ui->status();
+					return 0;
+				case ID_LOG:
+					ui->log();
 					return 0;
 			}
 			break;

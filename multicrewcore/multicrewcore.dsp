@@ -69,7 +69,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "MULTICREWCORE_EXPORTS" /YX /FD /GZ /c
-# ADD CPP /nologo /MDd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "MULTICREWCORE_EXPORTS" /YX /FD /GZ /c
+# ADD CPP /nologo /MDd /W3 /Gm /GR /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "MULTICREWCORE_EXPORTS" /YX /FD /GZ /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x407 /d "_DEBUG"
@@ -108,19 +108,7 @@ SOURCE=.\connection.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\debug.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\error.cpp
-# End Source File
-# Begin Source File
-
 SOURCE=.\hostconnection.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\log.cpp
 # End Source File
 # Begin Source File
 
@@ -142,6 +130,30 @@ SOURCE=.\multicrewcore.rc
 
 SOURCE=.\position.cpp
 # End Source File
+# Begin Source File
+
+SOURCE=.\shared.cpp
+# End Source File
+# End Group
+# Begin Group "fsuipc"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\fsuipc\FSUIPC_User.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipc\IPCuser.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipc\IPCuser.h
+# End Source File
+# End Group
+# Begin Group "Ressourcendateien"
+
+# PROP Default_Filter "ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 # End Group
 # Begin Group "Header-Dateien"
 
@@ -157,18 +169,6 @@ SOURCE=.\common.h
 # Begin Source File
 
 SOURCE=.\config.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\debug.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\error.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\log.h
 # End Source File
 # Begin Source File
 
@@ -202,25 +202,9 @@ SOURCE=.\shared.h
 
 SOURCE=.\signals.h
 # End Source File
-# End Group
-# Begin Group "Ressourcendateien"
-
-# PROP Default_Filter "ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
-# End Group
-# Begin Group "fsuipc"
-
-# PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\fsuipc\FSUIPC_User.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\fsuipc\IPCuser.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\fsuipc\IPCuser.h
+SOURCE=.\streams.h
 # End Source File
 # End Group
 # End Target

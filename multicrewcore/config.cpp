@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <windows.h>
 
-#include "debug.h"
+#include "streams.h"
 #include "config.h"
 
 static Config *config = 0;
@@ -43,7 +43,7 @@ bool Config::boolValue( std::string category, std::string key, bool def ) {
 	if( category.length()>0 ) cat = cat + "\\" + category;
 	if( RegOpenKey( HKEY_CURRENT_USER, cat.c_str(), &hkey )==ERROR_SUCCESS )
 		if( RegQueryValueEx( hkey, key.c_str(), NULL, &type, buf, &size )==ERROR_SUCCESS )
-			ret = (int)buf[0]!=1;
+			ret = (int)buf[0]!=0;
 	RegCloseKey( hkey );
 	return ret;
 }

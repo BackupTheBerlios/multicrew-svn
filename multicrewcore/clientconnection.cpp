@@ -20,9 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <dplay8.h>
 
+#include "streams.h"
 #include "log.h"
-#include "debug.h"
-#include "error.h"
 #include "networkimpl.h"
 #include "callback.h"
 
@@ -110,14 +109,14 @@ bool ClientConnectionSetup::init() {
 	HRESULT hr;
 
 	// create directplay peer object
-	log << "Creating DirectPlay8Peer object" << std::endl;
+	dlog << "Creating DirectPlay8Peer object" << std::endl;
 	hr = CoCreateInstance( 
 		CLSID_DirectPlay8Peer, NULL, 
         CLSCTX_INPROC_SERVER,
         IID_IDirectPlay8Peer, 
         (LPVOID*) &d->peer );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
@@ -127,29 +126,29 @@ bool ClientConnectionSetup::init() {
 	d->hostFoundSlot.connect( &conImpl->hostFound );
 
 	// initialize
-	log << "Initializing peer" << std::endl;
+	dlog << "Initializing peer" << std::endl;
 	hr = d->peer->Initialize(NULL, conImpl->callback(), 0 );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
 	// Create our IDirectPlay8Address Device Address
-	log << "Creating device address" << std::endl;
+	dlog << "Creating device address" << std::endl;
 	hr = CoCreateInstance( CLSID_DirectPlay8Address, NULL,
                                        CLSCTX_INPROC_SERVER,
                                        IID_IDirectPlay8Address,
                                        (LPVOID*) &d->deviceAddress );
     if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str()  << std::endl;
+		dlog << "Failed: " << fe(hr).c_str()  << std::endl;
         return false;
     }
     
     // Set the SP for our Device Address
-	log << "Setting service provider to TCPIP" << std::endl;
+	dlog << "Setting service provider to TCPIP" << std::endl;
 	hr = d->deviceAddress->SetSP(&CLSID_DP8SP_TCPIP );
     if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
         return false;
     }
 
@@ -161,14 +160,14 @@ bool ClientConnectionSetup::init() {
 	wchar_t name[16];
 	mbstowcs( name, "Client", 16 );
 	playerInfo.pwszName = name;
-	log << "Setting player information" << std::endl;
+	dlog << "Setting player information" << std::endl;
 	hr = d->peer->SetPeerInfo( 
 		&playerInfo,
 		NULL,
 		NULL,
 		DPNSETPEERINFO_SYNC );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
@@ -189,37 +188,37 @@ bool ClientConnectionSetup::startSearch( bool broadcast, std::string address, in
 	// set hostname and port
 	if( !broadcast ) {
 		// set destination address
-		log << "Creating destination address" << std::endl;
+		dlog << "Creating destination address" << std::endl;
 		HRESULT hr = CoCreateInstance( CLSID_DirectPlay8Address, NULL,
 										CLSCTX_INPROC_SERVER,
 										IID_IDirectPlay8Address,
 										(LPVOID*) &d->destAddress );
 		if( FAILED(hr) ) {
-			log << "Failed with: " << fe(hr).c_str()  << std::endl;
+			dlog << "Failed with: " << fe(hr).c_str()  << std::endl;
 			return false;
 		}
 
 		// Set the SP for the destination Address
-		log << "Setting service provider to TCPIP for destination" << std::endl;
+		dlog << "Setting service provider to TCPIP for destination" << std::endl;
 		hr = d->destAddress->SetSP(&CLSID_DP8SP_TCPIP );
 		if( FAILED(hr) ) {
-			log << "Failed: " << fe(hr).c_str() << std::endl;
+			dlog << "Failed: " << fe(hr).c_str() << std::endl;
 			return false;
 		}
 
-		log << "Set address to " << address.c_str() << std::endl;
+		dlog << "Set address to " << address.c_str() << std::endl;
 		d->destAddress->AddComponent( DPNA_KEY_HOSTNAME,
 			address.c_str(), address.length()+1, DPNA_DATATYPE_STRING );
 		if( FAILED(hr) ) {
-			log << "Failed: " << fe(hr).c_str() << std::endl;
+			dlog << "Failed: " << fe(hr).c_str() << std::endl;
 			return false;
 		}
 
-		log << "Set port to " << port << std::endl;
+		dlog << "Set port to " << port << std::endl;
 		d->destAddress->AddComponent( DPNA_KEY_PORT, 
 			&port, sizeof(DWORD), DPNA_DATATYPE_DWORD );
 		if( FAILED(hr) ) {
-			log << "Failed: " << fe(hr).c_str() << std::endl;
+			dlog << "Failed: " << fe(hr).c_str() << std::endl;
 			return false;
 		}
 	}
@@ -230,7 +229,7 @@ bool ClientConnectionSetup::startSearch( bool broadcast, std::string address, in
     appDesc.dwSize = sizeof(DPN_APPLICATION_DESC);
     appDesc.guidApplication = gMulticrewGuid;
 	
-	log << "Search hosted games" << std::endl;
+	dlog << "Search hosted games" << std::endl;
 	HRESULT hr = d->peer->EnumHosts(
 		&appDesc,
 		d->destAddress,
@@ -244,7 +243,7 @@ bool ClientConnectionSetup::startSearch( bool broadcast, std::string address, in
 		&d->runningSearch,
 		0 ); //DPNENUMHOSTS_OKTOQUERYFORADDRESSING );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 	dout << "EnumHost returned" << std::endl;
@@ -296,7 +295,7 @@ void ClientConnectionSetup::hostFoundCallback( _DPNMSG_ENUM_HOSTS_RESPONSE *resp
 		std::wstring desc( resp->pApplicationDescription->pwszSessionName );
 		char msg[1024];
 		wcstombs( msg, desc.c_str(), 1024 );
-		log << "Host found: " << msg << std::endl;
+		dlog << "Host found: " << msg << std::endl;
 
 		// send signal
 		hostFound.emit( SmartPtr<FoundHost>(
@@ -313,7 +312,7 @@ SmartPtr<Connection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) 
 	char desc[1024];
 	wcstombs( desc, host->description().c_str(), 1024 );
 
-	log << "Connect to \"" << desc << "\"" << std::endl;
+	dlog << "Connect to \"" << desc << "\"" << std::endl;
 	// connect to host
 	FoundHostImpl *hostImpl = (FoundHostImpl*)(&*host);
 	DPN_APPLICATION_DESC appDesc;
@@ -333,7 +332,7 @@ SmartPtr<Connection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) 
 		NULL,
 		DPNCONNECT_OKTOQUERYFORADDRESSING | DPNCONNECT_SYNC);
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return 0;
 	}
 

@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-
+#include <string>
 
 #include <wx/wx.h>
 #include <wx/settings.h>
@@ -33,6 +33,7 @@ public:
 
 	void setConnected();
 	void setUnconnected();
+	void log( std::string line );
 
 private:
 	struct Data;
@@ -42,7 +43,6 @@ private:
 	void VwXinit();
 	void planeRegistered();
 	void planeUnregistered();
-	void logged( const char *line );
 
 	DECLARE_EVENT_TABLE()  
 

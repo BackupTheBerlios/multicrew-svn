@@ -28,6 +28,7 @@ public:
 	void connect();
 	void disconnect();
 	void status();
+	void log();
 
 	HMENU newMenu();
 
@@ -40,4 +41,5 @@ private:
 	void disconnected();
 	void planeRegistered();
 	void planeUnregistered();
+	void logged( const char *line );
 };

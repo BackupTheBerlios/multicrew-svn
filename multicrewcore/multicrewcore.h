@@ -29,25 +29,34 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "network.h"
 
 
-class DLLEXPORT MulticrewModule : public Shared, protected Receiver {
+class DLLEXPORT MulticrewModule : protected Receiver, public Sender {
 public:
-	MulticrewModule( std::string moduleName, bool hostMode );
+	MulticrewModule( std::string moduleName, bool hostMode, unsigned minSendWait=-1 );
 	virtual ~MulticrewModule();
 
 	std::string moduleName();
 	bool isHostMode();
+	bool registered();
 
 protected:
-	virtual void send( ModulePacket *packet, bool safe, bool sync );
-	virtual std::string id();
+	virtual void receive( void *data, unsigned size )=0;
+	void send( void *data, DWORD size, bool safe, Connection::Priority prio );
+	std::string id();
 
-private:
-	friend class MulticrewCore;
-	void connect( SmartPtr<Connection> con );
+	virtual void sendCompleted( Packet *packet );
+	virtual void sendFailed( Packet *packet );
+	virtual void sendProc();
 	void disconnect();
 
 private:
+	friend class MulticrewCore;
+	virtual void receive( ModulePacket *packet );
+	void connect( SmartPtr<Connection> con );
+	DWORD threadProc( LPVOID param );
+
+private:
 	struct Data;
+	friend Data;
 	Data *d;
 };
 

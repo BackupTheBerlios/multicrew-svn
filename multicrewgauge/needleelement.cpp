@@ -19,9 +19,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common.h"
 
-#include "../multicrewcore/debug.h"
+#include "../multicrewcore/streams.h"
 #include "multicrewgauge.h"
 #include "../multicrewcore/callback.h"
+
+
+#pragma pack(push,1)
+struct UpdatePacket {
+	FLOAT64 value;
+};
+#pragma pack(pop,1)
+
 
 struct NeedleElement::Data {	
 	Data( NeedleElement *el ) 
@@ -32,6 +40,7 @@ struct NeedleElement::Data {
 	CallbackAdapter1<FLOAT64, NeedleElement, PELEMENT_NEEDLE> callbackAdapter;
 
 	FLOAT64 oldValue;
+	bool changed;
 };
 
 NeedleElement::NeedleElement( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader )
@@ -41,6 +50,7 @@ NeedleElement::NeedleElement( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader
 	d->origCallback = needleHeader->update_cb;
 	d->oldValue = (FLOAT64)0x57524320;
 	d->oldValue = 0.0;
+	d->changed = true;
 
 	// debug code for MasterCaution gauge
 	if( /*gauge.name()=="MasterCaution" &&*/ d->needleHeader->update_cb!=NULL ) {
@@ -72,15 +82,24 @@ FLOAT64 NeedleRecorder::callback( PELEMENT_NEEDLE pelement ) {
 	//dout << "> callback " << d->needleHeader << std::endl;
 	FLOAT64 ret = (*d->origCallback)( pelement );
 	if( ret!=d->oldValue ) {
-		dout << "Needle callback " << d->needleHeader << ":" << this << " in " << gauge().name();
+		dout << "Needle callback " << d->needleHeader << ":" << this 
+			 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
 		d->oldValue = ret;
-		dout << " = " << (unsigned long)ret << std::endl;
-		gauge().send( new NeedleUpdatePacket( "", 0, id(), ret ), true );
+		d->changed = true;
 	}
 	//dout << "< cal lback " << d->needleHeader << std::endl;
 	return ret;
 }
 
+
+void NeedleRecorder::sendProc() {
+	if( d->changed ) {
+		UpdatePacket packet;
+		packet.value = d->oldValue;
+		gauge().send( id(), &packet, sizeof(UpdatePacket), false );
+		d->changed = false;
+	}
+}
 
 /*******************************************************************************/
 
@@ -97,7 +116,7 @@ FLOAT64 NeedleViewer::callback( PELEMENT_NEEDLE pelement ) {
 }
 
 
-void NeedleViewer::receive( UpdatePacket *packet ) {
-	NeedleUpdatePacket *iup= (NeedleUpdatePacket*)packet;
-	d->oldValue = iup->value;
+void NeedleViewer::receive( void *data, unsigned size ) {
+	UpdatePacket *packet = (UpdatePacket*)data;
+	d->oldValue = packet->value;
 }

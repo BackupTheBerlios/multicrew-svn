@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/multicrewcore.h"
 #include "../multicrewcore/packets.h"
 
+
 // general
 extern GAUGEHDR gaugehdr_multicrewgauge;
 extern HMODULE gInstance;
@@ -44,7 +45,8 @@ public:
 	Gauge &gauge();
 	int id();
 
-	virtual void receive( UpdatePacket *packet ) {}
+	virtual void sendProc() {};
+	virtual void receive( void *data, unsigned size ) {}
 
 private:
 	struct Data;
@@ -73,7 +75,9 @@ public:
 	IconRecorder( int id, Gauge &gauge, ELEMENT_ICON *iconHeader );
 	virtual ~IconRecorder();
 
-private:	
+	virtual void sendProc();
+
+private:
 	virtual FLOAT64 callback( PELEMENT_ICON pelement );
 };
 
@@ -83,7 +87,7 @@ public:
 	IconViewer( int id, Gauge &gauge, ELEMENT_ICON *iconHeader );
 	virtual ~IconViewer();
 
-	virtual void receive( UpdatePacket *packet );
+	virtual void receive( void *data, unsigned size );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_ICON pelement );
@@ -111,6 +115,8 @@ public:
 	NeedleRecorder( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader );
 	virtual ~NeedleRecorder();
 
+	virtual void sendProc();
+
 private:	
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
 };
@@ -121,7 +127,7 @@ public:
 	NeedleViewer( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader );
 	virtual ~NeedleViewer();
 
-	virtual void receive( UpdatePacket *packet );
+	virtual void receive( void *data, unsigned size );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
@@ -149,6 +155,8 @@ public:
 	StringRecorder( int id, Gauge &gauge, ELEMENT_STRING *stringHeader );
 	virtual ~StringRecorder();
 
+	virtual void sendProc();
+
 private:	
 	virtual FLOAT64 callback( PELEMENT_STRING pelement );
 };
@@ -159,7 +167,7 @@ public:
 	StringViewer( int id, Gauge &gauge, ELEMENT_STRING *stringHeader );
 	virtual ~StringViewer();
 
-	virtual void receive( UpdatePacket *packet );
+	virtual void receive( void *data, unsigned size );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_STRING pelement );
@@ -204,9 +212,10 @@ public:
 	std::string parameter();
 	int id();
 	MulticrewGauge *mgauge();
+	virtual void sendProc();
 
-	void send( UpdatePacket *packet, bool safe );
-	virtual void receive( UpdatePacket *packet );
+	void send( int element, void *data, unsigned size, bool safe );
+	virtual void receive( int element, void *data, unsigned size );
 
 	static Gauge &gauge( const std::string &name, const std::string &parameter );
 
@@ -243,19 +252,19 @@ private:
 };
 
 class MulticrewGauge : public MulticrewModule {
-public:
+ public:
 	MulticrewGauge( bool hostMode, std::string clientName );
 	virtual ~MulticrewGauge();
 	bool init();
 
-	void send( UpdatePacket *packet, bool safe );
+	void send( int gauge, int element, void *data, unsigned size, bool safe );
 	PGAUGE_CALLBACK installCallback();
 
  protected:	
-	virtual void receive( ModulePacket *packet );
+	virtual void receive( void *data, unsigned size );
 	void installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
-
-
+	virtual void sendProc();
+	
  private:
 	struct Data;
 	friend Data;

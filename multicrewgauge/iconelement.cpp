@@ -19,9 +19,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common.h"
 
-#include "../multicrewcore/debug.h"
+#include "../multicrewcore/streams.h"
 #include "multicrewgauge.h"
 #include "../multicrewcore/callback.h"
+
+
+#pragma pack(push,1)
+struct UpdatePacket {
+	FLOAT64 value;
+};
+#pragma pack(pop,1)
+
 
 struct IconElement::Data {	
 	Data( IconElement *el ) 
@@ -32,6 +40,7 @@ struct IconElement::Data {
 	CallbackAdapter1<FLOAT64, IconElement, PELEMENT_ICON> callbackAdapter;
 
 	FLOAT64 oldValue;
+	bool changed;
 };
 
 IconElement::IconElement( int id, Gauge &gauge, ELEMENT_ICON *iconHeader )
@@ -40,6 +49,7 @@ IconElement::IconElement( int id, Gauge &gauge, ELEMENT_ICON *iconHeader )
 	d->iconHeader = iconHeader;
 	d->origCallback = iconHeader->update_cb;
 	d->oldValue = 0.0;
+	d->changed = true;
 
 	// debug code for MasterCaution gauge
 	if( /*gauge.name()=="MasterCaution" &&*/ d->iconHeader->update_cb!=NULL ) {
@@ -71,13 +81,23 @@ FLOAT64 IconRecorder::callback( PELEMENT_ICON pelement ) {
 	//dout << "> callback " << d->iconHeader << std::endl;
 	FLOAT64 ret = (*d->origCallback)( pelement );
 	if( ret!=d->oldValue ) {
-		dout << "Icon callback " << d->iconHeader << ":" << this << " in " << gauge().name();
+		dout << "Icon callback " << d->iconHeader << ":" << this 
+			 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
 		d->oldValue = ret;
-		dout << " = " << (unsigned long)ret << std::endl;
-		gauge().send( new IconUpdatePacket( "", 0, id(), ret ), true );
+		d->changed = true;
 	}
-	//dout << "< cal lback " << d->iconHeader << std::endl;
+	// dout << "< cal lback " << d->iconHeader << std::endl;
 	return ret;
+}
+
+
+void IconRecorder::sendProc() {
+	if( d->changed ) {
+		UpdatePacket packet;
+		packet.value = d->oldValue;
+		gauge().send( id(), &packet, sizeof(UpdatePacket), true );
+		d->changed = false;
+	}
 }
 
 
@@ -96,7 +116,7 @@ FLOAT64 IconViewer::callback( PELEMENT_ICON pelement ) {
 }
 
 
-void IconViewer::receive( UpdatePacket *packet ) {
-	IconUpdatePacket *iup= (IconUpdatePacket*)packet;
-	d->oldValue = iup->value;
+void IconViewer::receive( void *data, unsigned size ) {
+	UpdatePacket *packet= (UpdatePacket*)data;
+	d->oldValue = packet->value;
 }

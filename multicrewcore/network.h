@@ -17,10 +17,12 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#ifndef NETWORK_H_INCLUDED
-#define NETWORK_H_INCLUDED
+#ifndef MULTICREWCORE_NETWORK_H_INCLUDED
+#define MULTICREWCORE_NETWORK_H_INCLUDED
 
 #include "common.h"
+
+#pragma warning (disable : 4075 4275)
 
 #include <map>
 #include <string>
@@ -31,20 +33,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MULTICREW_PORT "1299"
 
-class Receiver {
+class DLLEXPORT Receiver {
 public:
 	virtual std::string id()=0;
 	virtual void receive( ModulePacket *packet )=0;
 };
 
 
+class DLLEXPORT Sender : public Shared {
+ public:
+	virtual void sendCompleted( Packet *packet )=0;
+	virtual void sendFailed( Packet *packet )=0;
+};
+
+
 class Connection : public Shared {
 public:
+	enum Priority { HighPriority, MediumPriority, LowPriority };	
+
 	virtual void addReceiver( Receiver *receiver )=0;
 	virtual void removeReceiver( Receiver *receiver )=0;
 
-	virtual void start()=0;
-	virtual bool send( Packet *packet, bool safe, bool sync=false )=0;
+	virtual bool start()=0;
+	virtual bool send( Packet *packet, bool safe, Priority prio, SmartPtr<Sender> sender )=0;
 	virtual void disconnect()=0;
 	Signal disconnected;
 };

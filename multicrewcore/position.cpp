@@ -21,9 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <windows.h>
 #include "fsuipc/FSUIPC_User.h"
+#include "../multicrewgauge/gauges.h"
 
+#include "streams.h"
 #include "position.h"
-#include "error.h"
 #include "log.h"
 #include "callback.h"
 #include "packets.h"
@@ -32,8 +33,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WAITTIME 100
 
 
+#pragma pack(push,1)
+struct PositionPacket {
+	DWORD lat[2];
+	DWORD lon[2];
+	DWORD alt[2];
+	DWORD dir[3];
+	FLOAT64 accel[6];
+	FLOAT64 vel[6];
+};
+#pragma pack(pop,1)
+
+
 PositionModule::PositionModule( bool hostMode ) 
-	: MulticrewModule( "FSUIPCPos", hostMode ) {
+	: MulticrewModule( "FSUIPCPos", hostMode, hostMode?WAITTIME:-1 ) {
 	MulticrewCore::multicrewCore()->registerModule( this );
 }
 
@@ -42,131 +55,82 @@ PositionModule::~PositionModule() {
 	MulticrewCore::multicrewCore()->unregisterModule( this );
 }
 
+
 /***********************************************************************/
 
-struct PositionHostModule::Data {
-	Data( PositionHostModule *mod ) 
-		: threadProcAdapter( mod, PositionHostModule::threadProc ) {
-	}
 
-	bool connected;
-	CallbackAdapter1<DWORD, PositionHostModule, LPVOID> threadProcAdapter;
-	HANDLE thread;
-	bool exitFlag;
+struct PositionHostModule::Data {
+	Data( PositionHostModule *mod ) {
+	}
 };
 
 
 PositionHostModule::PositionHostModule() 
 	: PositionModule( true ) {
 	d = new Data( this );
-	d->connected = false;
-	d->thread = 0;
-	d->exitFlag = false;
+	
+	// connect to FSUIPC
+	DWORD res;
+	if( !FSUIPC_Open( SIM_ANY, &res ) )
+		dlog << "Cannot connect to FSUIPC" << std::endl;
 }
 
 
 PositionHostModule::~PositionHostModule() {
-	// stop thread
-	d->exitFlag = true;
-	SleepEx( WAITTIME*3, FALSE );
-    // todo: wait for thread to exit
-
 	// disconnect from FSUIPC
-	if( d->connected ) FSUIPC_Close();
+	FSUIPC_Close();
+
 	delete d;
 }
 
 
-bool PositionHostModule::start() {
-	// connect to FSUIPC
+void PositionHostModule::sendProc() {
+	PositionPacket packet;
+
+    // read variables from the FS
 	DWORD res;
-	if( !FSUIPC_Open( SIM_ANY, &res ) ) {
-		log << "Cannot connect to FSUIPC" << std::endl;
-		return false;
-	}
-	d->connected = true;
-
-	// start thread
-	d->thread = CreateThread(
-		NULL,
-		0,
-		d->threadProcAdapter.callback(),
-		0,
-		0,
-		NULL );
-	if( d->thread==NULL ) {
-		log << "Cannot create FSUIPC thread" << std::endl;
-		return false;
-	}
-
-	return true;
+	bool ok = true;
+	ok = ok && FSUIPC_Read( 0x560, 36, packet.lat, &res );
+	ok = ok && FSUIPC_Read( 0x3060, 8*12, packet.accel, &res );
+	ok = ok && FSUIPC_Process( &res );
+	if( !ok )
+		dout << "FSUIPC read error" << std::endl;
+	else
+		// and send packet
+		send( &packet, sizeof(PositionPacket), false, Connection::HighPriority );
 }
 
-
-DWORD PositionHostModule::threadProc( LPVOID param ) {
-	// run as long the flag is not set
-	while( d->exitFlag==false ) {
-		PositionPacket packet( moduleName() );
-
-		// read variables from the FS
-		DWORD res;
-		bool ok = true;
-		ok = ok && FSUIPC_Read( 0x560, 36, packet.lat, &res );
-		ok = ok && FSUIPC_Read( 0x3060, 8*12, packet.accel, &res );
-		ok = ok && FSUIPC_Process( &res );
-		if( !ok ) {
-			dout << "FSUIPC read error" << std::endl;
-		} else {
-			// send through the network
-			//dout << "send position packet" << std::endl;
-			send( &packet, false, false );
-		}
-
-		// wait an amount of milliseconds
-		if( !d->exitFlag ) SleepEx( WAITTIME, FALSE );
-	}
-	
-    // exit the thread
-	ExitThread( 0 );
-}
 
 /***********************************************************************/
+
 
 struct PositionClientModule::Data {
 	Data( PositionClientModule *mod ) {
 	}
-
-	bool connected;
 };
 
 PositionClientModule::PositionClientModule() 
 	: PositionModule( false ) {
 	d = new Data( this );
-	d->connected = false;
+
+	// connect to FSUIPC
+	DWORD res;
+	if( !FSUIPC_Open( SIM_ANY, &res ) ) {
+		dlog << "Cannot connect to FSUIPC" << std::endl;
+	}
 }
 
 
 PositionClientModule::~PositionClientModule() {
 	// disconnect from FSUIPC
-	if( d->connected ) FSUIPC_Close();
+	FSUIPC_Close();
+	
 	delete d;
 }
 
 
-bool PositionClientModule::start() {
-	// connect to FSUIPC
-	DWORD res;
-	if( !FSUIPC_Open( SIM_ANY, &res ) ) {
-		log << "Cannot connect to FSUIPC" << std::endl;
-		return false;
-	}
-	d->connected = true;
-
-	return true;
-}
-
- void PositionClientModule::receive( ModulePacket *packet ) {
-	 PositionPacket *pp = (PositionPacket*)packet;
+void PositionClientModule::receive( void *data, unsigned size ) {
+	 PositionPacket *pp = (PositionPacket*)data;
 	 //dout << "position packet received" << std::endl;
 	 
 	 // write variables from the FS

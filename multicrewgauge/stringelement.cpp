@@ -19,9 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common.h"
 
-#include "../multicrewcore/debug.h"
+#include "../multicrewcore/streams.h"
 #include "multicrewgauge.h"
 #include "../multicrewcore/callback.h"
+
+#define BUFFER_SIZE 256
 
 struct StringElement::Data {	
 	Data( StringElement *el ) 
@@ -31,8 +33,10 @@ struct StringElement::Data {
 	PSTRING_UPDATE_CALLBACK origCallback;
 	CallbackAdapter1<FLOAT64, StringElement, PELEMENT_STRING> callbackAdapter;
 
-	char oldValue[32];
-	char buffer[32];
+	char value[BUFFER_SIZE+1];
+	char buffer[BUFFER_SIZE+1];
+	bool changed;
+	CRITICAL_SECTION cs;
 };
 
 StringElement::StringElement( int id, Gauge &gauge, ELEMENT_STRING *stringHeader )
@@ -40,7 +44,12 @@ StringElement::StringElement( int id, Gauge &gauge, ELEMENT_STRING *stringHeader
 	d = new Data( this );
 	d->stringHeader = stringHeader;
 	d->origCallback = stringHeader->update_cb;
-	strcpy( d->oldValue, "" );
+	d->value[0] = 0;
+	d->value[BUFFER_SIZE] = 0;
+	d->buffer[0] = 0;
+	d->buffer[BUFFER_SIZE] = 0;
+	d->changed = true;
+	InitializeCriticalSection( &d->cs );
 
 	// debug code for MasterCaution gauge
 	if( /*gauge.name()=="MasterCaution" &&*/ d->stringHeader->update_cb!=NULL ) {
@@ -52,6 +61,7 @@ StringElement::StringElement( int id, Gauge &gauge, ELEMENT_STRING *stringHeader
 
 StringElement::~StringElement() {
 	//d->stringHeader->update_cb = d->origUpdateCallback;	
+	DeleteCriticalSection( &d->cs );
 	delete d;
 }
 
@@ -71,27 +81,33 @@ StringRecorder::~StringRecorder() {
 FLOAT64 StringRecorder::callback( PELEMENT_STRING pelement ) {	
 	//dout << "> callback " << d->stringHeader << std::endl;
 	FLOAT64 ret = (*d->origCallback)( pelement );
-	if( (pelement->string==0 && d->oldValue[0]!=0) 
-		|| strcmp(pelement->string, d->oldValue)!=0 ) {
-		dout << "String callback " << d->stringHeader << ":" << this << " in " << gauge().name();
+	EnterCriticalSection( &d->cs );
+	if( (pelement->string==0 && d->value[0]!=0) 
+		|| strcmp(pelement->string, d->value)!=0 ) {
+		dout << "String callback " << d->stringHeader << ":" << this 
+			 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
 		
 		// empty string?
-		if( pelement->string==0 ) {
-			d->oldValue[0] = 0;
-		} else {
-			int len = strlen( pelement->string );
-			if( len<32 )
-				strcpy( d->oldValue, pelement->string );
-			else {
-				strncpy( d->oldValue, pelement->string, 31 );
-				d->oldValue[31]=0;
-			}
-		}
-		dout << " = " << (unsigned long)ret << std::endl;
-		gauge().send( new StringUpdatePacket( "", 0, id(), d->oldValue ), true );
+		if( pelement->string==0 )
+			d->value[0] = 0;
+		else
+			strncpy( d->value, pelement->string, BUFFER_SIZE );
+		
+		d->changed = true;
 	}
 	//dout << "< cal lback " << d->stringHeader << std::endl;
+	LeaveCriticalSection( &d->cs );
 	return ret;
+}
+
+
+void StringRecorder::sendProc() {
+	if( d->changed ) {
+		EnterCriticalSection( &d->cs );
+		gauge().send( id(), d->value, strlen(d->value)+1, false );
+		d->changed = false;
+		LeaveCriticalSection( &d->cs );
+	}
 }
 
 
@@ -105,15 +121,18 @@ StringViewer::~StringViewer() {
 }
 
 FLOAT64 StringViewer::callback( PELEMENT_STRING pelement ) {
+	EnterCriticalSection( &d->cs );
 	FLOAT64 ret = (*d->origCallback)( pelement );
 	pelement->string = (char*)0x4d434d43;
 	pelement->string = d->buffer;
-	strcpy( d->buffer, d->oldValue );
+	strncpy( d->buffer, d->value, BUFFER_SIZE );
+	LeaveCriticalSection( &d->cs );
 	return ret;
 }
 
 
-void StringViewer::receive( UpdatePacket *packet ) {
-	StringUpdatePacket *iup= (StringUpdatePacket*)packet;
-	strcpy( d->oldValue, iup->value );
+void StringViewer::receive( void *data, unsigned size ) {
+	EnterCriticalSection( &d->cs );
+	strncpy( d->value, (char*)data, BUFFER_SIZE );
+	LeaveCriticalSection( &d->cs );
 }

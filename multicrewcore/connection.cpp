@@ -20,17 +20,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <dplay8.h>
 
+#include "streams.h"
 #include "log.h"
-#include "debug.h"
-#include "error.h"
 #include "networkimpl.h"
 #include "callback.h"
+
+
+#define WAITTIME 100
+#define TARGET_QUEUE_SIZE 10
 
 
 // {B1449AC0-D32F-4b58-81E7-AA5F5D424CBD}
 const GUID gMulticrewGuid = 
 { 0xb1449ac0, 0xd32f, 0x4b58, { 0x81, 0xe7, 0xaa, 0x5f, 0x5d, 0x42, 0x4c, 0xbd } };
 
+
+/*******************************************************************/
 
 struct ConnectionImpl::Data {
 	Data( ConnectionImpl *con ) 
@@ -44,34 +49,44 @@ struct ConnectionImpl::Data {
 	DPNID hostGroup;
 	DPNID thisPlayer;
 	CallbackAdapter3<HRESULT, class ConnectionImpl, PVOID, DWORD, PVOID> callbackAdapter;
+
+	CRITICAL_SECTION critSect;
 };
 
 
 ConnectionImpl::ConnectionImpl( IDirectPlay8Peer *peer ) {
 	d = new Data( this );
 	d->disconnected = false;
-
 	d->peer = peer;
 	d->hostGroup = 0;
 	d->clientGroup = 0;
 	d->thisPlayer = 0;
 	d->peer->AddRef();
+
+	InitializeCriticalSection( &d->critSect );
 }
 
 
 ConnectionImpl::~ConnectionImpl() {
+	// shutdown DirectPlay
 	if( d->peer ) d->peer->Release();
+
+	DeleteCriticalSection( &d->critSect );
 	delete d;
 }
 
 
 void ConnectionImpl::addReceiver( Receiver *receiver ) {
+	EnterCriticalSection( &d->critSect );
 	receivers[receiver->id()] = receiver;
+	LeaveCriticalSection( &d->critSect );
 }
 
 
 void ConnectionImpl::removeReceiver( Receiver *receiver ) {
+	EnterCriticalSection( &d->critSect );
 	receivers.erase( receivers.find(receiver->id()) );
+	LeaveCriticalSection( &d->critSect );
 }
 
 
@@ -97,12 +112,15 @@ DPNID ConnectionImpl::thisPlayer() {
 
 void ConnectionImpl::deliverModulePacket( ModulePacket *packet ) {
 	// find destination
+	EnterCriticalSection( &d->critSect );
 	std::map<std::string,Receiver*>::iterator dest;
 	dest = receivers.find(packet->module);
 	if( dest==receivers.end() ) {
+		LeaveCriticalSection( &d->critSect );
 		dout << "Unroutable packet for module \"" << packet->module << "\"" << std::endl;
 		return;
-	}
+	}			
+	LeaveCriticalSection( &d->critSect );
 
 	// deliver packet
 	(*dest).second->receive(packet);
@@ -115,17 +133,38 @@ PFNDPNMESSAGEHANDLER ConnectionImpl::callback() {
 
 
 HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageType, 
-								  PVOID pMessage ) {
-//	dout << "DirectPlay message of type " << dwMessageType << std::endl;
+										 PVOID pMessage ) {
+	//dout << "DirectPlay message of type " << dwMessageType << std::endl;
 	
 	switch( dwMessageType ) {
 	case DPN_MSGID_RECEIVE: 
 	{
 		DPNMSG_RECEIVE *rec = (DPNMSG_RECEIVE*)pMessage;
 		Packet *packet = (Packet*)rec->pReceiveData;
-		dout << "Received packet of type " << packet->id << std::endl;
-		if( packet->id>=firstModulePacket )
+		//dout << "Received packet of type " << packet->id << std::endl;
+		if( packet->id==modulePacket ) {
 			deliverModulePacket( (ModulePacket*)packet );
+		}
+	}
+	break;
+
+	case DPN_MSGID_SEND_COMPLETE:
+	{
+		DPNMSG_SEND_COMPLETE *msg = (DPNMSG_SEND_COMPLETE*)pMessage;
+
+		// from Sender object?
+		if( msg->pvUserContext!=0 ) {
+			Sender *sender = (Sender*)msg->pvUserContext;
+			//dout << "send complete message for " << msg->pvUserContext << std::endl;
+			
+			// call callback
+			if( FAILED(msg->hResultCode) )
+				sender->sendFailed( 0 );
+			else
+				sender->sendCompleted( 0 );
+
+			//dout << "send complete handler returned " << msg->pvUserContext << std::endl;
+		}
 	}
 	break;
 			
@@ -161,7 +200,7 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 		// copy info
 		char name[1024];
 		wcstombs( name, groupInfo->pwszName, 1024 );
-		dout << "Group \"" << name << "\" created." << std::endl;
+		dlog << "Group \"" << name << "\" created." << std::endl;
 		if( strcmp(name, "Host" ) )
 			d->hostGroup = info->dpnidGroup;
 		else if( strcmp(name, "Client" ) ) {
@@ -177,7 +216,7 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 	{
 		// player found
 		DPNMSG_CREATE_PLAYER *player = (DPNMSG_CREATE_PLAYER*)pMessage;
-		dout << "New player " << player->dpnidPlayer << std::endl;
+		dlog << "New player " << player->dpnidPlayer << std::endl;
 
 		// get player info
 		dout << "Get player info" << std::endl;
@@ -213,24 +252,24 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 		if( strcmp(name, "Host")==0 ) {
 			thisIsHost = true;
 			group = d->hostGroup;
-			dout << "It's the host." << std::endl;
+			dlog << "It's the host." << std::endl;
 		} else {
 			thisIsHost = false;
-			dout << "It's a client." << std::endl;
+			dlog << "It's a client." << std::endl;
 			group = d->clientGroup;
 		}
 		delete playerInfo;
 
 		// the first is the local client
 		if( d->thisPlayer==0 ) {
-			dout << "Oh, that's me." << std::endl;
+			dlog << "Oh, that's me." << std::endl;
 			d->thisPlayer = player->dpnidPlayer;
 			d->hostMode = thisIsHost;
 		}
 		
 		// add to group
 		if( group!=0 ) {
-			dout << "Adding player to group." << std::endl;
+			dlog << "Adding player to group." << std::endl;
 			HRESULT hr = d->peer->AddPlayerToGroup(
 				group,
 				player->dpnidPlayer,
@@ -238,8 +277,8 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 				NULL,
 				DPNADDPLAYERTOGROUP_SYNC );
 			if( FAILED(hr) && hr!=DPNERR_PLAYERALREADYINGROUP ) {
-				dout << "Failed: " << fe(hr).c_str() << std::endl;
-				return false;
+				dlog << "Failed: " << fe(hr).c_str() << std::endl;
+				return S_OK;
 			}
 		}
 	}
@@ -247,7 +286,7 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 
 	case DPN_MSGID_TERMINATE_SESSION:
 		if( !d->disconnected ) {
-			dout << "Session terminated" << std::endl;
+			dlog << "Session terminated" << std::endl;
 			ref();
 			d->peer->Close( 0 );
 			disconnected.emit();
@@ -263,14 +302,14 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 
 void ConnectionImpl::disconnect() {
 	if( !d->disconnected ) {
-		log << "Closing peer" << std::endl;
 		d->disconnected = true;
 	
 		ref();
-		log << "Terminating session" << std::endl;
+		dlog << "Terminating session" << std::endl;
 		d->peer->TerminateSession( NULL, 0, 0 );
+		d->peer->CancelAsyncOperation( 0, DPNCANCEL_ALL_OPERATIONS );
 		
-		log << "Closing peer" << std::endl;
+		dlog << "Closing peer" << std::endl;
 		d->peer->Close( 0 );
 		disconnected.emit();
 		deref();
@@ -278,31 +317,62 @@ void ConnectionImpl::disconnect() {
 }
 
 
-void ConnectionImpl::start() {
+bool ConnectionImpl::start() {
+	return true;
 }
 
 
-bool ConnectionImpl::send( Packet *packet, bool safe, bool sync ) {
-	if( !d->peer ) return false;
-	
-	DPNHANDLE asyncHandle;
+bool ConnectionImpl::send( Packet *packet, bool safe, 
+						   Priority prio, SmartPtr<Sender> sender ) {
+	if( d->peer==0 || d->disconnected ) {
+		if( !sender.isNull() ) sender->sendFailed( packet );
+		return false;
+	}
+
+	//dout << "send( ..., sender=0x" << &*sender << " )" << std::endl;
+
+	// send packet
 	DPN_BUFFER_DESC desc;
 	ZeroMemory( &desc, sizeof(DPN_BUFFER_DESC) );
 	desc.pBufferData = (BYTE*)packet;
 	desc.dwBufferSize = packet->size;
+	DPNHANDLE asyncHandle;
 	HRESULT hr = d->peer->SendTo(
 		d->hostMode?d->clientGroup:d->hostGroup,
 		&desc,
 		1,
 		0,
-		NULL,
+		&*sender,
 		&asyncHandle,
-		(sync?DPNSEND_SYNC:0) |
+		((prio==HighPriority)?DPNSEND_PRIORITY_HIGH:0) |
+		((prio==LowPriority)?DPNSEND_PRIORITY_LOW:0) |
 		(safe?DPNSEND_GUARANTEED:0) |
 		DPNSEND_NOLOOPBACK | DPNSEND_COALESCE );
+
+	//dout << "send returned with " << fe(hr).c_str() << std::endl;
+
+	// async operation?
+	if( hr==DPNSUCCESS_PENDING ) {
+		//dout << "async" << std::endl;
+		return true;
+	}
+
+	// not async -> remove callback
+	if( callback!=0 ) {
+		//dout << "sync" << std::endl;
+	}
+
+    // error?
 	if( FAILED(hr) ) {
+		if( !sender.isNull() ) sender->sendFailed( packet );
 		dout << "Failed to send packet: " << fe(hr).c_str() << std::endl;
 		return false;
+	}
+
+	// no error -> callback?
+	if( !sender.isNull() ) {
+		//dout << "completed" << std::endl;
+		sender->sendCompleted( packet );
 	}
 	
 	return true;

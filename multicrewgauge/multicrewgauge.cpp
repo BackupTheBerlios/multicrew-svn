@@ -26,13 +26,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gauges.h"
 #include "multicrewgauge.h"
-#include "../multicrewcore/debug.h"
+#include "../multicrewcore/streams.h"
 #include "../multicrewcore/callback.h"
 #include "../multicrewcore/shared.h"
 #include "../multicrewcore/multicrewcore.h"
-#include "../multicrewcore/error.h"
 #include "../multicrewcore/config.h"
 #include "../multicrewcore/log.h"
+
+
+#define WAITTIME 5
+
+#pragma pack(push,1)
+struct Route {
+	int gauge;
+	int element;
+};
+#pragma pack(pop,1)
 
 
 struct MulticrewGauge::Data {
@@ -44,41 +53,48 @@ struct MulticrewGauge::Data {
 
 	SmartPtr<MulticrewCore> core;
 	int gaugeCounter;
-	bool registered;
 	std::deque<Gauge*> gauges;
+
+	int routeGauge;
+	int routeElement;
+	bool nextData;
+	CRITICAL_SECTION cs;
 };
 
 MulticrewGauge::MulticrewGauge( bool hostMode, std::string moduleName )
-	: MulticrewModule( moduleName, hostMode ) {
+	: MulticrewModule( moduleName, hostMode, WAITTIME ) {
 	d = new Data( this );
 	d->core = MulticrewCore::multicrewCore();
 	d->gaugeCounter = 0;
-	d->registered = false;
+	d->nextData = false;
+	InitializeCriticalSection( &d->cs );
 }
 
 
 MulticrewGauge::~MulticrewGauge() {
+	// stop the parent class thread which might call stepProc otherwise
+	// which depends on this->d
+	disconnect();
+
 	// delete all gauges
+	EnterCriticalSection( &d->cs );
 	std::deque<Gauge*>::iterator it = d->gauges.begin();
 	while( it!=d->gauges.end() ) delete *(it++);
-	d->gauges.clear();	
+	d->gauges.clear();
+	LeaveCriticalSection( &d->cs );
 
-	// unregister from core
-	if( d->registered )
-		d->core->unregisterModule( this );
+	DeleteCriticalSection( &d->cs );
 	delete d;
 }
 
 
 bool MulticrewGauge::init() {
 	// register with core
-	bool ret = d->core->registerModule( this );
-	if( !ret ) {
+	if( !registered() ) {
 		dout << "MulticrewGauge init failed" << std::endl;
 		return false;
 	}
 
-	d->registered = true;
 	return true;
 }
 
@@ -93,34 +109,67 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 		((PGAUGE_CALLBACK)(int)(pgauge->user_area[9]))( pgauge, service_id, extra_data );	
 
 	if( service_id==PANEL_SERVICE_POST_INSTALL ) {
-		dout << "New gauge " << pgauge << " " << pgauge->gauge_name;
-		if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 ) dout << " with " << pgauge->parameters;
-		dout << std::endl;
+		if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 )
+			dout << "New gauge " << pgauge << " " << pgauge->gauge_name 
+				 <<	" with " << pgauge->parameters << std::endl;
+		else
+			dout << "New gauge " << pgauge << " " << pgauge->gauge_name << std::endl;
 
 		// restore old callback
 		pgauge->gauge_callback = (PGAUGE_CALLBACK)(int)(pgauge->user_area[9]);
 
 		// register gauge
+		EnterCriticalSection( &d->cs );
 		if( isHostMode() )
 			d->gauges.push_back( new GaugeRecorder( this, d->gaugeCounter, pgauge ) ); 
 		else
 			d->gauges.push_back( new GaugeViewer( this, d->gaugeCounter, pgauge ) );
+		LeaveCriticalSection( &d->cs );
 		d->gaugeCounter++;
 	}
 }
 
 
-void MulticrewGauge::receive( ModulePacket *packet ) {
-	if( packet->id>=firstUpdatePacket ) {
-		UpdatePacket *up = (UpdatePacket *)packet;
-		if( up->gauge>=0 && up->gauge<d->gauges.size() )
-			d->gauges[up->gauge]->receive( up );
+void MulticrewGauge::receive( void *data, unsigned size ) {
+	if( d->nextData ) {
+		// fragment is the real data (route is filled by previous call)
+		EnterCriticalSection( &d->cs );
+		if( d->routeGauge>=0 && d->routeGauge<d->gauges.size() ) {
+			Gauge *gauge = d->gauges[d->routeGauge];
+			LeaveCriticalSection( &d->cs );
+			gauge->receive( d->routeElement, data, size );
+		} else {
+			LeaveCriticalSection( &d->cs );
+		}
+	} else {
+		// fragment is route data
+		Route *route = (Route*)data;
+		d->routeGauge = route->gauge;
+		d->routeElement = route->element;
 	}
+
+	// switch between data and route
+	d->nextData = !d->nextData;
 }
 
 
-void MulticrewGauge::send( UpdatePacket *packet, bool safe ) {
-	MulticrewModule::send( packet, safe, false );
+void MulticrewGauge::send( int gauge, int element, void *data, unsigned size, bool safe ) {
+	// add route
+	Route route;
+	route.gauge = gauge;
+	route.element = element;
+	MulticrewModule::send( &route, sizeof(Route), safe, Connection::MediumPriority );
+
+	// add data
+	MulticrewModule::send( data, size, safe, Connection::MediumPriority );
+}
+
+
+void MulticrewGauge::sendProc() {
+	EnterCriticalSection( &d->cs );
+	for( int i=0; i<d->gauges.size(); i++ )
+		d->gauges[i]->sendProc();
+	LeaveCriticalSection( &d->cs );
 }
 
 

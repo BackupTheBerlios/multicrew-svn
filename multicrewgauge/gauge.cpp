@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gauges.h"
 #include "multicrewgauge.h"
-#include "../multicrewcore/debug.h"
+#include "../multicrewcore/streams.h"
 #include "../multicrewcore/callback.h"
 
 using namespace Gdiplus;
@@ -48,6 +48,7 @@ struct Gauge::Data {
 	std::string parameters;
 	int id;
 	MulticrewGauge *mgauge;
+	CRITICAL_SECTION cs;
 
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR           gdiplusToken;	
@@ -62,6 +63,7 @@ Gauge::Gauge( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader ) {
 	d->parameters = (d->gaugeHeader->parameters!=NULL)?d->gaugeHeader->parameters:"";
 	d->id = id;
 	namedGauges[name() + "§" + parameter()] = this;
+	InitializeCriticalSection( &d->cs );
 	
 	// setup callback
 	d->originalGaugeCallback = d->gaugeHeader->gauge_callback;
@@ -80,7 +82,9 @@ void Gauge::createElements() {
 			ELEMENT_HEADER *pelement = todo.top(); todo.pop();
 			Element *element = createElement( id, pelement );
 			if( element!=0 ) {
+				EnterCriticalSection( &d->cs );
 				d->elements.push_back( element );			
+				LeaveCriticalSection( &d->cs );
 				id++;
 			}
 
@@ -96,12 +100,15 @@ Gauge::~Gauge() {
 	dout << "~Gauge " << name() << " " << parameter() << std::endl;			
 
 	// delete all elements
+	EnterCriticalSection( &d->cs );
 	std::deque<Element*>::iterator it = d->elements.begin();
 	while( it!=d->elements.end() ) delete *it++;
 	d->elements.clear();
+	LeaveCriticalSection( &d->cs );
 
 	namedGauges.erase( name() + "§" + parameter() );
 
+	DeleteCriticalSection( &d->cs );
 	delete d;
 }
 
@@ -125,6 +132,7 @@ int Gauge::id() {
 	return d->id;
 }
 
+
 Gauge &Gauge::gauge( const std::string &name, const std::string &parameter ) {	
 	return *namedGauges[name + "§" + parameter];
 }
@@ -135,16 +143,26 @@ MulticrewGauge *Gauge::mgauge() {
 }
 
 
-void Gauge::send( UpdatePacket *packet, bool safe ) {
-	packet->gauge = id();
-	d->mgauge->send( packet, safe );
+void Gauge::send( int element, void *data, unsigned size, bool safe ) {
+	d->mgauge->send( id(), element, data, size, safe );
 }
 
 
-void Gauge::receive( UpdatePacket *packet ) {
-	if( packet->element<d->elements.size() && packet->element>=0 )
-		d->elements[packet->element]->receive( packet );
+void Gauge::receive( int element, void *data, unsigned size ) {
+	EnterCriticalSection( &d->cs );
+	if( element<d->elements.size() && element>=0 )
+		d->elements[element]->receive( data, size );
+    LeaveCriticalSection( &d->cs );
 }
+
+
+void Gauge::sendProc() {
+	EnterCriticalSection( &d->cs );
+	for( int i=0; i<d->elements.size(); i++ )
+		d->elements[i]->sendProc();
+	LeaveCriticalSection( &d->cs );
+}
+
 
 /********************************************************************************************/
 

@@ -20,10 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <dplay8.h>
 
+#include "streams.h"
 #include "log.h"
-#include "debug.h"
 #include "config.h"
-#include "error.h"
 #include "networkimpl.h"
 #include "callback.h"
 
@@ -89,14 +88,14 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 	HRESULT hr;
 
 	// create directplay peer object
-	log << "Creating DirectPlay8Peer object" << std::endl;
+	dlog << "Creating DirectPlay8Peer object" << std::endl;
 	hr = CoCreateInstance( 
 		CLSID_DirectPlay8Peer, NULL, 
         CLSCTX_INPROC_SERVER,
         IID_IDirectPlay8Peer, 
         (LPVOID*) &d->peer );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return 0;
 	}
 
@@ -105,45 +104,46 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 	SmartPtr<Connection> con( conImpl );
 
 	// initialize
-	log << "Initializing peer" << std::endl;
+	dlog << "Initializing peer" << std::endl;
 	hr = d->peer->Initialize(NULL, conImpl->callback(), 0 );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return 0;
 	}
 
 	// Create our IDirectPlay8Address Device Address
-	log << "Creating device address" << std::endl;
+	dlog << "Creating device address" << std::endl;
 	hr = CoCreateInstance( CLSID_DirectPlay8Address, NULL,
                                        CLSCTX_INPROC_SERVER,
                                        IID_IDirectPlay8Address,
                                        (LPVOID*) &d->deviceAddress );
     if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str()  << std::endl;
+		dlog << "Failed: " << fe(hr).c_str()  << std::endl;
         return 0;
     }
 
-	log << "Set port to " << port << std::endl;
+	dlog << "Set port to " << port << std::endl;
 	d->deviceAddress->AddComponent( DPNA_KEY_PORT, 
 		&port, sizeof(DWORD), DPNA_DATATYPE_DWORD );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return 0;
     }
     
     // Set the SP for our Device Address
-	log << "Setting service provider to TCPIP" << std::endl;
+	dlog << "Setting service provider to TCPIP" << std::endl;
 	bool useSim = Config::config()->boolValue( "", "DirectPlaySimulator", false );
 	if( useSim ) {
 		hr = d->deviceAddress->SetSP( &CLSID_NETWORKSIMULATOR_DP8SP_TCPIP );
-		if( FAILED(hr) )
+		if( FAILED(hr) ) {
+			dlog << "Network simulator didn't work: " << fe(hr) << std::endl;
 			hr = d->deviceAddress->SetSP( &CLSID_DP8SP_TCPIP );
-		else
-			dout << "Using network simulator" << std::endl;
+		} else
+			dlog << "Using network simulator" << std::endl;
 	} else
 		hr = d->deviceAddress->SetSP( &CLSID_DP8SP_TCPIP );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return 0;
 	}
 
@@ -155,14 +155,14 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 	wchar_t name[16];
 	mbstowcs( name, "Host", 16 );
 	playerInfo.pwszName = name;
-	log << "Setting player information" << std::endl;
+	dlog << "Setting player information" << std::endl;
 	hr = d->peer->SetPeerInfo( 
 		&playerInfo,
 		NULL,
 		NULL,
 		DPNSETPEERINFO_SYNC );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
@@ -177,7 +177,7 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 		appDesc.dwFlags |= DPNSESSION_REQUIREPASSWORD; 
 	}
 
-	log << "Hosting session" << std::endl;
+	dlog << "Hosting session" << std::endl;
 	hr = d->peer->Host( 
 		&appDesc,            // AppDesc
 		&d->deviceAddress, 1,  // Device Address
@@ -185,12 +185,12 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
         0,                // Player Context
         0 );                 // dwFlags
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
 	// create host group
-	log << "Creating host group" << std::endl;
+	dlog << "Creating host group" << std::endl;
 	//wchar_t name[16];
 	mbstowcs( name, "Host", 16 );
 	DPN_GROUP_INFO groupInfo;
@@ -206,12 +206,12 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 		0,
 		DPNCREATEGROUP_SYNC );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
 	// create client group
-	log << "Creating client group" << std::endl;
+	dlog << "Creating client group" << std::endl;
 	mbstowcs( name, "Client", 16 );
 	ZeroMemory( &groupInfo, sizeof(DPN_GROUP_INFO) );
 	groupInfo.dwSize = sizeof(DPN_GROUP_INFO);
@@ -225,12 +225,12 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 		0,
 		DPNCREATEGROUP_SYNC );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 
 	// join host group
-	log << "Joining host group" << std::endl;
+	dlog << "Joining host group" << std::endl;
 	hr = d->peer->AddPlayerToGroup(
 		conImpl->hostGroup(),
 		conImpl->thisPlayer(),
@@ -238,7 +238,7 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 		NULL,
 		DPNADDPLAYERTOGROUP_SYNC );
 	if( FAILED(hr) ) {
-		log << "Failed: " << fe(hr).c_str() << std::endl;
+		dlog << "Failed: " << fe(hr).c_str() << std::endl;
 		return false;
 	}
 

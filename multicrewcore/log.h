@@ -20,14 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef LOG_H_INCLUDED
 #define LOG_H_INCLUDED
 
-#include "common.h"
-
-// copyright 1999, James M. Curran
-#include <strstream>
-#include <ostream>
-#include <windows.h>
-
-#include "debug.h"
+#include "streams.h"
 #include "multicrewcore.h"
 
 using std::ostream;
@@ -35,21 +28,19 @@ class LogStream : public ostream {
 private:
 	class LogStreamBuf : public std::strstreambuf {
 	public:
-		LogStreamBuf() : core( MulticrewCore::multicrewCore() ) {}
+		LogStreamBuf() {}
 	protected:
 		virtual int sync() {
 			sputc('\0');
 			if( strlen(str())>0 ) {				
 				OutputDebugString( str() );
-				core->log(str());
+				MulticrewCore::multicrewCore()->log(str());
 			}
 
 			freeze(false);
 			setp(pbase(), pbase(), epptr());
 			return 0;
 		}
-
-		SmartPtr<MulticrewCore> core;
 	};
 	
 	LogStreamBuf m_buf;
@@ -59,6 +50,10 @@ public:
 	~LogStream() { m_buf.pubsync();}
 };
 
-extern DLLEXPORT LogStream log;
+extern DLLEXPORT LogStream dlog;
+
+#ifdef _DEBUG
+#define dlog do {EnterCriticalSection( &ostreamCritSec ); dlog
+#endif
 
 #endif

@@ -13,7 +13,7 @@
 #ifndef	__FS_MODULE_H__
 #define	__FS_MODULE_H__
 
-#define	DLLEXPORT	__declspec(dllexport)
+#define	UI_DLLEXPORT	__declspec(dllexport)
 #define	FSAPI	__stdcall
 
 /**

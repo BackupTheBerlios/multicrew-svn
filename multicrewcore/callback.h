@@ -17,8 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#ifndef CALLBACK_H_INCLUDED
-#define CALLBACK_H_INCLUDED
+#ifndef MULTICREWCORE_CALLBACK_H_INCLUDED
+#define MULTICREWCORE_CALLBACK_H_INCLUDED
 
 #include "common.h"
 

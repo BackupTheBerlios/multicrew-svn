@@ -32,8 +32,7 @@ struct StatusDialog::Data {
 	Data( StatusDialog *dlg )
 		: core( MulticrewCore::multicrewCore() ),
 		  planeRegisteredSlot( &core->planeLoaded, dlg, StatusDialog::planeRegistered ),
-		  planeUnregisteredSlot( &core->planeUnloaded, dlg, StatusDialog::planeUnregistered ),
-		  loggedSlot( &core->logged, dlg, StatusDialog::logged ) {
+		  planeUnregisteredSlot( &core->planeUnloaded, dlg, StatusDialog::planeUnregistered ) {
 	}
 
 	wxTextCtrl *logs;
@@ -46,7 +45,6 @@ struct StatusDialog::Data {
 	SmartPtr<MulticrewCore> core;
 	Slot<StatusDialog> planeRegisteredSlot;
 	Slot<StatusDialog> planeUnregisteredSlot;
-	Slot1<StatusDialog, const char*> loggedSlot;
 };
 
 StatusDialog::StatusDialog(wxWindow* parent,wxWindowID id,const wxString& title,const wxPoint& pos,const wxSize& size,long style,const wxString& name)
@@ -106,8 +104,8 @@ void StatusDialog::planeUnregistered() {
 }
 
 
-void StatusDialog::logged( const char *line ) {
-	d->logs->AppendText( wxString(line) );
+void StatusDialog::log( std::string line ) {
+	d->logs->AppendText( line.c_str() );
 }
 
 

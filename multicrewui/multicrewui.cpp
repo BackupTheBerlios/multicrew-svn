@@ -27,8 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #include "../multicrewcore/multicrewcore.h"
-#include "../multicrewcore/debug.h"
-#include "../multicrewcore/error.h"
+#include "../multicrewcore/streams.h"
 #include "../multicrewcore/signals.h"
 #include "../multicrewcore/network.h"
 #include "ConnectWizard.h"
@@ -43,7 +42,8 @@ struct MulticrewUI::Data {
 		  planeRegisteredSlot( &core->planeLoaded, ui, MulticrewUI::planeRegistered ),
 		  planeUnregisteredSlot( &core->planeUnloaded, ui, MulticrewUI::planeUnregistered ),
 		  disconnectedSlot( 0, ui, MulticrewUI::disconnected ),
-		  statusDlg( NULL ) {		
+		  statusDlg( NULL ),
+		  loggedSlot( &core->logged, ui, MulticrewUI::logged ) {		
 	}
 
 	SmartPtr<MulticrewCore> core;
@@ -54,6 +54,10 @@ struct MulticrewUI::Data {
 	
 	SmartPtr<Connection> connection; 
 	Slot<MulticrewUI> disconnectedSlot;
+
+	Slot1<MulticrewUI, const char*> loggedSlot;
+	CRITICAL_SECTION loggedCritSect;
+	std::list<std::string> loggedLines;
 
 	HMENU menu;
 	HWND hwnd;
@@ -68,7 +72,9 @@ MulticrewUI::MulticrewUI( HWND hwnd ) {
 	d->mainWindow= new wxWindow();
 	d->mainWindow->SetHWND( (WXHWND)hwnd );
 	d->statusDlg = new StatusDialog( d->mainWindow );
-	d->mainWindow.Enable( false );
+	d->mainWindow->Enable( false );
+
+	InitializeCriticalSection( &d->loggedCritSect );
 }
 
 
@@ -77,6 +83,7 @@ MulticrewUI::~MulticrewUI() {
 
 	// disconnect network connections
 	if( !d->connection.isNull() ) {
+		d->disconnectedSlot.disconnect();
 		d->core->unprepare();
 		d->connection->disconnect();
 		d->connection = 0;
@@ -88,12 +95,33 @@ MulticrewUI::~MulticrewUI() {
 	// disconnect from main window
 	d->mainWindow->SetHWND( 0 );
 	d->mainWindow->Destroy();
+	DeleteCriticalSection( &d->loggedCritSect );
 	delete d;
 
 #ifdef SHARED_DEBUG
 	SmartPtrBase::dumpPointers();
 #endif
 	dout << "< ~MulticrewUI()" << std::endl;
+}
+
+
+void MulticrewUI::logged( const char *line ) {
+	EnterCriticalSection( &d->loggedCritSect );
+	d->loggedLines.push_back( line );
+	LeaveCriticalSection( &d->loggedCritSect );
+	PostMessage( d->hwnd, WM_COMMAND, ID_LOG, 0 );
+}
+
+
+void MulticrewUI::log() {
+	EnterCriticalSection( &d->loggedCritSect );
+	std::list<std::string>::iterator it = d->loggedLines.begin();
+	while( it!=d->loggedLines.end() ) {
+		d->statusDlg->log( *it );
+		it++;
+	}
+	d->loggedLines.clear();
+	LeaveCriticalSection( &d->loggedCritSect );
 }
 
 
@@ -112,8 +140,15 @@ void MulticrewUI::host() {
 			d->connection = con;
 			d->disconnectedSlot.connect( &d->connection->disconnected );
 			d->core->prepare( d->connection );
-			d->connection->start();
-			d->statusDlg->setConnected();
+			bool ok = d->connection->start();
+			if( !ok ) {
+				d->core->unprepare();
+				d->connection->disconnect();
+				d->connection = 0;
+				derr << "Session start failed. Take a look at the logs to find out why." 
+					 << std::endl;
+			} else
+				d->statusDlg->setConnected();
 		}
 	}
 }

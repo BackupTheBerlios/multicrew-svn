@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef SHARED_H_INCLUDED
-#define SHARED_H_INCLUDED
+#ifndef MULTICREWCORE_SHARED_H_INCLUDED
+#define MULTICREWCORE_SHARED_H_INCLUDED
 
 //#define SHARED_DEBUG
 
@@ -26,11 +26,12 @@
 #pragma warning (disable : 4251)
 
 #include "common.h"
-#include "debug.h"
+#include "streams.h"
 
 #ifdef SHARED_DEBUG
 #include <set>
 #endif
+
 
 class SharedBase {
  public:
@@ -55,31 +56,8 @@ class DLLEXPORT Shared : public SharedBase {
 #endif
   }
 
-  int ref() {
-#ifdef SHARED_DEBUG 
-	  dout << (void*)this << ":" << typeid(*this).name() 
-		   << "::ref() = " << refcount+1 << std::endl;
-#endif
-	  return refcount++;
-  } 
-
-  int deref() {
-	  refcount--;
-	  int ret = refcount;
-#ifdef SHARED_DEBUG
-	  dout << (void*)this << ":" << typeid(*this).name() 
-		   << "::deref() = " << refcount << std::endl;
-#endif
-	  if( ret==0 ) {
-#ifdef SHARED_DEBUG
-		  dout << (void*)this << ":" << typeid(*this).name() 
-			   << " deleting itself" << std::endl;
-#endif
-		  delete this; 
-	  }
-
-	  return ret;
-  }
+  int ref();
+  int deref();
 
  private:
   int refcount;

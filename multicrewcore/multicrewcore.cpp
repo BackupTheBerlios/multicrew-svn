@@ -17,12 +17,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#define _WIN32_DCOM 
+#include <objbase.h>
+
 #include <list>
 #include <deque>
 #include <map>
 
-#include "debug.h"
-#include "error.h"
+#include "streams.h"
 #include "signals.h"
 #include "multicrewcore.h"
 #include "position.h"
@@ -31,7 +33,7 @@ static MulticrewCore *multicrewCore = 0;
 
 SmartPtr<MulticrewCore> MulticrewCore::multicrewCore() {
 	if( ::multicrewCore==0 ) ::multicrewCore = new MulticrewCore();
-	dout << "MulticrewCore::multicrewCore()" << std::endl;
+	// dout << "MulticrewCore::multicrewCore()" << std::endl;
 	return ::multicrewCore;
 }
 
@@ -40,28 +42,29 @@ struct MulticrewCore::Data {
 	bool hostMode;
 
 	std::map<std::string, MulticrewModule*> modules;
-	PositionModule *posModule;
+	SmartPtr<PositionModule> posModule;
 };
 
 
 MulticrewCore::MulticrewCore() {
 	d = new Data;
-	d->posModule = 0;
+	CoInitializeEx( NULL, COINIT_MULTITHREADED );
 	dout << "MulticrewCore" << std::endl;
 }
 
 
 MulticrewCore::~MulticrewCore() {
 	dout << "~MulticrewCore" << std::endl;
-	delete d->posModule;
+	d->posModule = 0;
 	d->modules.clear();
 	::multicrewCore = 0;
+	CoUninitialize();
 	delete d;
 }
 
 
 bool MulticrewCore::registerModule( MulticrewModule *module ) {
-	dout << "> registerModule" << std::endl;
+	dout << "module " << module->moduleName() << " registered" << std::endl;
 	if( d->modules.empty() ) {
 		// first module sets hostMode
 		d->hostMode = module->isHostMode();
@@ -79,27 +82,36 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 
 	// first module?
 	if( d->modules.size()==1 ) {	
+		// create FSUIPC object (automatically registers to the modules list)
+		if( d->hostMode )
+			d->posModule = new PositionHostModule();
+		else
+			d->posModule = new PositionClientModule();
+
 		// emit signal
 		planeLoaded.emit();
 	}
-
-	dout << "< registerModule" << std::endl;
 
 	return true;
 }
 
 
 void MulticrewCore::unregisterModule( MulticrewModule *module ) {
-	dout << "> unregisterModule" << std::endl;
+	dout << "module " << module->moduleName() << " unregistered" << std::endl;
+
+	// find and remove module from module list
 	std::map<std::string, MulticrewModule*>::iterator res = d->modules.find( module->moduleName().c_str() );
 	if( res!=d->modules.end() ) {
 		d->modules.erase( res );
 		if( d->modules.empty() ) {
+			// destroy FSUIPC module
+			d->posModule = 0;
+
+			// no modules registered anymore
 			dout << "unload" << std::endl;
 			planeUnloaded.emit();
 		}
 	}
-	dout << "< unregisterModule" << std::endl;
 }
 
 
@@ -119,13 +131,6 @@ void MulticrewCore::log( std::string line ) {
 
 
 void MulticrewCore::prepare( SmartPtr<Connection> con ) {
-	// create FSUIPC object
-	if( d->hostMode )
-		d->posModule = new PositionHostModule();
-	else
-		d->posModule = new PositionClientModule();
-	d->posModule->start();
-
 	// prepare modules for connection
 	std::map<std::string, MulticrewModule*>::iterator it = d->modules.begin();
 	while( it!=d->modules.end() ) {
@@ -136,13 +141,10 @@ void MulticrewCore::prepare( SmartPtr<Connection> con ) {
 
 
 void MulticrewCore::unprepare() {
+	// unconnect modules from connection
 	std::map<std::string, MulticrewModule*>::iterator it = d->modules.begin();
 	while( it!=d->modules.end() ) {
 		it->second->disconnect();
 		it++;
 	}
-
-	// destroy FSUIPC module
-	delete d->posModule; 
-	d->posModule = 0;
 }

@@ -62,6 +62,7 @@ protected:
  DECLARE_EVENT_TABLE()  
 
  void OnNextPage( wxWizardEvent& event );
+ void OnPasswordButton(wxCommandEvent& event,int index=-1);
  virtual bool TransferDataFromWindow();
 
  #define VwX_INIT_OBJECTS_HostWizard
