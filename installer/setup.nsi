@@ -68,13 +68,14 @@ ShowUnInstDetails show
 Section "!Multicrew" SEC01
   SetOverwrite ifnewer
   SetOutPath "$INSTDIR\Multicrew"
-  File "..\multicrewprepare\${BUILDDIR}\multicrewprepare.exe"
   File "..\multicrewgauge\${BUILDDIR}\multicrewgauge.dll"
-  File "multicrew\*.*"
+  File "multicrew\gpl.txt"
   SetOutPath "$INSTDIR\Multicrew\..\modules"
   File "..\multicrewui\${BUILDDIR}\multicrewui.dll"
   SetOutPath "$INSTDIR\Multicrew\.."
   File "..\multicrewcore\${BUILDDIR}\multicrewcore.dll"
+  File "..\multicrewprepare\${BUILDDIR}\multicrewprepare.exe"
+  File "..\multicrewprepare\${BUILDDIR}\multicrewpanelprepare.exe"
   File "${WXDIR}\lib\${WXDLL}.dll"
   SetOutPath "$SYSDIR"
   File "${SYSTEMDIR}\${CRTDLL}.dll"
@@ -82,6 +83,24 @@ Section "!Multicrew" SEC01
 ; Shortcuts
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   !insertmacro MUI_STARTMENU_WRITE_END
+SectionEnd
+
+Section "PMDG 737NG 600/700 (with and without upgrade)" SEC02
+  SetOverwrite ifnewer
+  SetOutPath "$INSTDIR\Multicrew"
+  File "multicrew\PMDG*.*"
+
+  SetOutPath "$INSTDIR\Multicrew\.."
+  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-700\panel\Panel.CFG'
+SectionEnd
+
+Section "PMDG 737NG 800/900" SEC03
+  SetOverwrite ifnewer
+  SetOutPath "$INSTDIR\Multicrew"
+  File "multicrew\PMDG*.*"
+
+  SetOutPath "$INSTDIR\Multicrew\.."
+  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-900\panel\Panel.CFG'
 SectionEnd
 
 Section -AdditionalIcons
@@ -106,8 +125,8 @@ SectionEnd
 ; Section descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC01} "The multicrew main package"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC02} ""
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC03} ""
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC02} "PMDG 737NG support for the 600/700 version, with and without the 800/900 upgrade"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC03} "PMDG 737NG support for the 800/900 version"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 
@@ -129,7 +148,8 @@ Section Uninstall
   Delete "$INSTDIR\..\multicrewcore.dll"
   Delete "$INSTDIR\gpl.txt"
   Delete "$INSTDIR\multicrewgauge.dll"
-  Delete "$INSTDIR\multicrewprepare.exe"
+  Delete "$INSTDIR\..\multicrewprepare.exe"
+  Delete "$INSTDIR\..\multicrewpanelprepare.exe"
   Delete "$INSTDIR\..\modules\multicrewui.dll"
 
   Delete "$SMPROGRAMS\$ICONS_GROUP\Uninstall.lnk"
