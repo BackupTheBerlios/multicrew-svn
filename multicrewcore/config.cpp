@@ -22,17 +22,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "streams.h"
 #include "config.h"
 
-static Config *config = 0;
+static RegistryConfig *config = 0;
 
-Config *Config::config() {
-	if( ::config==0 ) ::config = new Config();
+Config *RegistryConfig::config() {
+	if( ::config==0 ) ::config = new RegistryConfig();
 	return ::config;
 }
 
-Config::Config() {
+
+RegistryConfig::RegistryConfig() {
 }
 
-bool Config::boolValue( std::string category, std::string key, bool def ) {
+
+bool RegistryConfig::boolValue( const std::string &category, const std::string &key, bool def ) {
 	HKEY hkey;
 	BYTE buf[256];
 	DWORD size = 256;
@@ -48,7 +50,7 @@ bool Config::boolValue( std::string category, std::string key, bool def ) {
 	return ret;
 }
 
-std::string Config::stringValue( std::string category, std::string key, std::string def ) {
+std::string RegistryConfig::stringValue( const std::string &category, const std::string &key, const std::string &def ) {
 	HKEY hkey;
 	BYTE buf[256];
 	DWORD size = 256;
@@ -64,7 +66,7 @@ std::string Config::stringValue( std::string category, std::string key, std::str
 	return ret;
 }
 
-int Config::intValue( std::string category, std::string key, int def ) {
+int RegistryConfig::intValue( const std::string &category, const std::string &key, int def ) {
 	HKEY hkey;
 	BYTE buf[256];
 	DWORD size = 256;
@@ -78,5 +80,5 @@ int Config::intValue( std::string category, std::string key, int def ) {
 			ret = (int)buf[0];
 	RegCloseKey( hkey );
 	return ret;
-}
+};
 

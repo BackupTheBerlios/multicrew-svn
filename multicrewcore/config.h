@@ -21,18 +21,53 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MULTICREWCORE_CONFIG_H_INCLUDED
 
 #include "common.h"
+
 #include <string>
 
-class DLLEXPORT Config {
-public:
+#include "shared.h"
+
+
+class Config {
+ public:
+	virtual bool boolValue( const std::string &category, const std::string &key, bool def )=0;
+	virtual std::string stringValue( const std::string &category, const std::string &key, const std::string &def )=0;
+	virtual int intValue( const std::string &category, const std::string &key, int def )=0;
+};
+
+
+class DLLEXPORT RegistryConfig : public Config {
+ public:
 	static Config *config();
 
-	bool boolValue( std::string category, std::string key, bool def );
-	std::string stringValue( std::string category, std::string key, std::string def );
-	int intValue( std::string category, std::string key, int def );
+	bool boolValue( const std::string &category, const std::string &key, bool def );
+	std::string stringValue( const std::string &category, const std::string &key, const std::string &def );
+	int intValue( const std::string &category, const std::string &key, int def );
 
-private:
-	Config();
+ private:
+	RegistryConfig();
 };
+
+
+class DLLEXPORT FileConfig : public Config {
+ public:
+    FileConfig( const std::string &file );
+    virtual ~FileConfig();
+	
+    int sync();
+	
+    int intValue( const std::string &group, const std::string &key, int def );
+    bool boolValue( const std::string &group, const std::string &key, bool def );
+    std::string stringValue( const std::string &group, const std::string &key, const std::string &def=std::string() );
+
+    void setNumber( const std::string &group, const std::string &key, int value );
+    void setBool( const std::string &group, const std::string &key, bool value );
+    void setString( const std::string &group, const std::string &key, const std::string &value );
+
+ private:
+	struct Data;
+    Data* d;
+	friend Data;
+};
+
 
 #endif
