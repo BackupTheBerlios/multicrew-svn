@@ -54,7 +54,7 @@ ConnectWizard::ConnectWizard(wxWindow* parent,wxWindowID id,const wxString& titl
 	}
 	Create( parent, id, title, m_bitmap, pos );
 	VwXinit();
-	port->SetValue( Config::config()->stringValue( "", "DefaultPort", MULTICREW_PORT ).c_str() );
+	port->SetValue( RegistryConfig::config()->stringValue( "", "DefaultPort", MULTICREW_PORT ).c_str() );
 	hostName->SetLabel(wxT("localhost"));
 	Refresh();
 }

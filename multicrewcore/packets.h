@@ -98,7 +98,7 @@ class DLLEXPORT SharedBuffer {
 		this->_size = size;
 	}
 
-	SharedBuffer( SharedBuffer &buf ) {
+	SharedBuffer( const SharedBuffer &buf ) {
 		this->buf = buf.buf;
 		this->_start = buf._start;
 		this->_size = buf._size;
@@ -140,9 +140,9 @@ class Packet : public Shared {
 template< class Prefix, class Wrappee >
 class DLLEXPORT WrappedPacket : public Packet {
  public:
-	WrappedPacket( Prefix *prefix, SmartPtr<Wrappee> wrappee ) 
+	WrappedPacket( const Prefix &prefix, SmartPtr<Wrappee> wrappee ) 
 		: buffer(sizeof(Prefix)+wrappee->compiledSize()) {
-		memcpy( buffer.data(), prefix, sizeof(Prefix) );
+		memcpy( buffer.data(), &prefix, sizeof(Prefix) );
 		wrappee->compile( buffer.data(sizeof(Prefix)) );
 	}
 
@@ -331,7 +331,7 @@ class DLLEXPORT TypedPacket : public WrappedPacket<TypePrefix<Key>, PacketBase> 
 	}
 
 	TypedPacket( Key key, SmartPtr<PacketBase> packet ) 
-		: WrappedPacket<TypePrefix<Key>, PacketBase>( new TypePrefix<Key>(key), packet ) {
+		: WrappedPacket<TypePrefix<Key>, PacketBase>( TypePrefix<Key>(key), packet ) {
 	}
 
 	Key key() {
@@ -355,25 +355,30 @@ class DLLEXPORT TypedPacket : public WrappedPacket<TypePrefix<Key>, PacketBase> 
 class RawPacket : public Packet {
 public:
 	RawPacket( void *data, unsigned size ) 
-		: buffer( data, size, true ) {
+		: _buffer( data, size, true ) {
+	}
+
+	RawPacket( const SharedBuffer &buffer )
+		: _buffer( buffer ) {
 	}
 
 	virtual ~RawPacket() {
 	}
 	
 	virtual unsigned compiledSize() {
-		return buffer.size() + sizeof(unsigned);
+		return _buffer.size();
 	}
 
 	virtual void compile( void *buffer ) {
-		*((unsigned*)buffer) = this->buffer.size();
-		memcpy( ((char*)buffer)+sizeof(unsigned), 
-				this->buffer.data(), 
-				this->buffer.size() );
+		memcpy( ((char*)buffer), this->_buffer.data(), this->_buffer.size() );
+	}
+
+	SharedBuffer buffer() {
+		return _buffer;
 	}
 
 private:
-	Buffer buffer;
+	SharedBuffer _buffer;
 };
 
 

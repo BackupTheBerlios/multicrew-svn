@@ -132,7 +132,7 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
     
     // Set the SP for our Device Address
 	dlog << "Setting service provider to TCPIP" << std::endl;
-	bool useSim = Config::config()->boolValue( "", "DirectPlaySimulator", false );
+	bool useSim = RegistryConfig::config()->boolValue( "", "DirectPlaySimulator", false );
 	if( useSim ) {
 		hr = d->deviceAddress->SetSP( &CLSID_NETWORKSIMULATOR_DP8SP_TCPIP );
 		if( FAILED(hr) ) {

@@ -65,6 +65,11 @@ struct MulticrewGauge::Data {
 	Data( MulticrewGauge *mg )
 		: installCallbackAdapter( mg, MulticrewGauge::installGauge ),
 		packetFactory(gauges) {
+		config = new FileConfig( "multicrew/" + mg->moduleName() + ".ini" );
+	}
+
+	virtual ~Data() {
+		delete config;
 	}
 
 	VoidCallbackAdapter3<MulticrewGauge, PGAUGEHDR, SINT32, UINT32> installCallbackAdapter;
@@ -73,6 +78,7 @@ struct MulticrewGauge::Data {
 	std::deque<Gauge*> gauges;
 	std::map<std::string, GaugeList*> detachedGauges;
 	RoutedGaugePacketFactory packetFactory;
+	Config *config;
 };
 
 
@@ -225,4 +231,9 @@ SmartPtr<Packet> MulticrewGauge::createPacket( SharedBuffer &buffer ) {
 	SmartPtr<RoutedGaugePacket> gp = new RoutedGaugePacket( buffer, &d->packetFactory );
 	unlock();
 	return gp;
+}
+
+
+Config *MulticrewGauge::config() {
+	return d->config;
 }

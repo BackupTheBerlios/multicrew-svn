@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gauges.h"
 #include "../multicrewcore/multicrewcore.h"
+#include "../multicrewcore/config.h"
 
 
 // general
@@ -245,6 +246,8 @@ public:
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement )=0;
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags )=0;
 
+	bool configBoolValue( const std::string &key, bool def );
+
 	struct Data;
 	friend Data;
 	Data *d;
@@ -255,6 +258,7 @@ class GaugeRecorder : public Gauge {
 public:
 	GaugeRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeRecorder();
+	virtual void sendProc();
 	virtual void receive( SmartPtr<Packet> packet );
 
 private:
@@ -269,6 +273,7 @@ public:
 	GaugeViewer( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeViewer();
 	virtual void sendProc();
+	virtual void receive( SmartPtr<Packet> packet );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
@@ -286,6 +291,8 @@ class MulticrewGauge : public MulticrewModule {
 	PGAUGE_CALLBACK installCallback();
 	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	
+	Config *config();
+
  protected:
 	friend Gauge;
 	void detached( Gauge *gauge );

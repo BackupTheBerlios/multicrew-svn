@@ -33,7 +33,7 @@ HostWizard::HostWizard(wxWindow* parent,wxWindowID id,const wxString& title,cons
  }
  Create(parent,id,title,m_bitmap,pos);
  VwXinit();
- portEdit->SetValue( Config::config()->stringValue( "", "DefaultPort", MULTICREW_PORT ).c_str() );
+ portEdit->SetValue( RegistryConfig::config()->stringValue( "", "DefaultPort", MULTICREW_PORT ).c_str() );
  Refresh();
 }
 

@@ -29,13 +29,58 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multicrewgauge.h"
 #include "../multicrewcore/streams.h"
 #include "../multicrewcore/callback.h"
+#include "zdelta/zdlib.h"
+#include "zdelta/zd_mem.h"
 
 using namespace Gdiplus;
+
+
+
+class GlobalMem : public Shared {
+public:
+	GlobalMem( HGLOBAL hmem ) {
+		this->hmem = hmem;
+	}
+
+	GlobalMem( unsigned size ) {
+		this->hmem = GlobalAlloc( 0, size );
+	}
+
+	GlobalMem( void *data, unsigned size ) {
+		this->hmem = GlobalAlloc( 0, size );
+		memcpy( lock(), data, size );
+		unlock();
+	}
+
+	virtual ~GlobalMem() {
+		GlobalFree( hmem );
+	}
+
+	void *lock() {
+		return GlobalLock( hmem );
+	}
+
+	void unlock() {
+		GlobalUnlock( hmem );
+	}
+
+	unsigned size() {
+		return GlobalSize( hmem );
+	}
+
+	HGLOBAL handle() {
+		return hmem;
+	}
+
+private:
+	HGLOBAL hmem;
+};
 
 
 enum {
 	mousePacket = 0,
 	elementPacket,
+	metafilePacket
 };
 
 
@@ -49,6 +94,32 @@ struct MouseStruct {
 typedef TypedPacket<char, Packet> GaugePacket;
 typedef TypedPacket<unsigned, Packet> ElementPacket;
 typedef StructPacket<MouseStruct> MousePacket;
+
+class MetafilePacket : public WrappedPacket<PIXPOINT,RawPacket> {
+public:
+	MetafilePacket( PPIXPOINT dim, SharedBuffer buffer ) 
+		: WrappedPacket<PIXPOINT,RawPacket>(
+			*dim,
+			new RawPacket(buffer) ) {
+	}
+
+	MetafilePacket( SharedBuffer &buf ) 
+		: WrappedPacket<PIXPOINT,RawPacket>(buf) {
+	}
+
+	PPIXPOINT dimension() {
+		return prefix();
+	}
+
+	SharedBuffer buffer() {
+		return wrappee()->buffer();
+	}
+
+protected:
+	virtual SmartPtr<RawPacket> createWrappee( SharedBuffer &buffer ) {
+		return new RawPacket( buffer );
+	}
+};
 
 
 class ElementPacketFactory : public TypedPacketFactory<unsigned,Packet> {
@@ -79,9 +150,10 @@ public:
 		switch( key ) {
 		case mousePacket:
 			return new MousePacket( buffer );
-		case elementPacket: {		
+		case elementPacket:		
 			return new ElementPacket( buffer, &_elementFactory );
-		} break;
+		case metafilePacket:
+			return new MetafilePacket( buffer );
 		default:
 			return 0;
 		}
@@ -113,6 +185,10 @@ struct Gauge::Data {
 	typedef SmartPtr<MousePacket> SmartMousePacket;
 	std::deque<SmartMousePacket> mouseEvents;
 	PMOUSERECT origMouseRect;
+
+	// metafile data
+	SmartPtr<GlobalMem> lastMetafile;
+	PIXPOINT metafileDim;
 
 	// general gauge data
 	std::deque<Element *> elements;	
@@ -288,7 +364,8 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	d->name = gaugeHeader->gauge_name;	
 	d->parameters = (gaugeHeader->parameters!=NULL)?gaugeHeader->parameters:"";
 
-	createElements();
+	bool hookElements = configBoolValue( "hookelements", true );
+	if( hookElements ) createElements();
 	
 	// setup callback
 	d->originalGaugeCallback = d->gaugeHeader->gauge_callback;
@@ -296,8 +373,9 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 		d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
 
 	// setup mouse callbacks
+	bool hookMouse = configBoolValue( "hookmouse", true );
 	d->origMouseRect = d->gaugeHeader->mouse_rect;
-	if( d->gaugeHeader->mouse_rect!=0 ) {
+	if( d->gaugeHeader->mouse_rect!=0 && hookMouse ) {
 		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
 		int num = 0;
 	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
@@ -317,6 +395,13 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	dout << "gaugeHeader=" << gaugeHeader << std::endl;
 
 	LeaveCriticalSection( &d->cs );
+}
+
+bool Gauge::configBoolValue( const std::string &key, bool def ) {
+	// first look in [name!parameter], then in [name], then def
+	Config *c = d->mgauge->config();
+	return c->boolValue( name()+"!"+parameter(), key,
+						 c->boolValue( name(), key, def ) );
 }
 
 void Gauge::detach() {
@@ -379,6 +464,27 @@ Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 	return el;
 }
 
+void GaugeRecorder::sendProc() {
+	Gauge::sendProc();
+
+	// send metafile
+	EnterCriticalSection( &d->cs );	
+	if( !d->lastMetafile.isNull() ) {
+		d->mgauge->send( 
+			id(), 
+			new GaugePacket( 
+				metafilePacket,
+				new MetafilePacket( 
+					&d->metafileDim,
+					SharedBuffer( d->lastMetafile->lock(), 
+								  d->lastMetafile->size() ))),
+			false );
+		d->lastMetafile->unlock();
+		d->lastMetafile = 0;
+	}
+	LeaveCriticalSection( &d->cs );
+}
+
 void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	//dout << service_id << std::endl;
 	//dout << "> Gauge::callback " << this << " service_id=" << service_id << std::endl;
@@ -428,9 +534,13 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 			
 			Element *element = d->elements[0];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
-			
+		
+			// create memory stream
+			IStream *stream;
+			CreateStreamOnHGlobal( NULL, FALSE, &stream );
+		 	
 			// create metafile
-			Metafile metafile( staticImage->hdc, EmfTypeEmfPlusOnly );
+			Metafile metafile( stream, staticImage->hdc, EmfTypeEmfPlusOnly );
 			
 			// let gauge draw to metafile
 			HDC origHdc = staticImage->hdc;
@@ -448,6 +558,20 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
 			graphics.DrawImage( &metafile, 0, 0 );
 			
+			// save metafile for later sending
+			HGLOBAL hmem;
+			GetHGlobalFromStream( stream, &hmem );
+			stream->Release();
+			if( GlobalSize(hmem)>500 ) {
+				EnterCriticalSection( &d->cs );
+				d->lastMetafile = new GlobalMem(hmem);
+				memcpy( &d->metafileDim, 
+						&staticImage->image_data.final->dim, 
+						sizeof(PIXPOINT) );
+				LeaveCriticalSection( &d->cs );
+			} else
+				GlobalFree( hmem );
+				 
 			LeaveCriticalSection( &d->cs );
 			return;
 		}				
@@ -509,6 +633,60 @@ GaugeViewer::~GaugeViewer() {
 }
 
 void GaugeViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
+	//dout << service_id << std::endl;
+	//dout << "> Gauge::callback " << this << " service_id=" << service_id << std::endl;
+	bool ispfd = false;
+	if( name()=="EFISDisplay" && parameter()=="PFD 1" ) ispfd=true;
+
+	// do work of callback
+	switch (service_id) {
+	case PANEL_SERVICE_POST_INSTALL:
+		if( ispfd ) GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
+		break;
+		
+	case PANEL_SERVICE_PRE_DRAW: {
+		// display
+		EnterCriticalSection( &d->cs );
+		if( ispfd && d->elements.size()>0 && 
+			d->elements[0] && 
+			!d->lastMetafile.isNull() ) {
+			dout << "draw metafile" << std::endl;
+
+			Element *element = d->elements[0];
+			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
+			PPIXPOINT dim = &staticImage->image_data.final->dim;
+			
+			// create stream
+			IStream *stream;
+			CreateStreamOnHGlobal( d->lastMetafile->handle(), FALSE, &stream );			
+			Metafile metafile( stream );
+					
+			// display metafile
+			dout << "x=" << d->metafileDim.x << " -> x=" << dim->x << std::endl;
+			Graphics graphics( staticImage->hdc );
+			graphics.ScaleTransform( 
+				((float)dim->x)/d->metafileDim.x, 
+				((float)dim->y)/d->metafileDim.y, 
+				MatrixOrderPrepend );
+			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
+			graphics.DrawImage( &metafile, 0, 0 );
+			
+			stream->Release();
+			d->lastMetafile = 0;
+			SET_OFF_SCREEN( staticImage );
+		}
+		LeaveCriticalSection( &d->cs );
+		return;
+	} break;
+
+	case PANEL_SERVICE_DISCONNECT:
+		if( ispfd ) GdiplusShutdown(d->gdiplusToken);
+		break;
+		
+	default:
+		break;
+	}
+
 	Gauge::callback( pgauge, service_id, extra_data );
 }
 
@@ -524,6 +702,27 @@ Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 	}
 
 	return el;
+}
+
+
+void GaugeViewer::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
+	switch( gp->key() ) {
+	case metafilePacket:
+	{
+		EnterCriticalSection( &d->cs );
+		SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*gp->wrappee();
+		dout << "metafile packet with size " << mp->buffer().size() << std::endl;
+		d->lastMetafile = new GlobalMem( mp->buffer().data(), 
+										 mp->buffer().size() );
+		memcpy( &d->metafileDim, mp->dimension(), sizeof(PIXPOINT) );
+		LeaveCriticalSection( &d->cs );
+	} break;
+
+	default:
+		Gauge::receive( packet );
+		break;
+	}
 }
 
 
