@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gauges.h"
 #include "../multicrewcore/multicrewcore.h"
 #include "../multicrewcore/config.h"
+#include "../multicrewcore/thread.h"
+#include "zdelta/zdlib.h"
 
 
 // general
@@ -245,6 +247,7 @@ public:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement )=0;
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags )=0;
+	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {}
 
 	bool configBoolValue( const std::string &key, bool def );
 
@@ -267,7 +270,7 @@ private:
 };
 
 
-class GaugeMetafileRecorder : public GaugeRecorder {
+class GaugeMetafileRecorder : public GaugeRecorder, private Thread {
 public:
 	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeMetafileRecorder();
@@ -275,8 +278,13 @@ public:
 	virtual void receive( SmartPtr<Packet> packet );
 
 private:
+	virtual unsigned threadProc( void *param );
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
+	int zd_compress1(const Bytef *ref, uLong rsize,
+					 const Bytef *tar, uLong tsize,
+					 Bytef **delta, uLongf *dsize);	
+	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD);
 };
 
 
@@ -311,7 +319,8 @@ class MulticrewGauge : public MulticrewModule {
 	virtual ~MulticrewGauge();
 	bool init();
 
-	void send( unsigned gauge, SmartPtr<Packet> packet, bool safe );
+	void send( unsigned gauge, SmartPtr<Packet> packet, bool safe, 
+			   Connection::Priority prio=Connection::mediumPriority );
 	PGAUGE_CALLBACK installCallback();
 	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	

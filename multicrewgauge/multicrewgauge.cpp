@@ -35,7 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/packets.h"
 
 
-#define WAITTIME 200
+#define WAITTIME 500
 
 
 typedef TypedPacket<unsigned, Packet> RoutedGaugePacket;
@@ -176,11 +176,12 @@ void MulticrewGauge::handlePacket( SmartPtr<Packet> packet ) {
 }
 
 
-void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe ) {
+void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe,
+						   Connection::Priority prio ) {
 	MulticrewModule::send( 
 		new RoutedGaugePacket(gauge, packet), 
 		safe,
-		Connection::MediumPriority );
+		prio );
 }
 
 

@@ -156,5 +156,109 @@ SOURCE=.\res\big.bmp
 SOURCE=.\multicrewgauge.rc
 # End Source File
 # End Group
+# Begin Group "zdelta"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\zdelta\adler32.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\deflate.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\deflate.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\infblock.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\infblock.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\infcodes.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\infcodes.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\inffast.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\inffast.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\inffixed.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\inflate.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\inftrees.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\inftrees.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\infutil.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\infutil.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\tailor.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\trees.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\trees.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zd_mem.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zd_mem.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zdconf.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zdelta.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zdlib.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zutil.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\zdelta\zutil.h
+# End Source File
+# End Group
 # End Target
 # End Project

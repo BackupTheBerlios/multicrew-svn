@@ -69,7 +69,7 @@ void NeedleElement::attach( ELEMENT_HEADER *elementHeader ) {
 
 	if( d->needleHeader->update_cb!=NULL ) {
 		// install callback wrapper	
-		dout << "install updateCallback for " << d->needleHeader << std::endl;
+		//dout << "install updateCallback for " << d->needleHeader << std::endl;
 		d->needleHeader->update_cb = d->callbackAdapter.callback();
 	}
 }

@@ -108,7 +108,7 @@ int ZEXPORT zd_compress1(const Bytef *ref, uLong rsize,
   strm.opaque = (voidpf)0;
 
   /* init huffman coder */
-  rval = zd_deflateInit(&strm, ZD_DEFAULT_COMPRESSION);
+  rval = zd_deflateInit(&strm, 1 ); //ZD_DEFAULT_COMPRESSION);
   if (rval != ZD_OK)
   {
     fprintf(stderr, "%s error: %d\n", "deflateInit", rval);
