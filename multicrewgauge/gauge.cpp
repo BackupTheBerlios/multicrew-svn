@@ -56,9 +56,6 @@ struct MousePacket : public BasePacket {
 #pragma pack(pop,1)
 
 
-
-static std::map<std::string, Gauge*> namedGauges;
-
 struct Gauge::Data {
 	Data( Gauge *gauge )
 		: callbackAdapter( gauge, Gauge::callback ) {
@@ -73,6 +70,8 @@ struct Gauge::Data {
 	typedef UserCallbackAdapter2<BOOL, Gauge, int, PPIXPOINT, FLAGS32> MouseCallback;
 	std::deque<MouseCallback*> mouseCallbackAdapters;
 
+	std::list<MousePacket> mouseEvents;
+
 	// general gauge data
 	std::deque<Element *> elements;	
 	std::string name;
@@ -86,38 +85,15 @@ struct Gauge::Data {
 };
 
 
-Gauge::Gauge( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader ) {
+Gauge::Gauge( MulticrewGauge *mgauge, int id ) {
 	d = new Data( this );
 	d->mgauge = mgauge;
-	d->gaugeHeader = gaugeHeader;
-	d->name = d->gaugeHeader->gauge_name;	
-	d->parameters = (d->gaugeHeader->parameters!=NULL)?d->gaugeHeader->parameters:"";
+	d->gaugeHeader = 0;
+	d->name = "";
+	d->parameters = "";
 	d->id = id;
-	namedGauges[name() + "§" + parameter()] = this;
+
 	InitializeCriticalSection( &d->cs );
-	
-	// setup callback
-	d->originalGaugeCallback = d->gaugeHeader->gauge_callback;
-	if( d->originalGaugeCallback!=NULL )		
-		d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
-
-	// setup mouse callbacks
-	if( d->gaugeHeader->mouse_rect!=0 ) {
-		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
-		int num = 0;
-	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
-			d->originalMouseCallbacks.push_back( rect->mouse_function );
-			//if( rect->mouse_function!=0 ) {
-				dout << "Wrapping mouse callback for " << d->name << std::endl;
-				Data::MouseCallback *callback = new Data::MouseCallback( this, Gauge::mouseCallback, num );
-				d->mouseCallbackAdapters.push_back( callback );
-				//}
-				rect->mouse_function = callback->callback();
-
-			num++;
-			rect++;
-		}
-	}
 }
 
 void Gauge::createElements() {
@@ -129,13 +105,18 @@ void Gauge::createElements() {
 		
 		while( !todo.empty() ) {
 			ELEMENT_HEADER *pelement = todo.top(); todo.pop();
-			Element *element = createElement( id, pelement );
-			if( element!=0 ) {
-				EnterCriticalSection( &d->cs );
-				d->elements.push_back( element );			
-				LeaveCriticalSection( &d->cs );
-				id++;
-			}
+
+			EnterCriticalSection( &d->cs );
+
+			// element not yet created?
+			if( id>=d->elements.size() ) 
+				d->elements.push_back( createElement( id, pelement ) );
+
+			// attach element
+			if( d->elements[id] ) d->elements[id]->attach( pelement );
+
+			id++;
+			LeaveCriticalSection( &d->cs );
 
 			if( pelement->next_element!=NULL ) {
 				for( int i=0; pelement->next_element[i]!=NULL; i++ )
@@ -149,18 +130,12 @@ Gauge::~Gauge() {
 	dout << "~Gauge " << name() << " " << parameter() << std::endl;			
 	EnterCriticalSection( &d->cs );
 
+	detach();
+
 	// delete all elements
 	std::deque<Element*>::iterator it = d->elements.begin();
 	while( it!=d->elements.end() ) delete *it++;
 	d->elements.clear();
-
-	// delete mouse callbacks
-	std::deque<Data::MouseCallback*>::iterator it2 = d->mouseCallbackAdapters.begin();
-	while( it2!=d->mouseCallbackAdapters.end() ) delete *it2++;
-	d->mouseCallbackAdapters.clear();
-
-	// delete from global map
-	namedGauges.erase( name() + "§" + parameter() );
 
 	LeaveCriticalSection( &d->cs );
 	DeleteCriticalSection( &d->cs );
@@ -169,10 +144,6 @@ Gauge::~Gauge() {
 
 PGAUGEHDR Gauge::gaugeHeader() { 
 	return d->gaugeHeader; 
-}
-
-const std::deque<Element*> &Gauge::elements() {
-	return d->elements;
 }
 
 std::string Gauge::name() {	
@@ -185,11 +156,6 @@ std::string Gauge::parameter() {
 
 int Gauge::id() {
 	return d->id;
-}
-
-
-Gauge &Gauge::gauge( const std::string &name, const std::string &parameter ) {	
-	return *namedGauges[name + "§" + parameter];
 }
 
 
@@ -222,7 +188,8 @@ void Gauge::receive( void *data, unsigned size ) {
 		if( ep->element>=0 && ep->element<d->elements.size() ) {
 			Element *element = d->elements[ep->element];
 			LeaveCriticalSection( &d->cs );
-			element->receive( ep->data, size-sizeof(ElementPacket) );
+			if( element )
+				element->receive( ep->data, size-sizeof(ElementPacket) );
 		} else {
 			LeaveCriticalSection( &d->cs );
 		}
@@ -235,31 +202,134 @@ void Gauge::receive( void *data, unsigned size ) {
 
 
 void Gauge::sendProc() {
+	
+    // call element's sendProc
 	EnterCriticalSection( &d->cs );
-	for( int i=0; i<d->elements.size(); i++ )
-		d->elements[i]->sendProc();
+	for( int i=0; i<d->elements.size(); i++ ) {
+		Element *element = d->elements[i];
+		if( element ) element->sendProc();
+	}
 	LeaveCriticalSection( &d->cs );
+}
+
+
+void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
+	// call original callback
+	if( d->originalGaugeCallback!=NULL ) 
+		(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
+
+	if( service_id>=12 ) {
+		dout << d->name << " " << service_id << std::endl;
+	}
+
+	// if a pre kill is received the plane is either closed
+	// or the panel is resized. In the latter case all gauges will be
+	// recreated during the next moments
+	if( service_id==PANEL_SERVICE_PRE_KILL ) {
+		//dout << "PANEL_SERVICE_PRE_KILL" << std::endl;
+		detach();
+	}
+}
+
+void Gauge::attach( PGAUGEHDR gaugeHeader ) {	
+	EnterCriticalSection( &d->cs );
+
+	// detach first if attached
+	if( d->gaugeHeader ) detach();
+
+	// initialize general variables
+	d->gaugeHeader = gaugeHeader;
+	d->name = gaugeHeader->gauge_name;	
+	d->parameters = (gaugeHeader->parameters!=NULL)?gaugeHeader->parameters:"";
+
+	createElements();
+	
+	// setup callback
+	d->originalGaugeCallback = d->gaugeHeader->gauge_callback;
+	if( d->originalGaugeCallback!=NULL )		
+		d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
+
+	// setup mouse callbacks
+	if( d->gaugeHeader->mouse_rect!=0 ) {
+		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
+		int num = 0;
+	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
+			d->originalMouseCallbacks.push_back( rect->mouse_function );
+			if( rect->mouse_function!=0 || rect->event_id!=0 ) {
+				//dout << "Wrapping mouse callback for " << d->name << std::endl;
+				Data::MouseCallback *callback = new Data::MouseCallback( this, Gauge::mouseCallback, num );
+				d->mouseCallbackAdapters.push_back( callback );
+				rect->mouse_function = callback->callback();
+			}
+
+			num++;
+			rect++;
+		}
+	}
+
+	dout << "gaugeHeader=" << gaugeHeader << std::endl;
+
+	LeaveCriticalSection( &d->cs );
+}
+
+void Gauge::detach() {
+	if( d->gaugeHeader ) {
+		EnterCriticalSection( &d->cs );
+
+		// restore gauge callback
+		d->gaugeHeader->gauge_callback = d->originalGaugeCallback;
+
+		// restore mouse callbacks
+		if( d->gaugeHeader->mouse_rect!=0 ) {
+			PMOUSERECT rect = d->gaugeHeader->mouse_rect;
+			int num = 0;
+			while( rect->rect_type!=MOUSE_RECT_EOL ) {
+				rect->mouse_function = d->originalMouseCallbacks[num];
+				num++;
+				rect++;
+			}
+		}	
+
+		// detach all elements
+		std::deque<Element*>::iterator it = d->elements.begin();
+		while( it!=d->elements.end() ) {
+			Element *element = *(it++);
+			if( element ) element->detach();
+		}
+										   
+		// delete mouse callbacks
+		std::deque<Data::MouseCallback*>::iterator it2 = d->mouseCallbackAdapters.begin();
+		while( it2!=d->mouseCallbackAdapters.end() ) delete *it2++;
+		d->mouseCallbackAdapters.clear();
+		d->originalMouseCallbacks.clear();
+
+		d->mgauge->detached( this );
+		d->gaugeHeader = 0;
+		LeaveCriticalSection( &d->cs );
+	}
 }
 
 
 /********************************************************************************************/
 
-GaugeRecorder::GaugeRecorder( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader ) 
-	: Gauge( mgauge, id, gaugeHeader ) {
-	createElements();
+GaugeRecorder::GaugeRecorder( MulticrewGauge *mgauge, int id ) 
+	: Gauge( mgauge, id ) {
 }
 
 GaugeRecorder::~GaugeRecorder() {
 }
 
 Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
+	Element *el = 0;
 	switch( pelement->element_type ) {
-		case ELEMENT_TYPE_ICON: return new IconRecorder( id, *this, (ELEMENT_ICON*)pelement );					
-		case ELEMENT_TYPE_NEEDLE: return new NeedleRecorder( id, *this, (ELEMENT_NEEDLE*)pelement );					
-		case ELEMENT_TYPE_STRING: return new StringRecorder( id, *this, (ELEMENT_STRING*)pelement );					
-		case ELEMENT_TYPE_STATIC_IMAGE: return new StaticRecorder( id, *this, (ELEMENT_STATIC_IMAGE*)pelement );			
-		default: return 0;			
+	case ELEMENT_TYPE_ICON: el = new IconRecorder( id, *this ); break;
+	case ELEMENT_TYPE_NEEDLE: el = new NeedleRecorder( id, *this ); break;
+	case ELEMENT_TYPE_STRING: el = new StringRecorder( id, *this ); break;
+	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticRecorder( id, *this ); break;
+	default: break;
 	}
+
+	return el;
 }
 
 void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
@@ -270,80 +340,84 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 
 	// do work of callback
 	switch (service_id) {
-    	case PANEL_SERVICE_POST_INSTALL:
-			if( ispfd ) GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
-			if( d->originalGaugeCallback!=NULL ) (*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
-			break;
-
-		case PANEL_SERVICE_PRE_DRAW:
-			if( ispfd ) {
-				Element *element = elements()[0];
-				PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
-
-				// create metafile
-				Metafile metafile( staticImage->hdc, EmfTypeEmfPlusOnly );
+	case PANEL_SERVICE_POST_INSTALL:
+		if( ispfd ) GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
+		break;
+		
+	case PANEL_SERVICE_PRE_DRAW: {
+		// handle mouse events which came in from the network
+		EnterCriticalSection( &d->cs );
+		for( std::list<MousePacket>::iterator it = d->mouseEvents.begin();
+			 it!=d->mouseEvents.end();
+			 it++ ) {
+			// emit mouse event
+			dout << "mouse packet for " << d->name << " mouserect " << it->mouseRectNum << std::endl;
+			
+			if( it->mouseRectNum>=0 && it->mouseRectNum<d->originalMouseCallbacks.size() ) {
+				PMOUSE_FUNCTION cb = d->originalMouseCallbacks[it->mouseRectNum];
+				PMOUSERECT rect = d->gaugeHeader->mouse_rect + it->mouseRectNum;
 				
-				// let gauge draw to metafile
-				HDC origHdc = staticImage->hdc;
-				Graphics *metaGraphics = new Graphics( &metafile );
-				metaGraphics->SetSmoothingMode( SmoothingModeAntiAlias );
-				staticImage->hdc = metaGraphics->GetHDC();				
-				(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
-				metaGraphics->ReleaseHDC( staticImage->hdc );
-				delete metaGraphics;
-				staticImage->hdc = origHdc;
-				origHdc = (HDC)0x204c5047;
-				
-				// display metafile
-				Graphics graphics( staticImage->hdc );
-				graphics.SetSmoothingMode( SmoothingModeAntiAlias );
-				graphics.DrawImage( &metafile, 0, 0 );								
-			} else
-				if( d->originalGaugeCallback!=NULL ) (*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );				
-			break;
-
-		case PANEL_SERVICE_DISCONNECT:
-			if( ispfd ) GdiplusShutdown(d->gdiplusToken);
-			break;
-
-		case PANEL_SERVICE_PRE_KILL:			
-			d->gaugeHeader->gauge_callback = d->originalGaugeCallback;
-			if( d->originalGaugeCallback!=NULL ) (*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );			
-			break;
-
-		default:
-			if( d->originalGaugeCallback!=NULL ) (*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );			
-			break;
-	}
-
-	// draw debug info
-	if( ispfd && service_id==PANEL_SERVICE_PRE_DRAW) {		
-		PELEMENT_STATIC_IMAGE pelement = (PELEMENT_STATIC_IMAGE)(d->gaugeHeader->elements_list[0]);
-
-		if (pelement && pelement->hdc!=NULL) {
-			//OutputDebugString("pelement\n");
-
-			HDC hdc = pelement->hdc;
-			PIXPOINT dim = pelement->image_data.final->dim;
-			if (hdc) {
-				// clear background
-				SelectObject (hdc, GetStockObject (NULL_BRUSH));
-				SelectObject (hdc, GetStockObject (WHITE_PEN));
-				Rectangle (hdc, 0, 0, dim.x, dim.y);
-
-				/*char out[256];
-				sprintf( out, "hdc %i\n", (int)hdc );
-				OutputDebugString(out);*/
-				static int col = 1234;
-				Graphics graphics(hdc);
-				Pen      pen(Color(255, 255, 255, 255), 10.0);
-				graphics.DrawLine(&pen, dim.x/10.0f, dim.x/10.0f, dim.x/10.0f*9.0f, dim.y/10.0f*9.0f);
-				col = col*13+1347;
+				// has callback?
+				if( cb!=0 ) {
+					// call callback
+					dout << "Call mouse callback for " << d->name << std::endl;
+					cb( &it->pix, it->flags );
+				} else {
+					// has eventid?
+					if( rect->event_id!=0 ) {
+						// trigger event
+						dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
+						trigger_key_event( rect->event_id, 0 );
+					}
+				}
 			}
-
-			SET_OFF_SCREEN (pelement);
 		}
+		d->mouseEvents.clear();
+		LeaveCriticalSection( &d->cs );
+	
+		// record metafile for gauge output
+		EnterCriticalSection( &d->cs );
+		if( ispfd && d->elements.size()>0 && d->elements[0] ) {
+			
+			Element *element = d->elements[0];
+			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
+			
+			// create metafile
+			Metafile metafile( staticImage->hdc, EmfTypeEmfPlusOnly );
+			
+			// let gauge draw to metafile
+			HDC origHdc = staticImage->hdc;
+			Graphics *metaGraphics = new Graphics( &metafile );
+			metaGraphics->SetSmoothingMode( SmoothingModeAntiAlias );
+			staticImage->hdc = metaGraphics->GetHDC();				
+			(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
+			metaGraphics->ReleaseHDC( staticImage->hdc );
+			delete metaGraphics;
+			staticImage->hdc = origHdc;
+			origHdc = (HDC)0x204c5047;
+			
+			// display metafile
+			Graphics graphics( staticImage->hdc );
+			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
+			graphics.DrawImage( &metafile, 0, 0 );
+			
+			LeaveCriticalSection( &d->cs );
+			return;
+		}				
+		LeaveCriticalSection( &d->cs );
+	} break;
+
+	case PANEL_SERVICE_DISCONNECT:
+		if( ispfd ) GdiplusShutdown(d->gdiplusToken);
+		break;
+		
+	default:
+		break;
 	}
+	
+	// call inherited callback
+	Gauge::callback( pgauge, service_id, extra_data );
+
 	//dout << "< Gauge::callback" << std::endl;
 }
 
@@ -352,34 +426,11 @@ void GaugeRecorder::receive( void *data, unsigned size ) {
 	BasePacket *p = (BasePacket*)data;
 	switch( p->type ) {
 	case mousePacket:
-	{
-		// emit mouse event
-		MousePacket *mp = (MousePacket*)data;
 		EnterCriticalSection( &d->cs );
-
-		dout << "mouse packet for " << d->name << " mouserect " << mp->mouseRectNum << std::endl;
-
-		if( mp->mouseRectNum>=0 && mp->mouseRectNum<d->originalMouseCallbacks.size() ) {
-			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mp->mouseRectNum];
-			PMOUSERECT rect = d->gaugeHeader->mouse_rect + mp->mouseRectNum;
-
-			// has callback?
-			if( cb!=0 ) {
-				// call callback
-				dout << "Call mouse callback for " << d->name << std::endl;
-				cb( &mp->pix, mp->flags );
-			} else {
-				// has eventid?
-				if( rect->event_id!=0 ) {
-					// trigger event
-					dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
-					trigger_key_event( rect->event_id, 0 );
-				}
-			}			 
-		} 
+		dout << "Received mouse packet for " << d->name << std::endl;
+		d->mouseEvents.push_back( *(MousePacket*)data );
 		LeaveCriticalSection( &d->cs );
-	}
-	break;
+		break;
 	default:
 		Gauge::receive( data, size );
 		break;
@@ -388,10 +439,13 @@ void GaugeRecorder::receive( void *data, unsigned size ) {
 
 
 BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
+	EnterCriticalSection( &d->cs );
 	if( mouseRectNum>=0 && mouseRectNum<d->originalMouseCallbacks.size() && d->originalMouseCallbacks[mouseRectNum]!=0 ) {
 		dout << "mouseCallback for " << d->name << std::endl;
-		return d->originalMouseCallbacks[mouseRectNum]( pix, flags );
+		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
+		cb( pix, flags );
 	}
+	LeaveCriticalSection( &d->cs );
 	
 	return TRUE;
 }
@@ -399,39 +453,65 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 
 /************************************************************************************/
 
-GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader ) 
-	: Gauge( mgauge, id, gaugeHeader ) {
-	createElements();
+GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id ) 
+	: Gauge( mgauge, id ) {
 }
 
 GaugeViewer::~GaugeViewer() {
 }
 
 void GaugeViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
-	// call original callback
-	if( d->originalGaugeCallback!=NULL ) 
-		(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
+	Gauge::callback( pgauge, service_id, extra_data );
 }
 
 Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
+	Element *el = 0;
+
 	switch( pelement->element_type ) {
-	case ELEMENT_TYPE_ICON: return new IconViewer( id, *this, (ELEMENT_ICON*)pelement );					
-	case ELEMENT_TYPE_NEEDLE: return new NeedleViewer( id, *this, (ELEMENT_NEEDLE*)pelement );					
-	case ELEMENT_TYPE_STRING: return new StringViewer( id, *this, (ELEMENT_STRING*)pelement );					
-	case ELEMENT_TYPE_STATIC_IMAGE: return new StaticViewer( id, *this, (ELEMENT_STATIC_IMAGE*)pelement );			
-	default: return 0;			
+	case ELEMENT_TYPE_ICON: el = new IconViewer( id, *this ); break;	
+	case ELEMENT_TYPE_NEEDLE: el = new NeedleViewer( id, *this ); break;
+	case ELEMENT_TYPE_STRING: el = new StringViewer( id, *this ); break;
+	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticViewer( id, *this ); break;
+	default: break;
 	}
+
+	return el;
 }
+
+
+void GaugeViewer::sendProc() {
+	Gauge::sendProc();
+
+	// send mouse events
+	EnterCriticalSection( &d->cs );
+	std::list<MousePacket>::iterator it = d->mouseEvents.begin();
+	while( it!=d->mouseEvents.end() ) {
+		d->mgauge->send( id(), &*it, sizeof(MousePacket), false );		
+		it++;
+	}
+	d->mouseEvents.clear();
+	LeaveCriticalSection( &d->cs );
+}
+
 
 BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 	dout << "mouseCallback for " << d->name << std::endl;
-	MousePacket p;
-	p.type = mousePacket;
-	memcpy( &p.pix, pix, sizeof(PIXPOINT) );
-	p.flags = flags;
-	p.mouseRectNum = mouseRectNum;
 
-	d->mgauge->send( id(), &p, sizeof(MousePacket), true );
+	// append mouse event to d->mouseEvents which is sent during the 
+    // next sendProc call
+	MousePacket event;
+	event.type = mousePacket;
+	event.mouseRectNum = mouseRectNum;
+	memcpy( &event.pix, pix, sizeof(PIXPOINT) );
+	event.flags = flags;
+
+	EnterCriticalSection( &d->cs );
+	while( d->mouseEvents.size()>5 ) {
+		// don't let the queue get too full
+		d->mouseEvents.pop_front();
+	}
+	d->mouseEvents.push_back( event );
+	LeaveCriticalSection( &d->cs );
 	
 	return TRUE;
 }

@@ -56,7 +56,7 @@ struct EventPacket : public BasePacket {
 };
 #pragma pack(pop,1)
 
-
+typedef std::list<Gauge*> GaugeList;
 struct MulticrewGauge::Data {
 	Data( MulticrewGauge *mg )
 		: installCallbackAdapter( mg, MulticrewGauge::installGauge ) {
@@ -65,18 +65,14 @@ struct MulticrewGauge::Data {
 	VoidCallbackAdapter3<MulticrewGauge, PGAUGEHDR, SINT32, UINT32> installCallbackAdapter;
 
 	SmartPtr<MulticrewCore> core;
-	int gaugeCounter;
 	std::deque<Gauge*> gauges;
-
-	CRITICAL_SECTION cs;
+	std::map<std::string, GaugeList*> detachedGauges;
 };
 
 MulticrewGauge::MulticrewGauge( bool hostMode, std::string moduleName )
 	: MulticrewModule( moduleName, hostMode, WAITTIME ) {
 	d = new Data( this );
 	d->core = MulticrewCore::multicrewCore();
-	d->gaugeCounter = 0;
-	InitializeCriticalSection( &d->cs );
 }
 
 
@@ -85,14 +81,12 @@ MulticrewGauge::~MulticrewGauge() {
 	// which depends on this->d
 	disconnect();
 
-	// delete all gauges
-	EnterCriticalSection( &d->cs );
+	// delete gauges
+	lock();
 	std::deque<Gauge*>::iterator it = d->gauges.begin();
 	while( it!=d->gauges.end() ) delete *(it++);
 	d->gauges.clear();
-	LeaveCriticalSection( &d->cs );
-
-	DeleteCriticalSection( &d->cs );
+	unlock();
 	delete d;
 }
 
@@ -120,21 +114,32 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 	if( service_id==PANEL_SERVICE_POST_INSTALL ) {
 		if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 )
 			dout << "New gauge " << pgauge << " " << pgauge->gauge_name 
-				 <<	" with " << pgauge->parameters << std::endl;
+				 <<	" with " << pgauge->parameters << " id=" << d->gauges.size() << std::endl;
 		else
-			dout << "New gauge " << pgauge << " " << pgauge->gauge_name << std::endl;
+			dout << "New gauge " << pgauge << " " << pgauge->gauge_name << " id=" << d->gauges.size() << std::endl;
 
 		// restore old callback
 		pgauge->gauge_callback = (PGAUGE_CALLBACK)(int)(pgauge->user_area[9]);
 
-		// register gauge
-		EnterCriticalSection( &d->cs );
-		if( isHostMode() )
-			d->gauges.push_back( new GaugeRecorder( this, d->gaugeCounter, pgauge ) ); 
-		else
-			d->gauges.push_back( new GaugeViewer( this, d->gaugeCounter, pgauge ) );
-		LeaveCriticalSection( &d->cs );
-		d->gaugeCounter++;
+		lock();
+		// look for detached gauge which is to be reused
+		Gauge *gauge = getDetachedGauge( pgauge->gauge_name, pgauge->parameters );
+		if( gauge==0 ) {
+			if( pgauge->parameters )
+				dout << "Creating new for " << pgauge->gauge_name << ":" << pgauge->parameters << std::endl;
+			else
+				dout << "Creating new for " << pgauge->gauge_name << std::endl;
+
+			// create new gauge
+			if( isHostMode() )
+				gauge = new GaugeRecorder( this, d->gauges.size() );
+			else
+				gauge = new GaugeViewer( this, d->gauges.size() );
+			
+			d->gauges.push_back( gauge );
+		}
+		gauge->attach( pgauge ); 
+		unlock();
 	}
 }
 
@@ -145,13 +150,13 @@ void MulticrewGauge::receive( void *data, unsigned size ) {
 	case gaugePacket: 
 	{
 		GaugePacket *gp = (GaugePacket*)p;
-		EnterCriticalSection( &d->cs );
+		lock();
 		if( gp->gauge>=0 && gp->gauge<d->gauges.size() ) {
 			Gauge *gauge = d->gauges[gp->gauge];
-			LeaveCriticalSection( &d->cs );
+			unlock();
 			gauge->receive( gp->data, size-sizeof(GaugePacket) );
 		} else {
-			LeaveCriticalSection( &d->cs );
+			unlock();
 		}
 	}
 	break;
@@ -159,7 +164,6 @@ void MulticrewGauge::receive( void *data, unsigned size ) {
 		break;
 	}
 }
-
 
 void MulticrewGauge::send( int gauge, void *data, unsigned size, bool safe, bool append ) {
 	if( !append ) {
@@ -174,15 +178,49 @@ void MulticrewGauge::send( int gauge, void *data, unsigned size, bool safe, bool
 	MulticrewModule::send( data, size, safe, Connection::MediumPriority, true );
 }
 
-
 void MulticrewGauge::sendProc() {
-	EnterCriticalSection( &d->cs );
+	lock();
 	for( int i=0; i<d->gauges.size(); i++ )
 		d->gauges[i]->sendProc();
-	LeaveCriticalSection( &d->cs );
+	unlock();
 }
 
 
 PGAUGE_CALLBACK MulticrewGauge::installCallback() {
 	return d->installCallbackAdapter.callback();
+}
+
+
+Gauge *MulticrewGauge::getDetachedGauge( const char *name, 
+										 const char *parameter ) {
+	// find detached gauges with this name and paramter
+	std::string detachId = std::string(name) + "§" + std::string((parameter!=NULL)?parameter:"");
+	std::map<std::string, GaugeList*>::iterator it = d->detachedGauges.find( detachId );
+	if( it==d->detachedGauges.end() ) return 0;
+
+	// return the first (=oldest) of those gauges
+	GaugeList *list = it->second;
+	if( list->empty() ) return 0;
+	Gauge *ret = list->front();
+	list->pop_front();
+	return ret;
+}
+
+
+void MulticrewGauge::detached( Gauge *gauge ) {
+	std::string detachId = gauge->name() + "§" + gauge->parameter();
+	dout << "detaching " << detachId << std::endl;
+
+	// find detached gauges with this name and paramter
+	std::map<std::string, GaugeList*>::iterator it = d->detachedGauges.find( detachId );
+	GaugeList *list;
+	if( it!=d->detachedGauges.end() )
+		list = it->second;
+	else {
+		list = new GaugeList();
+		d->detachedGauges[detachId] = list;
+	}
+			
+	// add gauge to list
+	list->push_back( gauge );
 }

@@ -23,27 +23,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multicrewgauge.h"
 
 struct StaticElement::Data {		
-	ELEMENT_STATIC_IMAGE *staticHeader;	
 };
 
-StaticElement::StaticElement( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader )
-	: Element( id, gauge, (ELEMENT_HEADER*)staticHeader ) {
+StaticElement::StaticElement( int id, Gauge &gauge )
+	: Element( id, gauge ) {
 	d = new Data;
-	d->staticHeader = staticHeader;	
 }
 
 StaticElement::~StaticElement() {	
 	delete d;
 }
 
-ELEMENT_STATIC_IMAGE *StaticElement::staticHeader() { 
-	return d->staticHeader; 
-}
-
 /****************************************************************************************/
 
-StaticRecorder::StaticRecorder( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader )
-	: StaticElement( id, gauge, staticHeader ) {
+StaticRecorder::StaticRecorder( int id, Gauge &gauge )
+	: StaticElement( id, gauge ) {
 }
 
 StaticRecorder::~StaticRecorder() {
@@ -52,8 +46,8 @@ StaticRecorder::~StaticRecorder() {
 
 /****************************************************************************************/
 
-StaticViewer::StaticViewer( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader )
-	: StaticElement( id, gauge, staticHeader ) {
+StaticViewer::StaticViewer( int id, Gauge &gauge )
+	: StaticElement( id, gauge ) {
 }
 
 StaticViewer::~StaticViewer() {

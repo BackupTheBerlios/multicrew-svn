@@ -22,6 +22,69 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #pragma pack(push,1)
 
+/*
+class Packet2 : public Shared {
+ public:
+	unsigned size()=0;
+	void extract( void *buffer )=0;
+};
+
+template< class Prefix, class Wrappee >
+class WrapperPacket {
+ public:
+	WrapperPacket( Prefix *prefix, SmartPtr<Wrappee> wrappee ) {
+		this->wrappee = wrappee;
+		memcpy( &this->prefix, prefix, sizeof(Prefix) );
+	}
+
+	Prefix *prefix() {
+		return &this->prefix;
+	}
+
+	unsigned size() {
+		return sizeof(Prefix)+wrappee->size();
+	}
+
+	void extract( void *buffer ) {
+		memcpy( buffer, &prefix, sizeof(Prefix) );
+		wrappee->extract( ((char*)buffer)+sizeof(Prefix) );
+	}
+
+ private:
+	Prefix prefix;
+	SmartPtr<Wrappee> wrappee;
+};
+
+template< class T >
+class ArrayPacket {
+ public:
+	WrapperPacket() {
+	}
+
+	void append( SmartPtr<T> packet ) {
+		packets.push_back( packet );
+	}
+
+	unsigned size() {
+		unsigned ret = 0;
+		std::list<SmartT>::iterator it = packets.begin();
+		while( it!=packets.end() ) {
+			ret += (*it)->size();
+			it++;
+		}
+		return ret;
+	}
+
+	void extract( void *buffer ) {
+		memcpy( buffer, &prefix, sizeof(Prefix) );
+		wrappee->extract( ((char*)buffer)+sizeof(Prefix) );
+	}
+
+ private:
+	typedef SmartPtr<T> SmartT;
+	std::list<SmartT> packets;
+};*/
+
 enum PacketIds {
 	startPacket = 0,
 	startAckPacket,

@@ -32,10 +32,10 @@ struct Element::Data {
 	int id;
 };
 
-Element::Element( int id, Gauge &gauge, ELEMENT_HEADER *elementHeader ) {
+Element::Element( int id, Gauge &gauge ) {
 	d = new Data;
 	d->gauge = &gauge;
-	d->elementHeader = elementHeader;
+	d->elementHeader = 0;
 	d->id = id;
 	//dout << "Element " << elementHeader << std::endl;	
 }
@@ -54,4 +54,12 @@ Gauge &Element::gauge() {
 
 int Element::id() {
 	return d->id;
+}
+
+void Element::attach( ELEMENT_HEADER *elementHeader ) {
+	d->elementHeader = elementHeader;
+}
+
+void Element::detach() {
+	d->elementHeader = 0;
 }

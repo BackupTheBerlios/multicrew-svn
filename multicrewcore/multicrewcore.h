@@ -42,7 +42,9 @@ public:
 
 protected:
 	virtual void receive( void *data, unsigned size )=0;
+	void lock();
 	void send( void *data, DWORD size, bool safe, Connection::Priority prio, bool append=false );
+	void unlock();
 	std::string id();
 
 	virtual void sendCompleted( Packet *packet );

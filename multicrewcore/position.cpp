@@ -97,7 +97,7 @@ void PositionHostModule::sendProc() {
 		dout << "FSUIPC read error" << std::endl;
 	else
 		// and send packet
-		send( &packet, sizeof(PositionPacket), false, Connection::HighPriority );
+		send( &packet, sizeof(PositionPacket), false, Connection::MediumPriority );
 }
 
 

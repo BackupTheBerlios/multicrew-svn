@@ -288,12 +288,13 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 	{
 		PDPNMSG_ADD_PLAYER_TO_GROUP msg = (PDPNMSG_ADD_PLAYER_TO_GROUP)pMessage;
 		dout << "Peer " << msg->dpnidPlayer << " joining group " << msg->dpnidGroup << std::endl;
+		DPNHANDLE asyncHandle;
 		HRESULT hr = d->peer->AddPlayerToGroup(
 			msg->dpnidGroup,
 			msg->dpnidPlayer,
 			NULL,
-			NULL,
-			DPNADDPLAYERTOGROUP_SYNC );
+			&asyncHandle,
+			0 );
 		if( FAILED(hr) && hr!=DPNERR_PLAYERALREADYINGROUP ) {
 			dout << "Failed: " << fe(hr).c_str() << std::endl;
 			return S_OK;
@@ -346,7 +347,7 @@ bool ConnectionImpl::send( Packet *packet, bool safe,
 		return false;
 	}
 
-	dout << "sending to " << (d->hostMode?d->clientGroup:d->hostGroup) << std::endl;
+	//dout << "sending to " << (d->hostMode?d->clientGroup:d->hostGroup) << std::endl;
 
 	// send packet
 	DPN_BUFFER_DESC desc;

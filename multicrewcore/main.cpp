@@ -41,7 +41,6 @@ std::string formatError( HRESULT hr ) {
         (LPTSTR) &buf,
         0, NULL );
 	char ret[1024];
-	sprintf( ret, "%s 0x%x", (int)hr );
 	if( buf==0 ) {
 		sprintf( ret, "0x%x", (int)hr );
 	} else {

@@ -39,28 +39,22 @@ struct StringElement::Data {
 	CRITICAL_SECTION cs;
 };
 
-StringElement::StringElement( int id, Gauge &gauge, ELEMENT_STRING *stringHeader )
-	: Element( id, gauge, (ELEMENT_HEADER*)stringHeader ) {
+StringElement::StringElement( int id, Gauge &gauge )
+	: Element( id, gauge ) {
 	d = new Data( this );
-	d->stringHeader = stringHeader;
-	d->origCallback = stringHeader->update_cb;
+	d->stringHeader = 0;
 	d->value[0] = 0;
 	d->value[BUFFER_SIZE] = 0;
 	d->buffer[0] = 0;
 	d->buffer[BUFFER_SIZE] = 0;
 	d->changed = true;
-	InitializeCriticalSection( &d->cs );
+	d->origCallback = 0;
 
-	// debug code for MasterCaution gauge
-	if( /*gauge.name()=="MasterCaution" &&*/ d->stringHeader->update_cb!=NULL ) {
-		// install callback wrapper	
-		dout << "install updateCallback for " << d->stringHeader << std::endl;
-		d->stringHeader->update_cb = d->callbackAdapter.callback();
-	}
+	InitializeCriticalSection( &d->cs );
 }
 
 StringElement::~StringElement() {
-	//d->stringHeader->update_cb = d->origUpdateCallback;	
+	detach();
 	DeleteCriticalSection( &d->cs );
 	delete d;
 }
@@ -69,10 +63,30 @@ ELEMENT_STRING *StringElement::stringHeader() {
 	return d->stringHeader; 
 }
 
+void StringElement::attach( ELEMENT_HEADER *elementHeader ) {
+	Element::attach( elementHeader );
+	d->stringHeader = (ELEMENT_STRING*)elementHeader;
+	d->origCallback = d->stringHeader->update_cb;
+
+	if( d->stringHeader->update_cb!=NULL ) {
+		// install callback wrapper	
+		dout << "install updateCallback for " << d->stringHeader << std::endl;
+		d->stringHeader->update_cb = d->callbackAdapter.callback();
+	}
+}
+
+void StringElement::detach() {
+	Element::detach();
+	if( d->stringHeader ) {
+		d->stringHeader->update_cb = d->origCallback;
+		d->stringHeader->string = strdup(""); // minimal memory leak to avoid segfaults
+	}
+}
+
 /****************************************************************************************/
 
-StringRecorder::StringRecorder( int id, Gauge &gauge, ELEMENT_STRING *stringHeader )
-	: StringElement( id, gauge, stringHeader ) {
+StringRecorder::StringRecorder( int id, Gauge &gauge )
+	: StringElement( id, gauge ) {
 }
 
 StringRecorder::~StringRecorder() {
@@ -113,8 +127,8 @@ void StringRecorder::sendProc() {
 
 /****************************************************************************************/
 
-StringViewer::StringViewer( int id, Gauge &gauge, ELEMENT_STRING *stringHeader )
-	: StringElement( id, gauge, stringHeader ) {
+StringViewer::StringViewer( int id, Gauge &gauge )
+	: StringElement( id, gauge ) {
 }
 
 StringViewer::~StringViewer() {

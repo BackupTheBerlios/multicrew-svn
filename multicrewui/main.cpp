@@ -152,18 +152,3 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	}
 	return TRUE;
 }
-
-
-/*
-template<class T>
-int foo( T t, int (T::*method)() ) { return (t.*method)(); };
-
-class Test {
-public:
-	virtual int test() { return 42; }
-};
-
-void bar() {
-	int x = foo<Test>( Test(), Test::test );
-}
-*/

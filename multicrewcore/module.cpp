@@ -36,6 +36,7 @@ struct MulticrewModule::Data {
 		  threadProcAdapter( mod, MulticrewModule::threadProc ) {
 	}
 
+	SmartPtr<MulticrewCore> core;
 	std::string moduleName;
 	bool hostMode;
 	bool registered;
@@ -64,7 +65,8 @@ MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode,
 	d->hostMode = hostMode;
 	d->minSendWait = minSendWait;
 	d->thread = 0;
-	d->registered = MulticrewCore::multicrewCore()->registerModule( this );
+	d->core = MulticrewCore::multicrewCore();
+	d->registered = d->core->registerModule( this );
 
 	// packet setup
 	d->lastPacketSent = true;
@@ -119,11 +121,12 @@ void MulticrewModule::receive( ModulePacket *packet ) {
 	}
 }
 
+void MulticrewModule::lock() {
+	EnterCriticalSection( &d->sendCritSect );
+}
 
 void MulticrewModule::send( void *data, DWORD size,	bool safe, Connection::Priority prio, bool append ) {
 	if( !d->con.isNull() ) {
-		EnterCriticalSection( &d->sendCritSect );
-
 		// create packet buffer of sufficient size
 		if( d->maxPacketSize<d->packet->size+sizeof(DataFragment)+size ) {
 			while( d->maxPacketSize<d->packet->size+sizeof(DataFragment)+size )
@@ -151,11 +154,12 @@ void MulticrewModule::send( void *data, DWORD size,	bool safe, Connection::Prior
 		if( (d->nextPriority==Connection::LowPriority && prio==Connection::MediumPriority) ||
 			d->nextPriority!=Connection::HighPriority && prio==Connection::HighPriority)
 			d->nextPriority = prio;
-
-		LeaveCriticalSection( &d->sendCritSect );
 	}
 }
 
+void MulticrewModule::unlock() {
+	LeaveCriticalSection( &d->sendCritSect );
+}
 
 void MulticrewModule::sendCompleted( Packet *packet ) {
 	//dout << moduleName() << " send completed" << std::endl;
@@ -235,8 +239,6 @@ DWORD MulticrewModule::threadProc( LPVOID param ) {
 	while( true ) {
 		// call send proc if previous packet has arrived
 		if( d->lastPacketSent ) {
-			EnterCriticalSection( &d->sendCritSect );
-
 			// prepare packet
 			sendProc();
 
@@ -254,8 +256,6 @@ DWORD MulticrewModule::threadProc( LPVOID param ) {
 			d->nextPriority = Connection::LowPriority;
 			d->fragmentStart = 0;
 			d->nextIsSafeTransmission = false;
-
-			LeaveCriticalSection( &d->sendCritSect );
 		}
 			
 		// wait an amount of milliseconds or exit thread

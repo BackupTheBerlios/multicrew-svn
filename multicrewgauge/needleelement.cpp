@@ -43,25 +43,18 @@ struct NeedleElement::Data {
 	bool changed;
 };
 
-NeedleElement::NeedleElement( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader )
-	: Element( id, gauge, (ELEMENT_HEADER*)needleHeader ) {
+NeedleElement::NeedleElement( int id, Gauge &gauge )
+	: Element( id, gauge ) {
 	d = new Data( this );
-	d->needleHeader = needleHeader;
-	d->origCallback = needleHeader->update_cb;
+	d->needleHeader = 0;
 	d->oldValue = (FLOAT64)0x57524320;
 	d->oldValue = 0.0;
 	d->changed = true;
-
-	// debug code for MasterCaution gauge
-	if( /*gauge.name()=="MasterCaution" &&*/ d->needleHeader->update_cb!=NULL ) {
-		// install callback wrapper	
-		dout << "install updateCallback for " << d->needleHeader << std::endl;
-		d->needleHeader->update_cb = d->callbackAdapter.callback();
-	}
+	d->origCallback = 0;
 }
 
 NeedleElement::~NeedleElement() {
-	//d->needleHeader->update_cb = d->origUpdateCallback;	
+	detach();
 	delete d;
 }
 
@@ -69,10 +62,31 @@ ELEMENT_NEEDLE *NeedleElement::needleHeader() {
 	return d->needleHeader; 
 }
 
+void NeedleElement::attach( ELEMENT_HEADER *elementHeader ) {
+	Element::attach( elementHeader );
+	d->needleHeader = (ELEMENT_NEEDLE*)elementHeader;
+	d->origCallback = d->needleHeader->update_cb;
+
+	if( d->needleHeader->update_cb!=NULL ) {
+		// install callback wrapper	
+		dout << "install updateCallback for " << d->needleHeader << std::endl;
+		d->needleHeader->update_cb = d->callbackAdapter.callback();
+	}
+}
+
+void NeedleElement::detach() {
+	Element::detach();
+	if( d->needleHeader ) {
+		d->needleHeader->update_cb = d->origCallback;	
+		d->needleHeader = 0;
+	}
+}
+
+
 /****************************************************************************************/
 
-NeedleRecorder::NeedleRecorder( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader )
-	: NeedleElement( id, gauge, needleHeader ) {
+NeedleRecorder::NeedleRecorder( int id, Gauge &gauge )
+	: NeedleElement( id, gauge ) {
 }
 
 NeedleRecorder::~NeedleRecorder() {
@@ -103,8 +117,8 @@ void NeedleRecorder::sendProc() {
 
 /*******************************************************************************/
 
-NeedleViewer::NeedleViewer( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader )
-	: NeedleElement( id, gauge, needleHeader ) {
+NeedleViewer::NeedleViewer( int id, Gauge &gauge )
+	: NeedleElement( id, gauge ) {
 }
 
 NeedleViewer::~NeedleViewer() {

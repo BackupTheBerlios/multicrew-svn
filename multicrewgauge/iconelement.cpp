@@ -43,35 +43,50 @@ struct IconElement::Data {
 	bool changed;
 };
 
-IconElement::IconElement( int id, Gauge &gauge, ELEMENT_ICON *iconHeader )
-	: Element( id, gauge, (ELEMENT_HEADER*)iconHeader ) {
+IconElement::IconElement( int id, Gauge &gauge )
+	: Element( id, gauge ) {
 	d = new Data( this );
-	d->iconHeader = iconHeader;
-	d->origCallback = iconHeader->update_cb;
+	d->iconHeader = 0;
 	d->oldValue = 0.0;
 	d->changed = true;
+	d->origCallback = 0;
+}
 
-	// debug code for MasterCaution gauge
-	if( /*gauge.name()=="MasterCaution" &&*/ d->iconHeader->update_cb!=NULL ) {
+IconElement::~IconElement() {
+	detach();
+	delete d;
+}
+
+ELEMENT_ICON *IconElement::iconHeader() { 
+	if( d->iconHeader ) d->iconHeader->update_cb = d->origCallback;	
+	return d->iconHeader; 
+}
+
+void IconElement::attach( ELEMENT_HEADER *elementHeader ) {
+	Element::attach( elementHeader );
+	d->iconHeader = (ELEMENT_ICON*)elementHeader;
+	d->origCallback = d->iconHeader->update_cb;
+
+	if( d->iconHeader->update_cb!=NULL ) {
 		// install callback wrapper	
 		dout << "install updateCallback for " << d->iconHeader << std::endl;
 		d->iconHeader->update_cb = d->callbackAdapter.callback();
 	}
 }
 
-IconElement::~IconElement() {
-	//d->iconHeader->update_cb = d->origUpdateCallback;	
-	delete d;
-}
-
-ELEMENT_ICON *IconElement::iconHeader() { 
-	return d->iconHeader; 
+void IconElement::detach() {
+	Element::detach();
+	if( d->iconHeader ) {
+		d->iconHeader->update_cb = d->origCallback;	
+		d->iconHeader = 0;
+	}
+	d->origCallback = 0;
 }
 
 /****************************************************************************************/
 
-IconRecorder::IconRecorder( int id, Gauge &gauge, ELEMENT_ICON *iconHeader )
-	: IconElement( id, gauge, iconHeader ) {
+IconRecorder::IconRecorder( int id, Gauge &gauge )
+	: IconElement( id, gauge ) {
 }
 
 IconRecorder::~IconRecorder() {
@@ -82,7 +97,8 @@ FLOAT64 IconRecorder::callback( PELEMENT_ICON pelement ) {
 	FLOAT64 ret = (*d->origCallback)( pelement );
 	if( ret!=d->oldValue ) {
 		dout << "Icon callback " << d->iconHeader << ":" << this 
-			 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
+			 << " in " << gauge().name() << " = " << (unsigned long)ret 
+			 << " id=" << id() << std::endl;
 		d->oldValue = ret;
 		d->changed = true;
 	}
@@ -103,8 +119,8 @@ void IconRecorder::sendProc() {
 
 /****************************************************************************************/
 
-IconViewer::IconViewer( int id, Gauge &gauge, ELEMENT_ICON *iconHeader )
-	: IconElement( id, gauge, iconHeader ) {
+IconViewer::IconViewer( int id, Gauge &gauge )
+	: IconElement( id, gauge ) {
 }
 
 IconViewer::~IconViewer() {
