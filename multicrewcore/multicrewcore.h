@@ -65,6 +65,7 @@ public:
 	Signal planeUnloaded;
 
 	void prepare( SmartPtr<Connection> con );
+	void unprepare();
 
 	void log( std::string line );
 	Signal1<const char *> logged;

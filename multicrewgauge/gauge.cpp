@@ -159,6 +159,8 @@ GaugeRecorder::~GaugeRecorder() {
 Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 	switch( pelement->element_type ) {
 		case ELEMENT_TYPE_ICON: return new IconRecorder( id, *this, (ELEMENT_ICON*)pelement );					
+		case ELEMENT_TYPE_NEEDLE: return new NeedleRecorder( id, *this, (ELEMENT_NEEDLE*)pelement );					
+		case ELEMENT_TYPE_STRING: return new StringRecorder( id, *this, (ELEMENT_STRING*)pelement );					
 		case ELEMENT_TYPE_STATIC_IMAGE: return new StaticRecorder( id, *this, (ELEMENT_STATIC_IMAGE*)pelement );			
 		default: return 0;			
 	}
@@ -266,8 +268,10 @@ void GaugeViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_da
 
 Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 	switch( pelement->element_type ) {
-		case ELEMENT_TYPE_ICON: return new IconViewer( id, *this, (ELEMENT_ICON*)pelement );					
-		case ELEMENT_TYPE_STATIC_IMAGE: return new StaticViewer( id, *this, (ELEMENT_STATIC_IMAGE*)pelement );			
-		default: return 0;			
+	case ELEMENT_TYPE_ICON: return new IconViewer( id, *this, (ELEMENT_ICON*)pelement );					
+	case ELEMENT_TYPE_NEEDLE: return new NeedleViewer( id, *this, (ELEMENT_NEEDLE*)pelement );					
+	case ELEMENT_TYPE_STRING: return new StringViewer( id, *this, (ELEMENT_STRING*)pelement );					
+	case ELEMENT_TYPE_STATIC_IMAGE: return new StaticViewer( id, *this, (ELEMENT_STATIC_IMAGE*)pelement );			
+	default: return 0;			
 	}
 }

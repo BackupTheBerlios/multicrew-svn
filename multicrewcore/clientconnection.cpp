@@ -51,6 +51,7 @@ struct ClientConnectionImpl::Data {
 		: callbackAdapter( con, ClientConnectionImpl::callback ) {
 	}
 
+	bool disconnecting;
 	DPNID clientGroup;
 	DPNID hostGroup;
 	DPNID clientPlayer;
@@ -66,10 +67,11 @@ ClientConnectionImpl::ClientConnectionImpl( IDirectPlay8Peer *peer ) {
 	d->clientGroup = 0;
 	d->clientPlayer = 0;
 	d->peer->AddRef();
+	d->disconnecting = false;
 }
 
 ClientConnectionImpl::~ClientConnectionImpl() {
-	if( d->peer!=0 ) d->peer->Release();
+	if( d->peer ) d->peer->Release();
 	delete d;
 }
 
@@ -182,24 +184,37 @@ HRESULT ClientConnectionImpl::callback( PVOID pvUserContext, DWORD dwMessageType
 	case DPN_MSGID_ENUM_HOSTS_RESPONSE:
 		hostFound.emit( (DPNMSG_ENUM_HOSTS_RESPONSE*)pMessage );
 		break;
-		
+
+	case DPN_MSGID_TERMINATE_SESSION:
+		if( !d->disconnecting ) {
+			log << "Session terminated" << std::endl;
+			ref();
+			disconnected.emit();
+			d->peer->Close( 0 );
+			deref();
+		}
+		break;
+	
 	};
+
 	return S_OK;
 }
 
 void ClientConnectionImpl::disconnect() {
 	log << "Closing peer" << std::endl;
-	d->peer->Close( 0 );
+	d->disconnecting = true;
 	
-	SmartPtr<ClientConnectionImpl> myself( this ); // make sure this is not deleted in the signal
-	disconnected.emit();
+	ref();
+	d->peer->Close( 0 );
+ 	disconnected.emit();
+	deref();
 }
 
 void ClientConnectionImpl::start() {
 }
 
 bool ClientConnectionImpl::send( Packet *packet, bool safe, bool sync ) {
-	dout << "Sending packet of type " << packet->id << std::endl;
+	if( !d->peer ) return false;
 	
 	DPNHANDLE asyncHandle;
 	DPN_BUFFER_DESC desc;

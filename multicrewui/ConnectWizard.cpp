@@ -156,13 +156,15 @@ void ConnectWizard::OnNextPage( wxWizardEvent& event ) {
 		        wxMessageBox(_T("Please enter a valid internet (IP v4) address for the hostname."), _T("Invalid hostname"),
 							 wxICON_ERROR | wxOK, this);
 				event.Veto();
-			} else
+				return;
+			}
                 
 			if( addr.Service( port->GetValue() )==false ) {
 				wxMessageBox(_T("Please enter a valid port number (between 1 and 65535)."), 
 							 _T("Invalid port"),
 							 wxICON_ERROR | wxOK, this);
-				event.Veto();			
+				event.Veto();
+				return;
 			}
 		} else
 		if( GetCurrentPage()==sessionlistPage ) {
@@ -175,6 +177,7 @@ void ConnectWizard::OnNextPage( wxWizardEvent& event ) {
 							 _T("No host selected"),
 							 wxICON_ERROR | wxOK, this);
 				event.Veto();
+				return;
 			}
 
 			// connect finally
@@ -183,6 +186,7 @@ void ConnectWizard::OnNextPage( wxWizardEvent& event ) {
 				derr << "Connection failed. Look at the log messages to find out why." 
 					 << std::endl;
 				event.Veto();
+				return;
 			}
 		}
 	}	

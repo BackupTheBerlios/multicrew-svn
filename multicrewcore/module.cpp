@@ -47,9 +47,12 @@ bool MulticrewModule::isHostMode() {
 }
 
 
-void MulticrewModule::send( ModulePacket *packet, bool safe, bool sync ) {
-	dout << "Next packet for " << packet->module << std::endl;
-	if( !d->con.isNull() ) d->con->send( packet, safe, sync );
+void MulticrewModule::send( ModulePacket *packet, bool safe, bool sync ) {  
+	if( !d->con.isNull() ) {
+		strcpy( packet->module, moduleName().c_str() );
+		//dout << "Next packet for " << packet->module << std::endl;
+		d->con->send( packet, safe, sync );
+	}
 }
 
 

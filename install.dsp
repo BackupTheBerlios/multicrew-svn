@@ -64,7 +64,7 @@ CFG=install - Win32 Debug
 # PROP Intermediate_Dir "Debug"
 # PROP Cmd_Line "nmake /f "install.mak""
 # PROP Rebuild_Opt "clean all"
-# PROP Target_File "c:\fs\fs9\fs9.exe"
+# PROP Target_File "d:\fs9\fs9.exe"
 # PROP Bsc_Name ""
 # PROP Target_Dir ""
 

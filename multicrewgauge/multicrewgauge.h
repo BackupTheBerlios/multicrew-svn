@@ -90,6 +90,82 @@ private:
 };
 
 
+class NeedleElement : public Element {
+public:
+	NeedleElement( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader );
+	virtual ~NeedleElement();
+
+	ELEMENT_NEEDLE *needleHeader();
+	
+protected:
+	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement )=0;
+
+	struct Data;
+	friend Data;
+	Data *d;
+};
+
+
+class NeedleRecorder : public NeedleElement {
+public:
+	NeedleRecorder( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader );
+	virtual ~NeedleRecorder();
+
+private:	
+	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
+};
+
+
+class NeedleViewer : public NeedleElement {
+public:
+	NeedleViewer( int id, Gauge &gauge, ELEMENT_NEEDLE *needleHeader );
+	virtual ~NeedleViewer();
+
+	virtual void receive( UpdatePacket *packet );
+
+private:	
+	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
+};
+
+
+class StringElement : public Element {
+public:
+	StringElement( int id, Gauge &gauge, ELEMENT_STRING *stringHeader );
+	virtual ~StringElement();
+
+	ELEMENT_STRING *stringHeader();
+	
+protected:
+	virtual FLOAT64 callback( PELEMENT_STRING pelement )=0;
+
+	struct Data;
+	friend Data;
+	Data *d;
+};
+
+
+class StringRecorder : public StringElement {
+public:
+	StringRecorder( int id, Gauge &gauge, ELEMENT_STRING *stringHeader );
+	virtual ~StringRecorder();
+
+private:	
+	virtual FLOAT64 callback( PELEMENT_STRING pelement );
+};
+
+
+class StringViewer : public StringElement {
+public:
+	StringViewer( int id, Gauge &gauge, ELEMENT_STRING *stringHeader );
+	virtual ~StringViewer();
+
+	virtual void receive( UpdatePacket *packet );
+
+private:	
+	virtual FLOAT64 callback( PELEMENT_STRING pelement );
+};
+
+
 class StaticElement : public Element {
 public:
 	StaticElement( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader );

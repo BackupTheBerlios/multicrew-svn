@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "error.h"
 #include "signals.h"
 #include "multicrewcore.h"
+#include "position.h"
 
 static MulticrewCore *multicrewCore = 0;
 
@@ -39,17 +40,20 @@ struct MulticrewCore::Data {
 	bool hostMode;
 
 	std::map<std::string, MulticrewModule*> modules;
+	PositionModule *posModule;
 };
 
 
 MulticrewCore::MulticrewCore() {
-	d = new Data;		
+	d = new Data;
+	d->posModule = 0;
 	dout << "MulticrewCore" << std::endl;
 }
 
 
 MulticrewCore::~MulticrewCore() {
 	dout << "~MulticrewCore" << std::endl;
+	delete d->posModule;
 	d->modules.clear();
 	::multicrewCore = 0;
 	delete d;
@@ -74,6 +78,14 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 
 	// first module?
 	if( d->modules.size()==1 ) {
+		// create FSUIPC object
+		if( d->hostMode )
+			d->posModule = new PositionHostModule();
+		else
+			d->posModule = new PositionClientModule();
+		d->posModule->start();
+		
+		// emit signal
 		planeLoaded.emit();
 	}
 
@@ -91,6 +103,9 @@ void MulticrewCore::unregisterModule( MulticrewModule *module ) {
 		if( d->modules.empty() ) {
 			dout << "unload" << std::endl;
 			planeUnloaded.emit();
+
+			// destroy position module
+			delete d->posModule; d->posModule=0;
 		}
 	}
 	dout << "< unregisterModule" << std::endl;
@@ -116,6 +131,15 @@ void MulticrewCore::prepare( SmartPtr<Connection> con ) {
 	std::map<std::string, MulticrewModule*>::iterator it = d->modules.begin();
 	while( it!=d->modules.end() ) {
 		it->second->connect( con );
+		it++;
+	}
+}
+
+
+void MulticrewCore::unprepare() {
+	std::map<std::string, MulticrewModule*>::iterator it = d->modules.begin();
+	while( it!=d->modules.end() ) {
+		it->second->disconnect();
 		it++;
 	}
 }

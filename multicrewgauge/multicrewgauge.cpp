@@ -120,7 +120,6 @@ void MulticrewGauge::receive( ModulePacket *packet ) {
 
 
 void MulticrewGauge::send( UpdatePacket *packet, bool safe ) {
-	strcpy( packet->module, moduleName().c_str() );
 	MulticrewModule::send( packet, safe, false );
 }
 

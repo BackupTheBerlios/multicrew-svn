@@ -29,7 +29,6 @@ public:
 	void *callback();
 
 protected:
-	static void *adapter;
 	void setTarget( void *target );
 	
 private:
@@ -58,7 +57,8 @@ private:
 	C *target;
 	Member member;
 	static R __stdcall methodThunk() {
-		CallbackAdapter<R, C> *_this = (CallbackAdapter<R, C> *)adapter;
+		CallbackAdapter<R, C> *_this;
+		__asm mov _this, edx
 		return ((_this->target)->*(_this->member))();
 	}
 };
@@ -84,7 +84,8 @@ private:
 	C *target;
 	Member member;
 	static R __stdcall methodThunk( P1 p1 ) {
-		CallbackAdapter1<R, C, P1> *_this = (CallbackAdapter1<R, C, P1> *)adapter;
+		CallbackAdapter1<R, C, P1> *_this;
+		__asm mov _this, edx
 		return ((_this->target)->*(_this->member))( p1 );
 	}
 };
@@ -110,7 +111,8 @@ private:
 	C *target;
 	Member member;
 	static R __stdcall methodThunk( P1 p1, P2 p2 ) {
-		CallbackAdapter2<R, C, P1, P2> *_this = (CallbackAdapter2<R, C, P1, P2> *)adapter;
+		CallbackAdapter2<R, C, P1, P2> *_this;
+		__asm mov _this, edx
 		return ((_this->target)->*(_this->member))( p1, p2 );
 	}
 };
@@ -136,7 +138,8 @@ private:
 	C *target;
 	Member member;
 	static R __stdcall methodThunk( P1 p1, P2 p2, P3 p3 ) {
-		CallbackAdapter3<R, C, P1, P2, P3> *_this = (CallbackAdapter3<R, C, P1, P2, P3> *)adapter;
+		CallbackAdapter3<R, C, P1, P2, P3> *_this;
+		__asm mov _this, edx
 		return ((_this->target)->*(_this->member))( p1, p2, p3 );
 	}
 };
@@ -162,7 +165,8 @@ private:
 	C *target;
 	Member member;
 	static R __stdcall methodThunk( P1 p1, P2 p2, P3 p3, P4 p4 ) {
-		CallbackAdapter4<R, C, P1, P2, P3, P4> *_this = (CallbackAdapter4<R, C, P1, P2, P3, P4> *)adapter;
+		CallbackAdapter4<R, C, P1, P2, P3, P4> *_this;
+		__asm mov _this, edx
 		return ((_this->target)->*(_this->member))( p1, p2, p3, p4 );
 	}
 };
@@ -189,7 +193,8 @@ public:
 	C *target;
 	Member member;
 	static void __stdcall methodThunk() {
-		VoidCallbackAdapter<C> *_this = (VoidCallbackAdapter<C> *)adapter;
+		VoidCallbackAdapter<C> *_this;
+		__asm mov _this, edx
 		((_this->target)->*(_this->member))();
 	}
 };
@@ -215,7 +220,8 @@ private:
 	C *target;
 	Member member;
 	static void __stdcall methodThunk( P1 p1 ) {
-		VoidCallbackAdapter1<C, P1> *_this = (VoidCallbackAdapter1<C, P1> *)adapter;
+		VoidCallbackAdapter1<C, P1> *_this;
+		__asm mov _this, edx
 		((_this->target)->*(_this->member))( p1 );
 	}
 };
@@ -241,8 +247,8 @@ private:
 	C *target;
 	Member member;
 	static void __stdcall methodThunk( P1 p1, P2 p2 ) {
-		VoidCallbackAdapter2<C, P1, P2> *_this = 
-			(VoidCallbackAdapter2<C, P1, P2> *)adapter;
+		VoidCallbackAdapter2<C, P1, P2> *_this;
+		__asm mov _this, edx
 		((_this->target)->*(_this->member))( p1, p2 );
 	}
 };
@@ -268,8 +274,8 @@ private:
 	C *target;
 	Member member;
 	static void __stdcall methodThunk( P1 p1, P2 p2, P3 p3 ) {
-		VoidCallbackAdapter3<C, P1, P2, P3> *_this = 
-			(VoidCallbackAdapter3<C, P1, P2, P3> *)adapter;
+		VoidCallbackAdapter3<C, P1, P2, P3> *_this;
+		__asm mov _this, edx
 		((_this->target)->*(_this->member))( p1, p2, p3 );
 	}
 };
@@ -295,8 +301,8 @@ private:
 	C *target;
 	Member member;
 	static void __stdcall methodThunk( P1 p1, P2 p2, P3 p3, P4 p4 ) {
-		VoidCallbackAdapter4<C, P1, P2, P3, P4> *_this = 
-			(VoidCallbackAdapter4<C, P1, P2, P3, P4> *)adapter;
+		VoidCallbackAdapter4<C, P1, P2, P3, P4> *_this;
+		__asm mov _this, edx
 		((_this->target)->*(_this->member))( p1, p2, p3, p4 );
 	}
 };

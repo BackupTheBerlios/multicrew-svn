@@ -56,11 +56,13 @@ struct HostConnectionImpl::Data {
 		clientGroup = 0;
 		hostPlayer = 0;
 		peer->AddRef();
+		disconnecting = false;
 	}
 	virtual ~Data() {
 		peer->Release();
 	}
 
+	bool disconnecting;
 	DPNID hostGroup;
 	DPNID clientGroup;
 	DPNID hostPlayer;
@@ -148,9 +150,10 @@ HRESULT HostConnectionImpl::callback( PVOID pvUserContext, DWORD dwMessageType,
 		delete groupInfo;
 	}
 		break;
-
+		
 			
-	case DPN_MSGID_CREATE_PLAYER: {
+	case DPN_MSGID_CREATE_PLAYER: 
+	{
 		// player found, the first is the host
 		DPNMSG_CREATE_PLAYER *player = (DPNMSG_CREATE_PLAYER*)pMessage;
 		log << "New player " << player->dpnidPlayer << std::endl;
@@ -159,6 +162,16 @@ HRESULT HostConnectionImpl::callback( PVOID pvUserContext, DWORD dwMessageType,
 			d->hostPlayer = player->dpnidPlayer;
 		}
 	}
+	break;
+
+	case DPN_MSGID_TERMINATE_SESSION:
+		if( !d->disconnecting ) {
+			log << "Session terminated" << std::endl;
+			ref();
+			disconnected.emit();
+			d->peer->Close( 0 );
+			deref();
+		}
 		break;
 
 	};
@@ -166,21 +179,25 @@ HRESULT HostConnectionImpl::callback( PVOID pvUserContext, DWORD dwMessageType,
 }
 
 void HostConnectionImpl::disconnect() {
+	d->disconnecting = true;
+	
+	ref();
 	log << "Terminating session" << std::endl;
 	d->peer->TerminateSession( NULL, 0, 0 );
 
 	log << "Closing peer" << std::endl;
 	d->peer->Close( 0 );
-
-	SmartPtr<HostConnectionImpl> myself( this ); // make sure this is not deleted in the signal
-	disconnected.emit();
+ 	disconnected.emit();
+	deref();
 }
 
 void HostConnectionImpl::start() {
 }
 
 bool HostConnectionImpl::send( Packet *packet, bool safe, bool sync ) {
-	dout << "Sending packet of type " << packet->id << std::endl;
+	if( !d->peer ) return false;
+
+	//dout << "Sending packet of type " << packet->id << std::endl;
 
 	DPNHANDLE asyncHandle;
 	DPN_BUFFER_DESC desc;

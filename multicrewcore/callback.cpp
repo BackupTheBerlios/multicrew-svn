@@ -24,8 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma pack(push,1)
 struct CallbackThunk
 {
-	WORD    mov;          // mov dword ptr [adapter], pThis (esp+0x4 is hWnd)
-	DWORD	adapterPtr;	  //
+	BYTE    mov;          // mov edx, pThis
 	DWORD   thisPtr;      //
 	BYTE    jmp;          // jmp WndProc
 	DWORD   relProc;      // relative jmp	
@@ -38,8 +37,7 @@ struct CallbackAdapterBase::Data {
 
 CallbackAdapterBase::CallbackAdapterBase( void *methodThunk ) {
 	d = new Data;
-	d->thunk.mov = 0x05c7;
-	d->thunk.adapterPtr = PtrToUlong( &adapter );
+	d->thunk.mov = 0xba;
 	d->thunk.thisPtr = PtrToUlong( this );
 	d->thunk.jmp = 0xe9;		
 	d->thunk.relProc = (DWORD)(methodThunk) - (DWORD)(&d->thunk) - sizeof(CallbackThunk);	

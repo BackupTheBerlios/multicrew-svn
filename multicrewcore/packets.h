@@ -28,8 +28,11 @@ enum PacketIds {
 	startPacket = 0,
 	startAckPacket,
 	firstModulePacket,
+	positionPacket,
 	firstUpdatePacket,
 	iconUpdatePacket,
+	needleUpdatePacket,
+	stringUpdatePacket,
 };
 
 struct Packet {
@@ -61,7 +64,7 @@ struct StartAckPacket : public Packet {
 	long planeChecksum;
 };
 
-// update packets
+// module packets
 struct ModulePacket : public Packet {
 	ModulePacket( std::string module, int id, unsigned size ) : Packet( id, size ) {
 		strcpy( this->module, module.c_str() );
@@ -70,6 +73,21 @@ struct ModulePacket : public Packet {
 	char module[32];
 };
 
+struct PositionPacket : public ModulePacket {
+	PositionPacket( std::string module ) 
+		: ModulePacket(module,positionPacket,sizeof(PositionPacket)) {
+	}
+	
+	DWORD lat[2];
+	DWORD lon[2];
+	DWORD alt[2];
+	DWORD dir[3];
+	FLOAT64 accel[6];
+	FLOAT64 vel[6];
+};
+
+
+// update packets
 struct UpdatePacket : public ModulePacket {
 	UpdatePacket( std::string module, int gauge, int element, int id, unsigned size ) 
 		: ModulePacket(module,id,size) {
@@ -87,6 +105,23 @@ struct IconUpdatePacket : public UpdatePacket {
 	}
 	FLOAT64 value;
 };
+
+struct NeedleUpdatePacket : public UpdatePacket {
+	NeedleUpdatePacket( std::string module, int gauge, int element, FLOAT64 value ) 
+		: UpdatePacket(module,gauge,element,needleUpdatePacket,sizeof(NeedleUpdatePacket)) {
+			this->value=value;
+	}
+	FLOAT64 value;
+};
+
+struct StringUpdatePacket : public UpdatePacket {
+	StringUpdatePacket( std::string module, int gauge, int element, char *value ) 
+		: UpdatePacket(module,gauge,element,stringUpdatePacket,sizeof(StringUpdatePacket)) {
+		strcpy( this->value, value );
+	}
+	char value[32];
+};
+
 
 
 #pragma pack(pop,1)

@@ -1,7 +1,7 @@
 all: install
 
 cfg=$(OUTDIR)
-fs=c:\fs\fs9
+fs=d:\fs9
 remotefs=m:
 gauge=PMDG_737NG_Main
 
@@ -53,8 +53,7 @@ remote-core-stamp: multicrewcore\$(cfg)\multicrewcore.dll
 remote-install: remote-core remote-gauge remote-ui
 local-install: core gauge ui core
 
-install: local-install 
-#remote-install
+install: local-install remote-install
 
 clean:
 	del ui-stamp core-stamp gauge-stamp remote-coreui-stamp remote-corecore-stamp remote-coregauge-stamp

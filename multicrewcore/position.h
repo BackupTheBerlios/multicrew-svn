@@ -17,28 +17,48 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#include <windows.h>
 #include "multicrewcore.h"
-#include "debug.h"
-#include "callback.h" 
 
-BOOL APIENTRY DllMain( HANDLE hModule, 
-                       DWORD  ul_reason_for_call, 
-                       LPVOID lpReserved
-					 )
-{
-	switch (ul_reason_for_call)
-	{
-	case DLL_PROCESS_ATTACH:
-		dout << "core attach" << std::endl; 
-		break;
-	case DLL_THREAD_ATTACH:
-		break;
-	case DLL_THREAD_DETACH:
-		break;
-	case DLL_PROCESS_DETACH:
-		dout << "core detach" << std::endl;
-		break;
-	}
-    return TRUE;
-}
+class PositionModule : public MulticrewModule {
+ public:
+	PositionModule( bool hostMode );
+	virtual ~PositionModule();
+
+	virtual bool start()=0;
+
+ private:
+	struct Data;
+	friend Data;
+	Data *d;	
+};
+
+class PositionHostModule : public PositionModule {
+ public:
+	PositionHostModule();
+	virtual ~PositionHostModule();
+
+	virtual bool start();
+
+ private:
+	virtual void receive( ModulePacket *packet ) {}
+	DWORD threadProc( LPVOID param );
+
+	struct Data;
+	friend Data;
+	Data *d;	
+};
+
+class PositionClientModule : public PositionModule {
+ public:
+	PositionClientModule();
+	virtual ~PositionClientModule();
+
+	virtual bool start();
+
+ private:
+	virtual void receive( ModulePacket *packet );
+
+	struct Data;
+	friend Data;
+	Data *d;	
+};

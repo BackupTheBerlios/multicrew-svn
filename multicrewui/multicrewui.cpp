@@ -84,12 +84,12 @@ MulticrewUI::~MulticrewUI() {
 }
 
 void MulticrewUI::host() {
-	HostWizard *dlg = new HostWizard( d->mainWindow );
-	bool ret = dlg->RunWizard();
+	HostWizard dlg( d->mainWindow );
+	bool ret = dlg.RunWizard();
 	if( ret ) {
 		HostConnectionSetup setup;
-		SmartPtr<HostConnection> con( setup.host( dlg->port(), dlg->sessionName(),
-			dlg->passwordEnabled(), dlg->password() ) );
+		SmartPtr<HostConnection> con( setup.host( dlg.port(), dlg.sessionName(),
+			dlg.passwordEnabled(), dlg.password() ) );
 		if( con.isNull() )
 			derr << "Session creation failed. Take a look at the logs to find out why." << std::endl;
 		else {
@@ -100,7 +100,6 @@ void MulticrewUI::host() {
 			d->statusDlg->setConnected();
 		}
 	}
-	dlg->Destroy();
 }
 
 
@@ -108,6 +107,7 @@ void MulticrewUI::terminate() {
 	if( !d->hostConnection.isNull() ) {
 		int ret = MessageBox(d->hwnd, "Really terminate the running session?", "Multicrew", MB_OKCANCEL | MB_ICONQUESTION);
 		if( ret==IDOK ) {
+			d->core->unprepare();
 			d->hostConnection->disconnect();
 		}
 	}
@@ -123,9 +123,9 @@ void MulticrewUI::status() {
 
 
 void MulticrewUI::connect() {
-	ConnectWizard *dlg = new ConnectWizard( d->mainWindow );
+	ConnectWizard dlg( d->mainWindow );
 	dout << "run" << std::endl;
-	SmartPtr<ClientConnection> ret = dlg->RunWizard();
+	SmartPtr<ClientConnection> ret = dlg.RunWizard();
 	if( !ret.isNull() ) {
 		d->clientConnection = ret;
 		d->clientDisconnectedSlot.connect( &d->clientConnection->disconnected );
@@ -133,7 +133,6 @@ void MulticrewUI::connect() {
 		d->clientConnection->start();
 		d->statusDlg->setConnected();
 	}
-	dlg->Destroy();
 }
 
 
@@ -141,6 +140,7 @@ void MulticrewUI::disconnect() {
 	if( !d->clientConnection.isNull() ) {
 		int ret = MessageBox(d->hwnd, "Really disconnect?", "Multicrew", MB_OKCANCEL | MB_ICONQUESTION);
 		if( ret==IDOK ) {
+			d->core->unprepare();
 			d->clientConnection->disconnect();
 		}
 	}

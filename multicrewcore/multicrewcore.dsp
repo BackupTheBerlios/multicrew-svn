@@ -79,7 +79,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib dxerr9.lib dxguid.lib dplayx.lib /nologo /dll /map /debug /debugtype:coff /machine:I386 /pdbtype:sept
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib dxerr9.lib dxguid.lib dplayx.lib /nologo /dll /map /debug /debugtype:both /machine:I386 /pdbtype:sept
 
 !ENDIF 
 
@@ -138,6 +138,10 @@ SOURCE=.\multicrewcore.cpp
 
 SOURCE=.\multicrewcore.rc
 # End Source File
+# Begin Source File
+
+SOURCE=.\position.cpp
+# End Source File
 # End Group
 # Begin Group "Header-Dateien"
 
@@ -180,6 +184,10 @@ SOURCE=.\packets.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\position.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\multicrewgauge\resource.h
 # End Source File
 # Begin Source File
@@ -194,6 +202,22 @@ SOURCE=.\signals.h
 # Begin Group "Ressourcendateien"
 
 # PROP Default_Filter "ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
+# End Group
+# Begin Group "fsuipc"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\fsuipc\FSUIPC_User.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipc\IPCuser.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\fsuipc\IPCuser.h
+# End Source File
 # End Group
 # End Target
 # End Project
