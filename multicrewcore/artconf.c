@@ -327,6 +327,7 @@ conf_pstruct conf_init(const char *name)
 	conf_pgroup gr_temp, gr_temp1;
 	conf_pinsgroup gri_temp, gri_temp1;
 	int pos_str, tbool = FALSE, obool = FALSE, temp_str;
+	int commentStarted = FALSE;
 	char stch[255], *str_ret;
 	FILE *archive;
 	if ((temp = (conf_pstruct) malloc (sizeof(conf_sstruct))) == NULL)
@@ -344,19 +345,30 @@ conf_pstruct conf_init(const char *name)
 	
 	while(tbool)
 	{
-		pos_str = 0;  obool = FALSE;
+		pos_str = 0;  obool = FALSE;  commentStarted = FALSE;
 		do {
 			stch[pos_str] = fgetc(archive);
-			if (stch[pos_str]==EOF)
-			{ obool = tbool = TRUE; }
-			if ((stch[pos_str]=='\n')||(pos_str>254))
-				obool = TRUE;
-			else if (stch[pos_str]=='#') {
-				while( fgetc(archive)!='\n' );
-				obool = TRUE;
-			} else
+			if (stch[pos_str]=='/' && commentStarted==FALSE ) {
+				commentStarted = TRUE;
 				pos_str++;
+			} else {
+				if (stch[pos_str]==EOF)
+				{ obool = tbool = TRUE; }
+				if ((stch[pos_str]=='\n')||(pos_str>254))
+					obool = TRUE;
+				else if (stch[pos_str]=='/' && commentStarted==TRUE ) {
+					while( fgetc(archive)!='\n' );
+					pos_str--;
+					obool = TRUE;
+				} else
+					pos_str++;
+				
+				commentStarted = FALSE;
+			}
 		} while (obool);
+
+		while( pos_str>0 && stch[pos_str-1]==' ' ) pos_str--;
+
 		if (pos_str == 255)
 			printf("\nhey.. you just blow my string off.. snif.. long live to the char[255]");
 /* if (stch[pos_str]==EOF)
