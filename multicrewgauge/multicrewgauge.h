@@ -258,13 +258,24 @@ class GaugeRecorder : public Gauge {
 public:
 	GaugeRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeRecorder();
-	virtual void sendProc();
 	virtual void receive( SmartPtr<Packet> packet );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
+};
+
+
+class GaugeMetafileRecorder : public GaugeRecorder {
+public:
+	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id );
+	virtual ~GaugeMetafileRecorder();
+	virtual void sendProc();
+
+private:
+	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
+	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
 };
 
 
@@ -273,13 +284,24 @@ public:
 	GaugeViewer( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeViewer();
 	virtual void sendProc();
+
+private:
+	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
+	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
+};
+
+
+class GaugeMetafileViewer : public GaugeViewer  {
+public:
+	GaugeMetafileViewer( MulticrewGauge *mgauge, int id );
+	virtual ~GaugeMetafileViewer();
 	virtual void receive( SmartPtr<Packet> packet );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
-	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
 };
+
 
 class MulticrewGauge : public MulticrewModule {
  public:

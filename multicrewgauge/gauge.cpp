@@ -464,39 +464,9 @@ Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 	return el;
 }
 
-void GaugeRecorder::sendProc() {
-	Gauge::sendProc();
-
-	// send metafile
-	EnterCriticalSection( &d->cs );	
-	if( !d->lastMetafile.isNull() ) {
-		d->mgauge->send( 
-			id(), 
-			new GaugePacket( 
-				metafilePacket,
-				new MetafilePacket( 
-					&d->metafileDim,
-					SharedBuffer( d->lastMetafile->lock(), 
-								  d->lastMetafile->size() ))),
-			false );
-		d->lastMetafile->unlock();
-		d->lastMetafile = 0;
-	}
-	LeaveCriticalSection( &d->cs );
-}
-
 void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
-	//dout << service_id << std::endl;
-	//dout << "> Gauge::callback " << this << " service_id=" << service_id << std::endl;
-	bool ispfd = false;
-	if( name()=="EFISDisplay" && parameter()=="PFD 1" ) ispfd=true;
-
 	// do work of callback
 	switch (service_id) {
-	case PANEL_SERVICE_POST_INSTALL:
-		if( ispfd ) GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
-		break;
-		
 	case PANEL_SERVICE_PRE_DRAW: {
 		// handle mouse events which came in from the network
 		EnterCriticalSection( &d->cs );
@@ -527,10 +497,99 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 		}
 		d->mouseEvents.clear();
 		LeaveCriticalSection( &d->cs );
+	} break;
+
+		
+	default:
+		break;
+	}
 	
+	// call inherited callback
+	Gauge::callback( pgauge, service_id, extra_data );
+}
+
+
+void GaugeRecorder::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
+	switch( gp->key() ) {
+	case mousePacket:
+		EnterCriticalSection( &d->cs );
+		dout << "Received mouse packet for " << d->name << std::endl;
+		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
+		LeaveCriticalSection( &d->cs );
+		break;
+
+	default:
+		Gauge::receive( packet );
+		break;
+	}
+}
+
+
+BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
+	EnterCriticalSection( &d->cs );
+	if( mouseRectNum>=0 && mouseRectNum<d->originalMouseCallbacks.size() && d->originalMouseCallbacks[mouseRectNum]!=0 ) {
+		dout << "mouseCallback for " << d->name << std::endl;
+		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
+		cb( pix, flags );
+	}
+	LeaveCriticalSection( &d->cs );
+	
+	return TRUE;
+}
+
+/**************************************************************************/
+
+GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, int id ) 
+	: GaugeRecorder( mgauge, id ) {
+}
+
+GaugeMetafileRecorder::~GaugeMetafileRecorder() {
+}
+
+Element *GaugeMetafileRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
+	Element *el = 0;
+	switch( pelement->element_type ) {
+	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticRecorder( id, *this ); break;
+	default: break;
+	}
+
+	return el;
+}
+
+void GaugeMetafileRecorder::sendProc() {
+	Gauge::sendProc();
+
+	// send metafile
+	EnterCriticalSection( &d->cs );	
+	if( !d->lastMetafile.isNull() ) {
+		d->mgauge->send( 
+			id(), 
+			new GaugePacket( 
+				metafilePacket,
+				new MetafilePacket( 
+					&d->metafileDim,
+					SharedBuffer( d->lastMetafile->lock(), 
+								  d->lastMetafile->size() ))),
+			false );
+		d->lastMetafile->unlock();
+		d->lastMetafile = 0;
+	}
+	LeaveCriticalSection( &d->cs );
+}
+
+void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, 
+									  UINT32 extra_data ) {
+	// do work of callback
+	switch (service_id) {
+	case PANEL_SERVICE_POST_INSTALL:
+		GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
+		break;
+		
+	case PANEL_SERVICE_PRE_DRAW: {
 		// record metafile for gauge output
 		EnterCriticalSection( &d->cs );
-		if( ispfd && d->elements.size()>0 && d->elements[0] ) {
+		if( d->elements.size()>0 && d->elements[0] ) {
 			
 			Element *element = d->elements[0];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
@@ -579,7 +638,7 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 	} break;
 
 	case PANEL_SERVICE_DISCONNECT:
-		if( ispfd ) GdiplusShutdown(d->gdiplusToken);
+		GdiplusShutdown(d->gdiplusToken);
 		break;
 		
 	default:
@@ -588,42 +647,10 @@ void GaugeRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_
 	
 	// call inherited callback
 	Gauge::callback( pgauge, service_id, extra_data );
-
-	//dout << "< Gauge::callback" << std::endl;
 }
 
 
-void GaugeRecorder::receive( SmartPtr<Packet> packet ) {
-	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
-	switch( gp->key() ) {
-	case mousePacket:
-		EnterCriticalSection( &d->cs );
-		dout << "Received mouse packet for " << d->name << std::endl;
-		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
-		LeaveCriticalSection( &d->cs );
-		break;
-
-	default:
-		Gauge::receive( packet );
-		break;
-	}
-}
-
-
-BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
-	EnterCriticalSection( &d->cs );
-	if( mouseRectNum>=0 && mouseRectNum<d->originalMouseCallbacks.size() && d->originalMouseCallbacks[mouseRectNum]!=0 ) {
-		dout << "mouseCallback for " << d->name << std::endl;
-		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
-		cb( pix, flags );
-	}
-	LeaveCriticalSection( &d->cs );
-	
-	return TRUE;
-}
-
-
-/************************************************************************************/
+/**************************************************************************/
 
 GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id ) 
 	: Gauge( mgauge, id ) {
@@ -632,63 +659,6 @@ GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id )
 GaugeViewer::~GaugeViewer() {
 }
 
-void GaugeViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
-	//dout << service_id << std::endl;
-	//dout << "> Gauge::callback " << this << " service_id=" << service_id << std::endl;
-	bool ispfd = false;
-	if( name()=="EFISDisplay" && parameter()=="PFD 1" ) ispfd=true;
-
-	// do work of callback
-	switch (service_id) {
-	case PANEL_SERVICE_POST_INSTALL:
-		if( ispfd ) GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
-		break;
-		
-	case PANEL_SERVICE_PRE_DRAW: {
-		// display
-		EnterCriticalSection( &d->cs );
-		if( ispfd && d->elements.size()>0 && 
-			d->elements[0] && 
-			!d->lastMetafile.isNull() ) {
-			dout << "draw metafile" << std::endl;
-
-			Element *element = d->elements[0];
-			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
-			PPIXPOINT dim = &staticImage->image_data.final->dim;
-			
-			// create stream
-			IStream *stream;
-			CreateStreamOnHGlobal( d->lastMetafile->handle(), FALSE, &stream );			
-			Metafile metafile( stream );
-					
-			// display metafile
-			dout << "x=" << d->metafileDim.x << " -> x=" << dim->x << std::endl;
-			Graphics graphics( staticImage->hdc );
-			graphics.ScaleTransform( 
-				((float)dim->x)/d->metafileDim.x, 
-				((float)dim->y)/d->metafileDim.y, 
-				MatrixOrderPrepend );
-			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
-			graphics.DrawImage( &metafile, 0, 0 );
-			
-			stream->Release();
-			d->lastMetafile = 0;
-			SET_OFF_SCREEN( staticImage );
-		}
-		LeaveCriticalSection( &d->cs );
-		return;
-	} break;
-
-	case PANEL_SERVICE_DISCONNECT:
-		if( ispfd ) GdiplusShutdown(d->gdiplusToken);
-		break;
-		
-	default:
-		break;
-	}
-
-	Gauge::callback( pgauge, service_id, extra_data );
-}
 
 Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 	Element *el = 0;
@@ -702,27 +672,6 @@ Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 	}
 
 	return el;
-}
-
-
-void GaugeViewer::receive( SmartPtr<Packet> packet ) {
-	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
-	switch( gp->key() ) {
-	case metafilePacket:
-	{
-		EnterCriticalSection( &d->cs );
-		SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*gp->wrappee();
-		dout << "metafile packet with size " << mp->buffer().size() << std::endl;
-		d->lastMetafile = new GlobalMem( mp->buffer().data(), 
-										 mp->buffer().size() );
-		memcpy( &d->metafileDim, mp->dimension(), sizeof(PIXPOINT) );
-		LeaveCriticalSection( &d->cs );
-	} break;
-
-	default:
-		Gauge::receive( packet );
-		break;
-	}
 }
 
 
@@ -764,4 +713,99 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
 	LeaveCriticalSection( &d->cs );
 	
 	return TRUE;
+}
+
+
+/**************************************************************************/
+
+GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id ) 
+	: GaugeViewer( mgauge, id ) {
+}
+
+GaugeMetafileViewer::~GaugeMetafileViewer() {
+}
+
+void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
+	// do work of callback
+	switch (service_id) {
+	case PANEL_SERVICE_POST_INSTALL:
+		GdiplusStartup(&d->gdiplusToken, &d->gdiplusStartupInput, NULL);
+		break;
+		
+	case PANEL_SERVICE_PRE_DRAW: {
+		// display
+		EnterCriticalSection( &d->cs );
+		if( d->elements.size()>0 && 
+			d->elements[0] && 
+			!d->lastMetafile.isNull() ) {
+			dout << "draw metafile" << std::endl;
+
+			Element *element = d->elements[0];
+			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
+			PPIXPOINT dim = &staticImage->image_data.final->dim;
+			
+			// create stream
+			IStream *stream;
+			CreateStreamOnHGlobal( d->lastMetafile->handle(), FALSE, &stream );			
+			Metafile metafile( stream );
+					
+			// display metafile
+			dout << "x=" << d->metafileDim.x << " -> x=" << dim->x << std::endl;
+			Graphics graphics( staticImage->hdc );
+			graphics.ScaleTransform( 
+				((float)dim->x)/d->metafileDim.x, 
+				((float)dim->y)/d->metafileDim.y, 
+				MatrixOrderPrepend );
+			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
+			graphics.DrawImage( &metafile, 0, 0 );
+			
+			stream->Release();
+			d->lastMetafile = 0;
+			SET_OFF_SCREEN( staticImage );
+		}
+		LeaveCriticalSection( &d->cs );
+		return;
+	} break;
+
+	case PANEL_SERVICE_DISCONNECT:
+		GdiplusShutdown(d->gdiplusToken);
+		break;
+		
+	default:
+		break;
+	}
+
+	GaugeViewer::callback( pgauge, service_id, extra_data );
+}
+
+Element *GaugeMetafileViewer::createElement( int id, PELEMENT_HEADER pelement ) {
+	Element *el = 0;
+
+	switch( pelement->element_type ) {
+	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticViewer( id, *this ); break;
+	default: break;
+	}
+
+	return el;
+}
+
+
+void GaugeMetafileViewer::receive( SmartPtr<Packet> packet ) {
+	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
+	switch( gp->key() ) {
+	case metafilePacket:
+	{
+		EnterCriticalSection( &d->cs );
+		SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*gp->wrappee();
+		dout << "metafile packet with size " << mp->buffer().size() << std::endl;
+		d->lastMetafile = new GlobalMem( mp->buffer().data(), 
+										 mp->buffer().size() );
+		memcpy( &d->metafileDim, mp->dimension(), sizeof(PIXPOINT) );
+		LeaveCriticalSection( &d->cs );
+	} break;
+
+	default:
+		Gauge::receive( packet );
+		break;
+	}
 }

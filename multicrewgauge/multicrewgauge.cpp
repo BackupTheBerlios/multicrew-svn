@@ -142,12 +142,18 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 				dout << "Creating new for " << pgauge->gauge_name << ":" << pgauge->parameters << std::endl;
 			else
 				dout << "Creating new for " << pgauge->gauge_name << std::endl;
-
+			
 			// create new gauge
 			if( isHostMode() )
-				gauge = new GaugeRecorder( this, d->gauges.size() );
+				if( strcmp(pgauge->gauge_name,"EFISDisplay")==0 )
+					gauge = new GaugeMetafileRecorder( this, d->gauges.size() );
+				else
+					gauge = new GaugeRecorder( this, d->gauges.size() );
 			else
-				gauge = new GaugeViewer( this, d->gauges.size() );
+				if( strcmp(pgauge->gauge_name,"EFISDisplay")==0 )
+					gauge = new GaugeMetafileViewer( this, d->gauges.size() );
+				else
+					gauge = new GaugeViewer( this, d->gauges.size() );
 			
 			d->gauges.push_back( gauge );
 		}
