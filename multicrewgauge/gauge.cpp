@@ -93,8 +93,10 @@ enum {
 
 struct MouseStruct {
 	int mouseRectNum;
-	PIXPOINT relative_point;
-	PIXPOINT screen_point;
+	float relX;
+	float relY;
+	float scrX;
+	float scrY;
 	FLAGS32 flags;
 };
 
@@ -463,13 +465,14 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
 		int num = 0;
 	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
-			d->originalMouseCallbacks.push_back( rect->mouse_function );
-			if( rect->mouse_function!=0 || rect->event_id!=0 ) {
-				//dout << "Wrapping mouse callback for " << d->name << std::endl;
-				Data::MouseCallback *callback = new Data::MouseCallback( this, Gauge::mouseCallback, num );
-				d->mouseCallbackAdapters.push_back( callback );
-				rect->mouse_function = callback->callback();
-			}
+            //dout << "Wrapping mouse callback for " << d->name << std::endl;
+			d->originalMouseCallbacks.push_back( rect->mouse_function );			
+			Data::MouseCallback *callback = 
+				new Data::MouseCallback( this, 
+										 Gauge::mouseCallback, 
+										 num );
+			d->mouseCallbackAdapters.push_back( callback );
+			rect->mouse_function = callback->callback();
 
 			num++;
 			rect++;
@@ -568,10 +571,18 @@ void GaugeRecorder::asyncCallback() {
 	for( std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
 		 it!=d->mouseEvents.end();
 		 it++ ) {
-		// emit mouse event
-		dout << "mouse packet for " << d->name << " mouserect " << (*it)->data().mouseRectNum << std::endl;
-		
 		MouseStruct &ms = (*it)->data();
+
+		// emit mouse event
+		dout << "mouse packet for " << d->name
+			 << " for " << d->name
+			 << " rel=" << ms.relX
+			 << ":" << ms.relY
+			 << " screen=" << ms.scrX
+			 << ":" << ms.scrY
+			 << std::endl;
+
+				
 		int num =  ms.mouseRectNum;
 		if( num>=0 && num<d->originalMouseCallbacks.size() ) {
 			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[num];
@@ -581,10 +592,12 @@ void GaugeRecorder::asyncCallback() {
 			if( cb!=0 ) {
 				// create MOUSECALLBACK structure
 				MOUSECALLBACK mc;
-				memcpy( &mc.relative_point, &ms.relative_point, sizeof(PIXPOINT) );
+				mc.relative_point.x = (int)(ms.relX * d->gaugeHeader->size.x);
+				mc.relative_point.y = (int)(ms.relY * d->gaugeHeader->size.y);
+				mc.screen_point.x = (int)(ms.scrX * d->gaugeHeader->size.x);
+				mc.screen_point.y = (int)(ms.scrY * d->gaugeHeader->size.y);
 				mc.user_data = (PVOID)d->gaugeHeader;
 				mc.mouse = rect;
-				memcpy( &mc.screen_point, &ms.screen_point, sizeof(PIXPOINT) );
 				mc.reserved = 0;
 
 				// call callback
@@ -637,7 +650,12 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 		d->originalMouseCallbacks[mouseRectNum]!=0 ) {
 		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
 		dout << "mouseCallback " << (void*)cb 
-			 << " for " << d->name << std::endl;
+			 << " for " << d->name
+			 << " rel=" << ((PMOUSECALLBACK)pix)->relative_point.x
+			 << ":" << ((PMOUSECALLBACK)pix)->relative_point.y
+			 << " screen=" << ((PMOUSECALLBACK)pix)->screen_point.x
+			 << ":" << ((PMOUSECALLBACK)pix)->screen_point.y
+			 << std::endl;
 		cb( pix, flags );
 	}
 	LeaveCriticalSection( &d->cs );
@@ -913,9 +931,9 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 									(const Bytef*)last->lock(), last->size(),
 									(Bytef**)&delta, &deltaSize );
 			double end = MulticrewCore::multicrewCore()->time();
-			dout << name() << " compress in " << (end-start)*1000 << "ms"
+			/*dout << name() << " compress in " << (end-start)*1000 << "ms"
 				 << " size=" << last->size()
-				 << " delta=" << deltaSize << std::endl;
+				 << " delta=" << deltaSize << std::endl;*/
 			EnterCriticalSection( &Gauge::d->cs );
 			setPriority( THREAD_PRIORITY_ABOVE_NORMAL );
 
@@ -1000,7 +1018,8 @@ Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
 
 
 BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
-	dout << "mouseCallback for " << d->name << std::endl;
+	dout << "mouseCallback for " << d->name 
+		 << " num=" << mouseRectNum << std::endl;
 
 	// append mouse event to d->mouseEvents which is sent during the 
     // next sendProc call
@@ -1013,8 +1032,10 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
 		// create MouseStruct data
 		MouseStruct ms;
 		ms.mouseRectNum = mouseRectNum;
-		memcpy( &ms.relative_point, &mc->relative_point, sizeof(PIXPOINT) );
-		memcpy( &ms.screen_point, &mc->screen_point, sizeof(PIXPOINT) );
+		ms.relX = mc->relative_point.x*1.0f/d->gaugeHeader->size.x;
+		ms.relY = mc->relative_point.y*1.0f/d->gaugeHeader->size.y;
+		ms.scrX = mc->screen_point.x*1.0f/d->gaugeHeader->size.x;
+		ms.scrY = mc->screen_point.y*1.0f/d->gaugeHeader->size.y;
 		ms.flags = flags;
 
 		// send MouseStruct packet
