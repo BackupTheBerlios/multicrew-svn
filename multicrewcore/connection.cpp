@@ -33,45 +33,49 @@ const GUID gMulticrewGuid =
 
 class RoutedModulePacket : public Packet {
 public:
-	RoutedModulePacket( std::string moduleName, SmartPtr<ModulePacket> packet ) {
-		this->moduleName = moduleName;
+	RoutedModulePacket( SmartPtr<ModulePacket> packet, SmartPtr<MulticrewModule> mod ) {
 		this->packet = packet;
+		this->mod = mod;
+		this->modName = mod->moduleName();
 	}	
 
-	RoutedModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) 
-		: moduleName( (char*)buffer.data() ) {		
-		packet = new ModulePacket( SharedBuffer(buffer,moduleName.size()+1), mod );
+	RoutedModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) {
+		this->mod = mod;
+		this->modName = mod->moduleName();
+		packet = new ModulePacket( SharedBuffer(buffer,modName.size()+1), mod );
 	}
 
 	virtual unsigned compiledSize() {
-		return moduleName.length()+1+packet->compiledSize();
+		return modName.length()+1+packet->compiledSize();
 	}
 
 	virtual void compile( void *data ) {
-		strcpy( (char*)data, moduleName.c_str() );
-		packet->compile( ((char*)data)+moduleName.length()+1 );
+		strcpy( (char*)data, modName.c_str() );
+		packet->compile( ((char*)data)+modName.length()+1 );
 	}
 
-	std::string module() {
-		return moduleName;
+	SmartPtr<MulticrewModule> module() {
+		return mod;
 	}
 
 	SmartPtr<ModulePacket> modulePacket() {
 		return packet;
 	}
 
-	static std::string module( SharedBuffer &buffer ) {
+	static std::string moduleName( SharedBuffer &buffer ) {
 		return (char*)buffer.data();
 	}
 
 private:	
-	std::string moduleName;
+	std::string modName;
 	SmartPtr<ModulePacket> packet;
+	SmartPtr<MulticrewModule> mod;
 };
 
 SmartPtr<Packet> ModulePacket::createChild( SharedBuffer &buffer ) {
 	return mod->createPacket( buffer );
 }
+
 
 /*******************************************************************/
 
@@ -161,12 +165,12 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 	case DPN_MSGID_RECEIVE: 
 	{
 		DPNMSG_RECEIVE *rec = (DPNMSG_RECEIVE*)pMessage;
+		SharedBuffer packetBuf(rec->pReceiveData, rec->dwReceiveDataSize, false);
 
 		// find destination
 		EnterCriticalSection( &d->critSect );
 		std::map<std::string,MulticrewModule*>::iterator dest;
-		SharedBuffer packetBuf(rec->pReceiveData, rec->dwReceiveDataSize, false);
-		std::string moduleId = RoutedModulePacket::module( packetBuf );
+		std::string moduleId = RoutedModulePacket::moduleName( packetBuf );
 		dest = modules.find( moduleId );
 		if( dest==modules.end() ) {
 			LeaveCriticalSection( &d->critSect );
@@ -175,13 +179,13 @@ HRESULT ConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageTyp
 		}			
 		LeaveCriticalSection( &d->critSect );
 
-		// create packet object
-		SmartPtr<RoutedModulePacket> packet = 
+		// create packet
+		SmartPtr<RoutedModulePacket> routed = 
 			new RoutedModulePacket( packetBuf, (MulticrewModule*)(dest->second) );
-		//dout << "Received packet " << std::endl;
-
+				
 		// deliver packet
-		(*dest).second->receive( &*packet->modulePacket() );
+		if( !routed.isNull() )
+			routed->module()->receive( routed->modulePacket() );
 	}
 	break;
 
@@ -379,7 +383,7 @@ bool ConnectionImpl::start() {
 
 bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe, 
 						   Priority prio, SmartPtr<MulticrewModule> sender,
-						   bool callback ) {
+						   bool async ) {
 	// connected?
 	if( d->peer==0 || d->disconnected ) {
 		if( !sender.isNull() ) sender->sendFailed();
@@ -390,7 +394,7 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 
 	// prepare packet
 	SmartPtr<RoutedModulePacket> routed = 
-		new RoutedModulePacket( sender->moduleName(), packet );
+		new RoutedModulePacket( packet, sender );
 	unsigned size = routed->compiledSize();
 	void *buffer = malloc( size );
 	routed->compile( buffer );
@@ -406,12 +410,13 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 		&desc,
 		1,
 		0,
-		callback?(&*sender):0,
+		async?0:(&*sender),
 		&asyncHandle,
 		((prio==highPriority)?DPNSEND_PRIORITY_HIGH:0) |
 		((prio==lowPriority)?DPNSEND_PRIORITY_LOW:0) |
 		(safe?DPNSEND_GUARANTEED:0) |
-		DPNSEND_NOLOOPBACK | DPNSEND_COALESCE );
+		DPNSEND_NOLOOPBACK | DPNSEND_COALESCE |
+		(async?DPNSEND_NONSEQUENTIAL:0) );
 
 	// free packet buffer
 	free( buffer );
@@ -420,11 +425,6 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 	if( hr==DPNSUCCESS_PENDING ) {
 		//dout << "async" << std::endl;
 		return true;
-	}
-
-	// not async -> remove callback
-	if( callback!=0 ) {
-		//dout << "sync" << std::endl;
 	}
 
     // error?

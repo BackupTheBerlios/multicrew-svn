@@ -40,7 +40,6 @@ struct IconElement::Data {
 	CallbackAdapter1<FLOAT64, IconElement, PELEMENT_ICON> callbackAdapter;
 
 	FLOAT64 oldValue;
-	bool changed;
 };
 
 
@@ -49,7 +48,6 @@ IconElement::IconElement( int id, Gauge &gauge )
 	d = new Data( this );
 	d->iconHeader = 0;
 	d->oldValue = 0.0;
-	d->changed = true;
 	d->origCallback = 0;
 }
 
@@ -108,7 +106,7 @@ FLOAT64 IconRecorder::callback( PELEMENT_ICON pelement ) {
 			 << " in " << gauge().name() << " = " << (unsigned long)ret 
 			 << " id=" << id() << std::endl;
 		d->oldValue = ret;
-		d->changed = true;
+		gauge().requestSend( this );
 	}
 	// dout << "< cal lback " << d->iconHeader << std::endl;
 	return ret;
@@ -116,12 +114,9 @@ FLOAT64 IconRecorder::callback( PELEMENT_ICON pelement ) {
 
 
 void IconRecorder::sendProc() {
-	if( d->changed ) {
-		IconStruct s;
-		s.value = d->oldValue;
-		gauge().send( id(), new IconPacket( s ), true );
-		d->changed = false;
-	}
+	IconStruct s;
+	s.value = d->oldValue;
+	gauge().send( id(), new IconPacket( s ), true );
 }
 
 

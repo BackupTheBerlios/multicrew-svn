@@ -57,7 +57,6 @@ struct StringElement::Data {
 
 	char value[BUFFER_SIZE+1];
 	char buffer[BUFFER_SIZE+1];
-	bool changed;
 	CRITICAL_SECTION cs;
 };
 
@@ -69,7 +68,6 @@ StringElement::StringElement( int id, Gauge &gauge )
 	d->value[BUFFER_SIZE] = 0;
 	d->buffer[0] = 0;
 	d->buffer[BUFFER_SIZE] = 0;
-	d->changed = true;
 	d->origCallback = 0;
 
 	InitializeCriticalSection( &d->cs );
@@ -135,7 +133,7 @@ FLOAT64 StringRecorder::callback( PELEMENT_STRING pelement ) {
 		else
 			strncpy( d->value, pelement->string, BUFFER_SIZE );
 		
-		d->changed = true;
+		gauge().requestSend( this );
 	}
 	//dout << "< cal lback " << d->stringHeader << std::endl;
 	LeaveCriticalSection( &d->cs );
@@ -144,12 +142,9 @@ FLOAT64 StringRecorder::callback( PELEMENT_STRING pelement ) {
 
 
 void StringRecorder::sendProc() {
-	if( d->changed ) {
-		EnterCriticalSection( &d->cs );
-		gauge().send( id(), new StringPacket(d->value), false );
-		d->changed = false;
-		LeaveCriticalSection( &d->cs );
-	}
+	EnterCriticalSection( &d->cs );
+	gauge().send( id(), new StringPacket(d->value), false );
+	LeaveCriticalSection( &d->cs );
 }
 
 

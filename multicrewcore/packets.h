@@ -137,6 +137,14 @@ class Packet : public Shared {
 };
 
 
+class EmptyPacket : public Packet {
+ public:
+	EmptyPacket() {}
+	virtual unsigned compiledSize() { return 0; }
+	virtual void compile( void *buffer ) {}
+};
+
+
 template< class Prefix, class Wrappee >
 class DLLEXPORT WrappedPacket : public Packet {
  public:

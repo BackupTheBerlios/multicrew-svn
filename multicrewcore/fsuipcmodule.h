@@ -29,11 +29,14 @@ class FsuipcModule : public MulticrewModule {
 	virtual ~FsuipcModule();
 
 	virtual void handlePacket( SmartPtr<Packet> packet );
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	virtual void sendProc();
+	virtual void sendFullState();
 
 	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
 	
+ protected:
+	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer );	
+
  private:
 	struct Data;
 	friend Data;

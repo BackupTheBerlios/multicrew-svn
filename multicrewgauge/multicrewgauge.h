@@ -233,7 +233,7 @@ public:
 	std::string parameter();
 	int id();
 	MulticrewGauge *mgauge();
-	virtual void sendProc();
+	virtual void sendProc( bool fullSend );
 
 	void send( unsigned element, SmartPtr<Packet> packet, 
 			   bool safe, bool async=false );
@@ -242,6 +242,8 @@ public:
 
 	virtual void attach( PGAUGEHDR gaugeHeader );
 	virtual void detach();
+
+	void requestSend( Element *element );
 
  protected:	
 	void createElements();
@@ -278,6 +280,9 @@ public:
 	virtual ~GaugeMetafileRecorder();
 	virtual void receive( SmartPtr<Packet> packet );
 
+	virtual void attach( PGAUGEHDR gaugeHeader );
+	virtual void detach();
+
 private:
 	virtual unsigned threadProc( void *param );
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
@@ -305,7 +310,7 @@ public:
 	GaugeMetafileViewer( MulticrewGauge *mgauge, int id, int metafileElement );
 	virtual ~GaugeMetafileViewer();
 	virtual void receive( SmartPtr<Packet> packet );
-	virtual void sendProc();
+	virtual void sendProc( bool fullSend );
 
 private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
@@ -323,11 +328,14 @@ class MulticrewGauge : public MulticrewModule {
 			   Connection::Priority prio=Connection::mediumPriority, 
 			   bool async=false );
 	PGAUGE_CALLBACK installCallback();
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+
+	void requestSend( Gauge *gauge );
+	virtual void sendFullState();
 	
  protected:
 	friend Gauge;
 	void detached( Gauge *gauge );
+	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer );
 
  protected:	
 	virtual void handlePacket( SmartPtr<Packet> packet );

@@ -28,7 +28,10 @@ class PositionModule : public MulticrewModule {
 	virtual ~PositionModule();
 
 	virtual void handlePacket( SmartPtr<Packet> packet ) {}
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual void sendFullState();
+
+ protected:
+	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer );
 
  private:
 	struct Data;

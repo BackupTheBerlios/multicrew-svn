@@ -100,8 +100,8 @@ public:
 		}
 	}
 
-	SmartPtr<FsuipcPacket> process() {
-		if( memcmp( oldData, data, size )!=0 ) {
+	SmartPtr<FsuipcPacket> process( bool fullSend ) {
+		if( fullSend || memcmp( oldData, data, size )!=0 ) {
 			// changed
 			dout << "FSUIPC change for id " << id << std::endl;
 			memcpy( oldData, data, size );
@@ -134,6 +134,7 @@ struct FsuipcModule::Data {
 	typedef SmartPtr<FsuipcWatch> SmartFsuipcWatch;
 	std::deque<SmartFsuipcWatch> watches;
 	SmartPtr<Fsuipc> fsuipc;
+	bool nextIsFullSend;
 };
 
 
@@ -154,8 +155,12 @@ FsuipcModule::~FsuipcModule() {
 }
 
 
-SmartPtr<Packet> FsuipcModule::createPacket( SharedBuffer &buffer ) {
+SmartPtr<Packet> FsuipcModule::createInnerModulePacket( SharedBuffer &buffer ) {
 	return new FsuipcPacket( buffer );
+}
+
+void FsuipcModule::sendFullState() {
+	d->nextIsFullSend = true;
 }
 
 
@@ -172,13 +177,21 @@ void FsuipcModule::sendProc() {
 
 	// let watches process read results
 	if( ok ) {
+		// full send?
+		bool fullSend = d->nextIsFullSend;
+
+		// next is no full send by default
+		d->nextIsFullSend = false;
+
+		// get packets from watches and send
 		for( i=0; i<d->watches.size(); i++ ) {
-			SmartPtr<FsuipcPacket> packet = d->watches[i]->process();
+			SmartPtr<FsuipcPacket> packet = d->watches[i]->process( fullSend );
 			if( !packet.isNull() ) {
 				send( &*packet, d->watches[i]->safe(), d->watches[i]->priority() );
 			}
 		}
 	}
+	
 }
 
 

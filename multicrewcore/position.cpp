@@ -54,8 +54,12 @@ PositionModule::~PositionModule() {
 }
 
 
-SmartPtr<Packet> PositionModule::createPacket( SharedBuffer &buffer ) {
+SmartPtr<Packet> PositionModule::createInnerModulePacket( SharedBuffer &buffer ) {
 	return new PositionPacket( buffer );
+}
+
+
+void PositionModule::sendFullState() {
 }
 
 

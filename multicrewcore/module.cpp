@@ -23,13 +23,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "log.h"
 
 
+enum {
+	fullSendPacket=0,
+	normalInnerModulePacket
+};
+typedef TypedPacket<char, Packet> TypedInnerModulePacket;
+typedef EmptyPacket FullSendPacket;
+
+
+class TypedInnerModulePacketFactory : public TypedPacketFactory<char,Packet> {
+public:
+	TypedInnerModulePacketFactory( MulticrewModule *mod ) {
+		this->mod = mod;
+	}
+
+	SmartPtr<Packet> createPacket( char key, SharedBuffer &buffer ) {
+		switch( key ) {
+		case normalInnerModulePacket: return mod->createInnerModulePacket( buffer );
+		case fullSendPacket: return new FullSendPacket();
+		default:
+			dout << "Invalid module packet type " << (int)key << std::endl;
+			break;
+		}
+
+		return 0;
+	}
+
+private:
+	MulticrewModule *mod;
+};
+    
 
 /*******************************************************************/
 
 
 struct MulticrewModule::Data {
 	Data( MulticrewModule *mod ) 
-		: con( __FILE__, __LINE__ ) {
+		: con( __FILE__, __LINE__ ),
+		innerModuleFactory(mod) {
 	}
 
 	SmartPtr<MulticrewCore> core;
@@ -38,6 +69,7 @@ struct MulticrewModule::Data {
 	bool registered;
 	SmartPtr<Connection> con;
 	SmartPtr<FileConfig> config;
+	TypedInnerModulePacketFactory innerModuleFactory;
 
 	// packet send data
 	SmartPtr<ModulePacket> packet;
@@ -50,6 +82,7 @@ struct MulticrewModule::Data {
 	Connection::Priority nextPriority;
 	CRITICAL_SECTION sendCritSect;
 };
+
 
 MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode, 
 								  unsigned minSendWait ) {
@@ -97,10 +130,24 @@ bool MulticrewModule::isHostMode() {
 
 
 void MulticrewModule::receive( SmartPtr<ModulePacket> packet ) {
-	ModulePacket::iterator it = packet->begin();
-	while( it!=packet->end() ) {
-		handlePacket( *it );
-		it++;
+	// handle all inner packets
+	for( ModulePacket::iterator it = packet->begin();
+		 it!=packet->end();
+		 it++ ) {
+		SmartPtr<TypedInnerModulePacket> tp = (TypedInnerModulePacket*)&*(*it);
+
+		// which packet type?
+		switch( tp->key() ) {
+		case fullSendPacket:
+			sendFullState();
+			break;
+		case normalInnerModulePacket:
+			handlePacket( tp->wrappee() );
+			break;
+		default:
+			dout << "Received invalid inner module packet of type " << (int)tp->key() << std::endl;
+			break;
+		}
 	}
 }
 
@@ -111,7 +158,9 @@ void MulticrewModule::lock() {
 void MulticrewModule::send( SmartPtr<Packet> packet, bool safe, Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
 		// append packet
-		d->packet->append( packet );
+		d->packet->append( new TypedInnerModulePacket( 
+							   normalInnerModulePacket,
+							   packet ) );
 		
 		// update packet mode
 		d->nextIsSafeTransmission = d->nextIsSafeTransmission || safe;
@@ -124,16 +173,24 @@ void MulticrewModule::send( SmartPtr<Packet> packet, bool safe, Connection::Prio
 bool MulticrewModule::sendAsync( SmartPtr<Packet> packet, bool safe, Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
 		SmartPtr<ModulePacket> modPacket = new ModulePacket();
-		modPacket->append( packet );
+		modPacket->append( new TypedInnerModulePacket(
+							   normalInnerModulePacket,
+							   packet ) );
 		return d->con->send( 
 			modPacket, 
 			safe, 
 			prio, 
 			this,
-			false );
+			true ); // async
 	}
 
 	return false;
+}
+
+void MulticrewModule::requestFullState() {
+	d->packet->append( new TypedInnerModulePacket( 
+						   fullSendPacket,
+						   new FullSendPacket() ) );	
 }
 
 void MulticrewModule::unlock() {
@@ -166,6 +223,9 @@ void MulticrewModule::connect( SmartPtr<Connection> con ) {
 	if( d->minSendWait>0 ) {
 		startThread( 0 );
 	}
+
+	// request full state from other side
+	requestFullState();
 }
 
 
@@ -188,6 +248,11 @@ void MulticrewModule::sendProc() {
 }
 
 
+SmartPtr<Packet> MulticrewModule::createPacket( SharedBuffer &buffer ) {
+	return new TypedInnerModulePacket( buffer, &d->innerModuleFactory );
+}
+
+
 unsigned MulticrewModule::threadProc( void *param ) {
 	dout << moduleName() << " thread started" << std::endl;
 
@@ -198,23 +263,27 @@ unsigned MulticrewModule::threadProc( void *param ) {
 			sendProc();
 
 			// send packet
+			EnterCriticalSection( &d->sendCritSect );
 			if( d->packet->size()>0 ) {
-				EnterCriticalSection( &d->sendCritSect );
 				d->packetsSending++;
 				LeaveCriticalSection( &d->sendCritSect );
 				if( !d->con->send( 
 						d->packet, 
-						d->nextIsSafeTransmission, d->nextPriority, this ) ) {
+						d->nextIsSafeTransmission, 
+						d->nextPriority, 
+						this ) ) {
 					EnterCriticalSection( &d->sendCritSect );
-					d->packetsSending--;
+					d->packetsSending--;					
 					LeaveCriticalSection( &d->sendCritSect );
 				}
-			}
+				EnterCriticalSection( &d->sendCritSect );
+			} 			
 
 			// default values
 			d->packet = new ModulePacket;
 			d->nextPriority = Connection::lowPriority;
 			d->nextIsSafeTransmission = false;
+			LeaveCriticalSection( &d->sendCritSect );
 		}
 			
 		// wait an amount of milliseconds or exit thread

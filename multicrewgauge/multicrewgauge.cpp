@@ -76,6 +76,8 @@ struct MulticrewGauge::Data {
 	std::deque<Gauge*> gauges;
 	std::map<std::string, GaugeList*> detachedGauges;
 	RoutedGaugePacketFactory packetFactory;
+	std::set<Gauge*> sendRequests;
+	bool nextIsFullSend;
 };
 
 
@@ -83,6 +85,7 @@ MulticrewGauge::MulticrewGauge( bool hostMode, std::string moduleName )
 	: MulticrewModule( moduleName, hostMode, WAITTIME ) {
 	d = new Data( this );
 	d->core = MulticrewCore::multicrewCore();
+	d->nextIsFullSend = false;
 }
 
 
@@ -192,11 +195,42 @@ void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe,
 }
 
 
+void MulticrewGauge::requestSend( Gauge *gauge ) {
+	lock();
+	d->sendRequests.insert( gauge );
+	unlock();
+}
+
+
 void MulticrewGauge::sendProc() {
 	lock();
-	for( int i=0; i<d->gauges.size(); i++ )
-		d->gauges[i]->sendProc();
+
+	if( d->nextIsFullSend ) {
+		d->nextIsFullSend = false;
+
+		// send data of all gauges
+		for( std::deque<Gauge*>::iterator it = d->gauges.begin();
+			 it!=d->gauges.end();
+			 it++ ) {
+			(*it)->sendProc( true );
+		}
+	} else {
+		// call send proc for all gauges in the sendRequests queue
+		for( std::set<Gauge*>::iterator it = d->sendRequests.begin();
+			 it!=d->sendRequests.end();
+			 it++ )
+			(*it)->sendProc( false );
+	}
+	
+	// clear send queue in any case
+	d->sendRequests.clear();
+		
 	unlock();
+}
+
+
+void MulticrewGauge::sendFullState() {
+	d->nextIsFullSend = true;
 }
 
 
@@ -240,7 +274,7 @@ void MulticrewGauge::detached( Gauge *gauge ) {
 }
 
 
-SmartPtr<Packet> MulticrewGauge::createPacket( SharedBuffer &buffer ) {
+SmartPtr<Packet> MulticrewGauge::createInnerModulePacket( SharedBuffer &buffer ) {
 	lock();
 	SmartPtr<RoutedGaugePacket> gp = new RoutedGaugePacket( buffer, &d->packetFactory );
 	unlock();

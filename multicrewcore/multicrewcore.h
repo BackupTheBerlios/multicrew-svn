@@ -30,10 +30,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "packets.h"
 #include "config.h"
 #include "thread.h"
-#include "config.h"
 
 
-class DLLEXPORT MulticrewModule : public ModulePacketFactory, 
+class DLLEXPORT MulticrewModule : 
+    public ModulePacketFactory,
 	public Shared, 
 	public Thread {
 public:
@@ -47,9 +47,16 @@ public:
 	virtual void sendCompleted();
 	virtual void sendFailed();
 	virtual void receive( SmartPtr<ModulePacket> packet );
+	SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+
 	SmartPtr<FileConfig> config();
+
+	virtual void sendFullState()=0;
+	void requestFullState();
 	
 protected:
+	friend class TypedInnerModulePacketFactory;
+
 	virtual void handlePacket( SmartPtr<Packet> packet )=0;
 	void lock();
 	void send( SmartPtr<Packet> packet, bool safe, Connection::Priority prio );
@@ -57,10 +64,12 @@ protected:
 	void unlock();
 
 	virtual void sendProc();
+	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer )=0;
 	void disconnect();
 
 private:
 	friend class MulticrewCore;
+
 	void connect( SmartPtr<Connection> con );
 	virtual unsigned threadProc( void *param );
 

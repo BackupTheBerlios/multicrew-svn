@@ -40,7 +40,7 @@ public:
 
 	virtual bool send( SmartPtr<ModulePacket> packet, bool safe, 
 					   Priority prio, SmartPtr<MulticrewModule> sender,
-					   bool callback=true );
+					   bool async=false );
 	virtual void disconnect();
 	virtual bool start();
 

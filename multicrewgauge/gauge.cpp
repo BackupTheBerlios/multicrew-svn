@@ -40,7 +40,6 @@ using namespace Gdiplus;
 
 
 #define METAFILEDELAY 300
-#define BOOSTTIME 300
 
 
 class GlobalMem : public Shared {
@@ -219,9 +218,11 @@ struct Gauge::Data {
 	UINT_PTR boostTimer;
 	VoidCallbackAdapter4<Gauge, HWND,UINT,UINT_PTR,DWORD> boostTimerCallback;
 	int minimumMetafileSize;
+	int metafileDelay;
 
 	// general gauge data
 	std::deque<Element *> elements;	
+	std::set<Element*> sendRequests;
 	std::string name;
 	std::string parameters;
 	int id;
@@ -380,13 +381,36 @@ SmartPtr<Packet> Gauge::createPacket( SharedBuffer &buffer ) {
 }
 
 
-void Gauge::sendProc() {
-    // call element's sendProc
+void Gauge::requestSend( Element *element ) {
 	EnterCriticalSection( &d->cs );
-	for( int i=0; i<d->elements.size(); i++ ) {
-		Element *element = d->elements[i];
-		if( element ) element->sendProc();
+	d->sendRequests.insert( element );
+	LeaveCriticalSection( &d->cs );
+	
+	d->mgauge->requestSend( this );
+}
+
+
+void Gauge::sendProc( bool fullSend ) {
+	EnterCriticalSection( &d->cs );
+
+    // call element's sendProc
+	if( fullSend ) {
+		//full send
+		for( int i=0; i<d->elements.size(); i++ ) {
+			Element *element = d->elements[i];
+			if( element ) element->sendProc();
+		}
+	} else {
+		// only send changed element packets
+		for( std::set<Element*>::iterator it = d->sendRequests.begin();
+			 it!=d->sendRequests.end();
+			 it++ )
+			(*it)->sendProc();
 	}
+	
+	// clear send queue
+	d->sendRequests.clear();
+
 	LeaveCriticalSection( &d->cs );
 }
 
@@ -627,14 +651,13 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 
 GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement ) 
 	: GaugeRecorder( mgauge, id ) {
-	startThread( 0 );
+	Gauge::d->metafileDelay = -1;
 	setPriority( THREAD_PRIORITY_BELOW_NORMAL );
 	Gauge::d->metafileElement = metafileElement;
 }
 
 
 GaugeMetafileRecorder::~GaugeMetafileRecorder() {
-	stopThread();
 }
 
 
@@ -706,6 +729,10 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 				GlobalFree( hmem );
 				 
 			LeaveCriticalSection( &Gauge::d->cs );
+
+			// draw again for local display
+			(*Gauge::d->originalGaugeCallback)( Gauge::d->gaugeHeader, service_id, extra_data );
+
 			return;
 		}				
 		LeaveCriticalSection( &Gauge::d->cs );
@@ -721,6 +748,25 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	
 	// call inherited callback
 	Gauge::callback( pgauge, service_id, extra_data );
+}
+
+
+void GaugeMetafileRecorder::attach( PGAUGEHDR gaugeHeader ) {
+	Gauge::attach( gaugeHeader );
+
+	// get metafile delay
+	Gauge::d->metafileDelay = configIntValue( "metafiledelay", METAFILEDELAY );
+
+	// start compression thread
+	startThread( 0 );
+}
+
+
+void GaugeMetafileRecorder::detach() {
+	// stop compression thread
+	stopThread();
+
+	Gauge::detach();
 }
 
 
@@ -826,7 +872,7 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 			// install boost timer
 			Gauge::d->boostTimer = SetTimer( NULL, 
 											 NULL, 
-											 BOOSTTIME, 
+											 Gauge::d->metafileDelay, 
 											 Gauge::d->boostTimerCallback.callback() );
 
 			// save current buffers
@@ -910,7 +956,7 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 		LeaveCriticalSection( &Gauge::d->cs );		
 	
 		// exit thread?
-		if( shouldExit( METAFILEDELAY ) )
+		if( shouldExit( Gauge::d->metafileDelay ) )
 			break;
 	}
 
@@ -1064,8 +1110,8 @@ Element *GaugeMetafileViewer::createElement( int id, PELEMENT_HEADER pelement ) 
 }
 
 
-void GaugeMetafileViewer::sendProc() {
-	GaugeViewer::sendProc();
+void GaugeMetafileViewer::sendProc( bool fullSend ) {
+	GaugeViewer::sendProc( fullSend );
 
 	// metafile reset?
 	EnterCriticalSection( &d->cs );

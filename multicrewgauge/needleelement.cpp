@@ -40,7 +40,6 @@ struct NeedleElement::Data {
 	CallbackAdapter1<FLOAT64, NeedleElement, PELEMENT_NEEDLE> callbackAdapter;
 
 	FLOAT64 oldValue;
-	bool changed;
 };
 
 NeedleElement::NeedleElement( int id, Gauge &gauge )
@@ -49,7 +48,6 @@ NeedleElement::NeedleElement( int id, Gauge &gauge )
 	d->needleHeader = 0;
 	d->oldValue = (FLOAT64)0x57524320;
 	d->oldValue = 0.0;
-	d->changed = true;
 	d->origCallback = 0;
 }
 
@@ -104,7 +102,7 @@ FLOAT64 NeedleRecorder::callback( PELEMENT_NEEDLE pelement ) {
 		//dout << "Needle callback " << d->needleHeader << ":" << this 
 		//	 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
 		d->oldValue = ret;
-		d->changed = true;
+		gauge().requestSend( this );
 	}
 	//dout << "< cal lback " << d->needleHeader << std::endl;
 	return ret;
@@ -112,12 +110,9 @@ FLOAT64 NeedleRecorder::callback( PELEMENT_NEEDLE pelement ) {
 
 
 void NeedleRecorder::sendProc() {
-	if( d->changed ) {
-		NeedleStruct s;
-		s.value = d->oldValue;
-		gauge().send( id(), new NeedlePacket( s ), true );
-		d->changed = false;
-	}
+	NeedleStruct s;
+	s.value = d->oldValue;
+	gauge().send( id(), new NeedlePacket( s ), true );
 }
 
 /*******************************************************************************/
