@@ -1,0 +1,187 @@
+/*
+Multicrew
+Copyright (C) 2004,2005 Stefan Schimanski
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+#include <deque>
+#include <string>
+
+#include "gauges.h"
+#include "../multicrewcore/multicrewcore.h"
+#include "../multicrewcore/packets.h"
+
+// general
+extern GAUGEHDR gaugehdr_multicrewgauge;
+extern HMODULE gInstance;
+extern SmartPtr<MulticrewCore> core;
+
+// classes
+class Element;
+class IconElement;
+class Gauge;
+class MulticrewGauge;
+
+class Element {
+public:
+	Element( int id, Gauge &gauge, ELEMENT_HEADER *elementHeader );
+	virtual ~Element();
+
+	ELEMENT_HEADER *elementHeader();
+	Gauge &gauge();
+	int id();
+
+	virtual void receive( UpdatePacket *packet ) {}
+
+private:
+	struct Data;
+	Data *d;
+};
+
+
+class IconElement : public Element {
+public:
+	IconElement( int id, Gauge &gauge, ELEMENT_ICON *iconHeader );
+	virtual ~IconElement();
+
+	ELEMENT_ICON *iconHeader();
+	
+protected:
+	virtual FLOAT64 callback( PELEMENT_ICON pelement )=0;
+
+	struct Data;
+	friend Data;
+	Data *d;
+};
+
+
+class IconRecorder : public IconElement {
+public:
+	IconRecorder( int id, Gauge &gauge, ELEMENT_ICON *iconHeader );
+	virtual ~IconRecorder();
+
+private:	
+	virtual FLOAT64 callback( PELEMENT_ICON pelement );
+};
+
+
+class IconViewer : public IconElement {
+public:
+	IconViewer( int id, Gauge &gauge, ELEMENT_ICON *iconHeader );
+	virtual ~IconViewer();
+
+	virtual void receive( UpdatePacket *packet );
+
+private:	
+	virtual FLOAT64 callback( PELEMENT_ICON pelement );
+};
+
+
+class StaticElement : public Element {
+public:
+	StaticElement( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader );
+	virtual ~StaticElement();
+
+	ELEMENT_STATIC_IMAGE *staticHeader();
+
+protected:	
+	struct Data;
+	Data *d;
+};
+
+
+class StaticRecorder : public StaticElement {
+public:
+	StaticRecorder( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader );
+	virtual ~StaticRecorder();
+};
+
+
+class StaticViewer : public StaticElement {
+public:
+	StaticViewer( int id, Gauge &gauge, ELEMENT_STATIC_IMAGE *staticHeader );
+	virtual ~StaticViewer();
+};
+
+
+class Gauge {
+public:
+	Gauge( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader );
+	virtual ~Gauge();
+
+	const std::deque<Element*> &elements();
+	PGAUGEHDR gaugeHeader() ;
+	std::string name();
+	std::string parameter();
+	int id();
+	MulticrewGauge *mgauge();
+
+	void send( UpdatePacket *packet, bool safe );
+	virtual void receive( UpdatePacket *packet );
+
+	static Gauge &gauge( const std::string &name, const std::string &parameter );
+
+ protected:	
+	void createElements();
+	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data )=0;
+	virtual Element *createElement( int id, PELEMENT_HEADER pelement )=0;
+
+	struct Data;
+	friend Data;
+	Data *d;
+};
+
+
+class GaugeRecorder : public Gauge {
+public:
+	GaugeRecorder( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader );
+	virtual ~GaugeRecorder();
+
+private:
+	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
+	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
+};
+
+
+class GaugeViewer : public Gauge  {
+public:
+	GaugeViewer( MulticrewGauge *mgauge, int id, PGAUGEHDR gaugeHeader );
+	virtual ~GaugeViewer();
+
+private:
+	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
+	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
+};
+
+class MulticrewGauge : public MulticrewModule {
+public:
+	MulticrewGauge( bool hostMode, std::string clientName );
+	virtual ~MulticrewGauge();
+	bool init();
+
+	void send( UpdatePacket *packet, bool safe );
+	PGAUGE_CALLBACK installCallback();
+
+ protected:	
+	virtual void receive( ModulePacket *packet );
+	void installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
+
+
+ private:
+	struct Data;
+	friend Data;
+	Data *d;
+};

@@ -1,0 +1,98 @@
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNUNG: DIESE ARBEITSBEREICHSDATEI DARF NICHT BEARBEITET ODER GELÖSCHT WERDEN!
+
+###############################################################################
+
+Project: "install"=.\install.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name multicrewcore
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name multicrewgauge
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name multicrewprepare
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name multicrewui
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "multicrewcore"=.\multicrewcore\multicrewcore.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "multicrewgauge"=.\multicrewgauge\multicrewgauge.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name multicrewcore
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name multicrewprepare
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "multicrewprepare"=.\multicrewprepare\multicrewprepare.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "multicrewui"=.\multicrewui\multicrewui.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+    Begin Project Dependency
+    Project_Dep_Name multicrewcore
+    End Project Dependency
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+
