@@ -18,7 +18,7 @@
 !define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
 
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "gpl.txt"
+!insertmacro MUI_PAGE_LICENSE "multicrew\gpl.txt"
 
 !define MUI_DIRECTORYPAGE_VERIFYONLEAVE 
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE dirLeave
@@ -70,7 +70,7 @@ Section "!Multicrew" SEC01
   SetOutPath "$INSTDIR\Multicrew"
   File "..\multicrewprepare\${BUILDDIR}\multicrewprepare.exe"
   File "..\multicrewgauge\${BUILDDIR}\multicrewgauge.dll"
-  File "gpl.txt"
+  File "multicrew\*.*"
   SetOutPath "$INSTDIR\Multicrew\..\modules"
   File "..\multicrewui\${BUILDDIR}\multicrewui.dll"
   SetOutPath "$INSTDIR\Multicrew\.."

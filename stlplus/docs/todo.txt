@@ -1,0 +1,54 @@
+TODO list for STLPlus
+=====================
+
+General
+-------
+
+Change assertions to exceptions where there is any possibility of user (i.e.
+programmer as user of STLplus) error.
+
+OS Fixes
+--------
+
+No documentation.
+
+Ini Manager
+-----------
+
+Need to be able to modify any file loaded into the manager (could allow
+read-only files though and it would be a good idea if file-system rights
+controlled this too).
+
+Each file would have an ID and that would become an argument to the
+modification routines. Optional of course. Also, read a value from any file by
+ID.
+
+Dan would like to implement projects as multiple files all of the same
+priority. The current idea of a search order could be changed to some kind of
+tree or DAG ordering. Simpler would be a layering effect where each file has a
+depth.
+
+Change the add_values quoting mechanism to quoted strings by default rather
+than escaped strings by default. Support both?
+
+The documentation for ini_manager is too sparse - there is insufficient
+description of the escaped strings and quoted strings formats.
+
+Support for path values with localisation of the path to the Ini file on write
+and conversion to full path on read.
+
+Inf
+---
+
+Need slice operations.
+
+Possibly an unsigned variant?
+
+Library Manager
+---------------
+
+Handle read-only directories and index files.
+
+Handle multiple libraries managing the same directory - needs an interlock
+method to prevent concurrent writes and some method to indicate to a library
+manager that the in-memory copy is out of date.

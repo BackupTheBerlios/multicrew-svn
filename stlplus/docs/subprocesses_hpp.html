@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>subprocesses.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>subprocesses.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">SUBPROCESSES_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">SUBPROCESSES_HPP</span>
+<span style="color: #000099">/*----------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Platform-independent wrapper around the very platform-specific handling of</span>
+<span style="color: #000099">  subprocesses. Uses the C++ convention that all resources must be contained in</span>
+<span style="color: #000099">  an object so that when a subprocess object goes out of scope the subprocess</span>
+<span style="color: #000099">  itself gets closed down.</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#ifdef</span> <span style="color: #000000">_WIN32</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;windows.h&gt;</span>
+<span style="color: #990000">#endif</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"textio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"string_vectorio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;vector&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;map&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Argument vector class</span>
+<span style="color: #000099">// allows manipulation of argv-like vectors</span>
+<span style="color: #000099">// includes splitting of command lines into argvectors as per the shell</span>
+<span style="color: #000099">// (removing quotes) and the reverse conversion (adding quotes where necessary)</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">arg_vector</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">*</span> <span style="color: #000000">v</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// create an empty vector</span>
+  <span style="color: #000000">arg_vector</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// copy constructor (yes it copies)</span>
+  <span style="color: #000000">arg_vector</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// construct from an argv</span>
+  <span style="color: #000000">arg_vector</span> <span style="color: #330033">(</span><span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// construct from a command-line string</span>
+  <span style="color: #000099">// includes de-quoting of values</span>
+  <span style="color: #000000">arg_vector</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">arg_vector</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #330033">~</span><span style="color: #000000">arg_vector</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// assignment operators are compatible with the constructors</span>
+  <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// add an argument to the vector</span>
+  <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">+</span><span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">-</span><span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// insert/clear an argument at a certain index</span>
+  <span style="color: #000099">// adding is like the other array classes - it moves the current item at index</span>
+  <span style="color: #000099">// up one (and all subsequent values) to make room</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">insert</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">index</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">index</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// number of values in the vector (including argv[0], the command itself</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">size</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// type conversion to the argv type</span>
+  <span style="color: #990000">operator</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">*</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// function-based version of the above for people who don't like type conversions</span>
+  <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">*</span> <span style="color: #000000">argv</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// access individual values in the vector</span>
+  <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span> <span style="color: #330033">[</span><span style="color: #330033">]</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">index</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// special-case access of the command name (e.g. to do path lookup on the command)</span>
+  <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #000000">argv0</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the command-line string represented by this vector</span>
+  <span style="color: #000099">// includes escaping of special characters and quoting</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">image</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// text output, prints the vector using the image() format</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Environment class</span>
+<span style="color: #000099">// Allows manipulation of an environment vector</span>
+<span style="color: #000099">// This is typically used to create an environment to be used by a subprocess</span>
+<span style="color: #000099">// It does NOT modify the environment of the current process</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_WIN32</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">ENVIRON_TYPE</span> <span style="color: #990000">char</span><span style="color: #330033">*</span>
+<span style="color: #990000">#else</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">ENVIRON_TYPE</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">*</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">env_vector</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000000">ENVIRON_TYPE</span> <span style="color: #000000">v</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// create an env_vector vector from the current process</span>
+  <span style="color: #000000">env_vector</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">env_vector</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">env_vector</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">env_vector</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000000">env_vector</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">env_vector</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">clear</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// manipulate the env_vector by adding or removing variables</span>
+  <span style="color: #000099">// adding a name that already exists replaces its value</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">add</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">remove</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the value associated with a name</span>
+  <span style="color: #000099">// the first uses an indexed notation (e.g. env["PATH"] )</span>
+  <span style="color: #000099">// the second is a function based form (e.g. env.get("PATH"))</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #990000">operator</span> <span style="color: #330033">[</span><span style="color: #330033">]</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">get</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// number of name=value pairs in the env_vector</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">size</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the name=value pairs by index (in the range 0 to size()-1)</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">pair</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">,</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #990000">operator</span> <span style="color: #330033">[</span><span style="color: #330033">]</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">index</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">pair</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">,</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">get</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">index</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// access the env_vector as an envp type - used for passing to subprocesses</span>
+  <span style="color: #000000">ENVIRON_TYPE</span> <span style="color: #000000">envp</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// prints the env_vector in the same form as the shell env command</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">env_vector</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_WIN32</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PID_TYPE</span> <span style="color: #000000">PROCESS_INFORMATION</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">HANDLE</span>
+<span style="color: #990000">#else</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PID_TYPE</span> <span style="color: #990000">int</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PIPE_TYPE</span> <span style="color: #990000">int</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Synchronous subprocess</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">subprocess</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000000">PID_TYPE</span> <span style="color: #000000">pid</span><span style="color: #330033">;</span>
+  <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">child_in</span><span style="color: #330033">;</span>
+  <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">child_out</span><span style="color: #330033">;</span>
+  <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">child_err</span><span style="color: #330033">;</span>
+  <span style="color: #000000">env_vector</span> <span style="color: #000000">env</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">err</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">status</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">subprocess</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #330033">~</span><span style="color: #000000">subprocess</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">add_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">remove_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">bool</span> <span style="color: #000000">spawn</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">path</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #000000">argv</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdin</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdout</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stderr</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">spawn</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">command_line</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdin</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdout</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stderr</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">virtual</span> <span style="color: #990000">bool</span> <span style="color: #000000">callback</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">kill</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">int</span> <span style="color: #000000">write_stdin</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">read_stdout</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">read_stderr</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">close_stdin</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">close_stdout</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">close_stderr</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">bool</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error_number</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_text</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">int</span> <span style="color: #000000">exit_status</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Preconfigured subprocess which executes a command and captures its output</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">backtick_subprocess</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">subprocess</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000000">osvtext</span> <span style="color: #000000">device</span><span style="color: #330033">;</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">backtick_subprocess</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">bool</span> <span style="color: #000000">callback</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">spawn</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">path</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #000000">argv</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">spawn</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">command_line</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">text</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">text</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">backtick</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">path</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #000000">argv</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">backtick</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">command_line</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Asynchronous subprocess</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">async_subprocess</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000000">PID_TYPE</span> <span style="color: #000000">pid</span><span style="color: #330033">;</span>
+  <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">child_in</span><span style="color: #330033">;</span>
+  <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">child_out</span><span style="color: #330033">;</span>
+  <span style="color: #000000">PIPE_TYPE</span> <span style="color: #000000">child_err</span><span style="color: #330033">;</span>
+  <span style="color: #000000">env_vector</span> <span style="color: #000000">env</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">err</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">status</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_error</span><span style="color: #330033">(</span><span style="color: #990000">int</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">async_subprocess</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #330033">~</span><span style="color: #000000">async_subprocess</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">add_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">remove_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">name</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">bool</span> <span style="color: #000000">spawn</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">path</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">arg_vector</span><span style="color: #330033">&amp;</span> <span style="color: #000000">argv</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdin</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdout</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stderr</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">spawn</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">command_line</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdin</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stdout</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">connect_stderr</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">virtual</span> <span style="color: #990000">bool</span> <span style="color: #000000">callback</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">tick</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">kill</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">int</span> <span style="color: #000000">write_stdin</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">read_stdout</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">read_stderr</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">close_stdin</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">close_stdout</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">close_stderr</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">bool</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error_number</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_text</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">int</span> <span style="color: #000000">exit_status</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

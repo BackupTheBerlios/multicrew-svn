@@ -37,6 +37,7 @@ struct MulticrewModule::Data {
 	bool hostMode;
 	bool registered;
 	SmartPtr<Connection> con;
+	SmartPtr<FileConfig> config;
 
 	// packet send data
 	SmartPtr<ModulePacket> packet;
@@ -53,6 +54,7 @@ struct MulticrewModule::Data {
 MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode, 
 								  unsigned minSendWait ) {
 	d = new Data( this );
+	InitializeCriticalSection( &d->sendCritSect );
 	d->moduleName = moduleName;
 	d->hostMode = hostMode;
 	d->minSendWait = minSendWait;
@@ -64,8 +66,6 @@ MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode,
 	d->lastPacketSent = true;
 	d->nextPriority = Connection::lowPriority;
 	d->nextIsSafeTransmission = false;
-
-	InitializeCriticalSection( &d->sendCritSect );
 }
 
 
@@ -203,4 +203,14 @@ unsigned MulticrewModule::threadProc( void *param ) {
     // exit the thread
 	dout << moduleName() << " thread exits" << std::endl;
 	return 0;
+}
+
+
+SmartPtr<FileConfig> MulticrewModule::config() {
+	lock();
+	if( d->config.isNull() )
+		d->config = new FileConfig( "multicrew/" + moduleName() + ".ini" );
+	SmartPtr<FileConfig> ret = d->config;   
+	unlock();
+	return ret;
 }

@@ -23,6 +23,9 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name multicrewui
     End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name stlplus
+    End Project Dependency
 }}}
 
 ###############################################################################
@@ -35,6 +38,9 @@ Package=<5>
 
 Package=<4>
 {{{
+    Begin Project Dependency
+    Project_Dep_Name stlplus
+    End Project Dependency
 }}}
 
 ###############################################################################
@@ -80,6 +86,18 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name multicrewcore
     End Project Dependency
+}}}
+
+###############################################################################
+
+Project: "stlplus"=.\stlplus\source\stlplus.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
 }}}
 
 ###############################################################################

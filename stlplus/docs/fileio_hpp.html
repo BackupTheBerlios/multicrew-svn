@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>fileio.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>fileio.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">FILEIO_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">FILEIO_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  TextIO classes customised to use C stdio FILE*</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"textio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;stddef.h&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;stdio.h&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Output Files</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">oftext</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">otext</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #990000">static</span> <span style="color: #000000">size_t</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create an uninitialised device which acts like /dev/null</span>
+  <span style="color: #000000">oftext</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// attach an already-opened file to this device</span>
+  <span style="color: #000099">// this will not be closed when the device is destroyed</span>
+  <span style="color: #000099">// Note: on Windoze, already-open files such as stdout/err are treated as Unix mode because Windoze does eoln conversion</span>
+  <span style="color: #000000">oftext</span> <span style="color: #330033">(</span><span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">handle</span><span style="color: #330033">,</span>
+          <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// open the file and attach it to this device</span>
+  <span style="color: #000099">// this will be closed automatically when the device is destroyed</span>
+  <span style="color: #000000">oftext</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+          <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">,</span>
+          <span style="color: #000000">open_t</span> <span style="color: #000000">mode</span> <span style="color: #330033">=</span> <span style="color: #000000">overwrite</span><span style="color: #330033">,</span>
+          <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">oftext</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+          <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">,</span>
+          <span style="color: #000000">open_t</span> <span style="color: #000000">mode</span> <span style="color: #330033">=</span> <span style="color: #000000">overwrite</span><span style="color: #330033">,</span>
+          <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// similar to the constructors - these destroy the previous device contents (closing if appropriate)</span>
+  <span style="color: #000099">// then perform the open/attach as above</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span> <span style="color: #330033">(</span><span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">handle</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+             <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">,</span>
+             <span style="color: #000000">open_t</span> <span style="color: #000000">mode</span> <span style="color: #330033">=</span> <span style="color: #000000">overwrite</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+             <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">,</span>
+             <span style="color: #000000">open_t</span> <span style="color: #000000">mode</span> <span style="color: #330033">=</span> <span style="color: #000000">overwrite</span><span style="color: #330033">,</span>
+             <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get at the internal handle</span>
+  <span style="color: #000099">// note that the handle and this device are guaranteed to be synchronised!</span>
+  <span style="color: #990000">operator</span> <span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Input Files</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">iftext</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">itext</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #990000">static</span> <span style="color: #000000">size_t</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create an uninitialised device which acts like /dev/null</span>
+  <span style="color: #000000">iftext</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// attach an already-opened file to this device</span>
+  <span style="color: #000099">// this will not be closed when the device is destroyed</span>
+  <span style="color: #000000">iftext</span> <span style="color: #330033">(</span><span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">handle</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// open the file and attach it to this device</span>
+  <span style="color: #000099">// this will be closed automatically when the device is destroyed</span>
+  <span style="color: #000000">iftext</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span> <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">iftext</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span> <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// similar to the constructors - these destroy the previous device contents (closing if appropriate)</span>
+  <span style="color: #000099">// then perform the open/attach as above</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span> <span style="color: #330033">(</span><span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">handle</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+             <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+             <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">preferred_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get at the internal handle</span>
+  <span style="color: #000099">// note that the handle and this device are guaranteed to be synchronised!</span>
+  <span style="color: #990000">operator</span> <span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Internal buffers</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">ofbuff</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">obuff</span>
+<span style="color: #330033">{</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">oftext</span><span style="color: #330033">;</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">ofbuff</span> <span style="color: #330033">(</span><span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">handle</span><span style="color: #330033">,</span>
+          <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">ofbuff</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+          <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span><span style="color: #330033">,</span>
+          <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">open_t</span> <span style="color: #000000">mode</span><span style="color: #330033">,</span>
+          <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">ofbuff</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span>
+          <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span><span style="color: #330033">,</span>
+          <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">open_t</span> <span style="color: #000000">mode</span><span style="color: #330033">,</span>
+          <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #330033">~</span><span style="color: #000000">ofbuff</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">fname</span><span style="color: #330033">,</span> <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span><span style="color: #330033">,</span> <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">open_t</span> <span style="color: #000000">mode</span><span style="color: #330033">,</span> <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">void</span> <span style="color: #000000">flush</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">put</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">char</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">m_managed</span><span style="color: #330033">;</span>
+  <span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">m_handle</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">ifbuff</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">ibuff</span>
+<span style="color: #330033">{</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">iftext</span><span style="color: #330033">;</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">ifbuff</span> <span style="color: #330033">(</span><span style="color: #000000">FILE</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">ifbuff</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">,</span> <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">iftext</span><span style="color: #330033">::</span><span style="color: #000000">preferred_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">ifbuff</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span> <span style="color: #330033">=</span> <span style="color: #000000">iftext</span><span style="color: #330033">::</span><span style="color: #000000">preferred_buffer</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #330033">~</span><span style="color: #000000">ifbuff</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">,</span> <span style="color: #000000">size_t</span> <span style="color: #000000">bufsize</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">int</span> <span style="color: #000000">peek</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">int</span> <span style="color: #000000">get</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">m_managed</span><span style="color: #330033">;</span>
+  <span style="color: #000000">FILE</span><span style="color: #330033">*</span> <span style="color: #000000">m_handle</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Standard Files</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">extern</span> <span style="color: #000000">iftext</span> <span style="color: #000000">fin</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #000000">oftext</span> <span style="color: #000000">fout</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #000000">oftext</span> <span style="color: #000000">ferr</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #000000">oftext</span> <span style="color: #000000">fnull</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

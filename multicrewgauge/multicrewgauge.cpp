@@ -65,11 +65,9 @@ struct MulticrewGauge::Data {
 	Data( MulticrewGauge *mg )
 		: installCallbackAdapter( mg, MulticrewGauge::installGauge ),
 		packetFactory(gauges) {
-		config = new FileConfig( "multicrew/" + mg->moduleName() + ".ini" );
 	}
 
 	virtual ~Data() {
-		delete config;
 	}
 
 	VoidCallbackAdapter3<MulticrewGauge, PGAUGEHDR, SINT32, UINT32> installCallbackAdapter;
@@ -78,7 +76,6 @@ struct MulticrewGauge::Data {
 	std::deque<Gauge*> gauges;
 	std::map<std::string, GaugeList*> detachedGauges;
 	RoutedGaugePacketFactory packetFactory;
-	Config *config;
 };
 
 
@@ -144,14 +141,16 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 				dout << "Creating new for " << pgauge->gauge_name << std::endl;
 			
 			// create new gauge
+			bool metafile = config()->boolValue( pgauge->gauge_name, "metafile", false);
+			int element = config()->intValue( pgauge->gauge_name, "element", 0 );
 			if( isHostMode() )
-				if( strcmp(pgauge->gauge_name,"EFISDisplay")==0 )
-					gauge = new GaugeMetafileRecorder( this, d->gauges.size() );
+				if( metafile )
+					gauge = new GaugeMetafileRecorder( this, d->gauges.size(), element );
 				else
 					gauge = new GaugeRecorder( this, d->gauges.size() );
 			else
-				if( strcmp(pgauge->gauge_name,"EFISDisplay")==0 )
-					gauge = new GaugeMetafileViewer( this, d->gauges.size() );
+				if( metafile )
+					gauge = new GaugeMetafileViewer( this, d->gauges.size(), element );
 				else
 					gauge = new GaugeViewer( this, d->gauges.size() );
 			
@@ -238,9 +237,4 @@ SmartPtr<Packet> MulticrewGauge::createPacket( SharedBuffer &buffer ) {
 	SmartPtr<RoutedGaugePacket> gp = new RoutedGaugePacket( buffer, &d->packetFactory );
 	unlock();
 	return gp;
-}
-
-
-Config *MulticrewGauge::config() {
-	return d->config;
 }

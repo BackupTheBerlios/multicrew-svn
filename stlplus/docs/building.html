@@ -1,0 +1,740 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - Building</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>Building and Using the STLplus Library</h1>
+</div>
+
+<div id="documentNavigation">
+
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#general">General Guidelines for Building STLplus</a></li>
+<li><a href="#makefiles">Using my build system with Gnu gcc</a></li>
+<li><a href="#no-makefiles">Using your own with Gnu gcc</a></li>
+<li><a href="#cygwin">Unix-emulation build on Windoze using Cygwin and Gnu gcc</a></li>
+<li><a href="#mingw">Native build on Windoze using Cygwin and Gnu gcc</a></li>
+<li><a href="#unix-other">Unix build using Gnu gcc</a></li>
+<li><a href="#microsoft">Micro$oft Visual Studio on Windoze</a></li>
+</ul>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>The STLplus library is intended to be portable between operating systems
+and compilers. At present, this means Windows or Unix systems and gcc or
+Microsoft compilers. Whether this will be extended to other operating systems
+and compilers is a moot point, since the library requires a good
+implementation of C++ templates.</p>
+
+<p>In all cases you need to unpack the software into a directory which from
+now on will be referred to as "the STLplus directory". This directory contains
+the subdirectories "source", "docs" and "messages".</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="general">General Guidelines for Building STLplus</h2>
+
+<p>The first and most important thing that you need to know about STLplus is
+that it is just source code. There is no magic to it - all you need to do is
+to compile the .cpp files with a compiler that is up to the job and the
+library is ready to use.</p>
+
+<p>Then, once the library is built, you can include any of the headers (or
+just include stlplus.hpp to get everything) by putting the STLplus source
+directory in your compiler's include path.</p>
+
+<p>Similarly, when you link your application (or library), make sure the
+object files created from compiling STLplus are linked into your
+application.</p>
+
+<p>To make life easier, bundle the compiled object files into an object
+library (using the 'ar' command on Unix for example). Then you only have to
+make sure the object library is linked into your application.</p>
+
+<p>That is all. There really is nothing to it. The reason I keep hammering on about this
+ease of use is that I've had nightmare scenes with other code libraries
+which require mind-bogglingly complicated procedures to build and use them
+(e.g. STLport and the Boost libraries - for all I know these are all superb,
+but if I can't build them, how am I to find out?). So I want to let you know
+that STLplus is not like this - it is trivially easy to build.</p>
+
+<p>To simplify the building task, I have provided make files for the
+platforms detailed in the rest of this document.</p>
+
+<p>The STLplus library is designed to be built in either debug or release
+variants. If you use the make utilities provided, these are set up with the
+two variants already. However, if you want to do it yourself, here are
+examples of the options to use. The examples are for the Gnu gcc compiler, but
+the same principles can be applied to any other compiler.</p>
+
+<pre class="script">
+release build: gcc -I. -D&lt;platform&gt; -funsigned-char -DNDEBUG -O3 -c &lt;source file&gt; -o &lt;object file&gt;
+debug build:   gcc -I. -D&lt;platform&gt; -funsigned-char -g           -c &lt;source file&gt; -o &lt;object file&gt;
+</pre>
+
+<p>In this description, the following are specific to the recommended way of
+building STLplus:</p>
+
+<dl>
+
+<dt>-D&lt;platform&gt;</dt>
+
+<dd>The name of the platform (i.e. operating system) that you are building on.
+The word &lt;platform&gt; should be replaced by the actual platform, e.g.
+-DLINUX or -DCYGWIN. This defines a macro which can then be used within the
+code as a compiler directive to control platform-specific features. If this is
+missing then you get a generic Unix build - which will be correct for any
+Posix-compliant variant of Unix. A native Windows build should define _WIN32
+(Note: the Visual Studio compiler and the Borland compiler do this for you, as
+does the Gnu gcc compiler when run in Windows native mode (-mno-cygwin)). The required values for
+these directives are listed on the page on <a href="porting.html">porting</a>.</dd>
+
+<dt>-funsigned-char</dt>
+
+<dd>
+There is an ambiguity in C++ and C in that type <code>char</code> can be
+either <code>unsigned</code> or <code>signed</code> and this is compiler and
+platform dependent. I found that, if I build without specifying which
+interpretation of <code>char</code> is to be used, most variants build okay.
+However, I discovered that the native gcc build on Windows (known as the
+Cygming configuration) has system libraries that are inconsistent with the
+built-in default. Namely, the <code>getc</code> system call only works
+correctly for <code>unsigned char</code> but the compiler default is
+<code>signed char</code>. Therefore I have decided to force the signedness of
+<code>char</code> to <code>unsigned</code> for all platforms.
+</dd>
+
+<dt>-DNDEBUG</dt>
+
+<dd>In release builds, this removes debug code such as assertions, making the
+code faster and smaller. It is the switch used by the ANSI C standard for the
+assert() macro but is also used for the STLplus debug code.</dd>
+
+<dt>-O3</dt>
+
+<dd>In release builds, switch compiler optimisations on to get small, fast
+code. In debug mode, optimisations should be switched off so the program has
+all the original code present and can be stepped through in a debugger.</dd>
+
+<dt>-g</dt>
+
+<dd>In debug builds, the -g option includes symbolic information so that the
+program can be run in a debugger. In release mode, omit this switch to make
+the code harder to reverse engineer as well as a lot smaller and faster.</dd>
+
+</dl>
+
+<p>Again let me reiterate that these compiler switches are specific to the gcc
+compiler used in this example. However, the <i>principles</i> explained here
+should be used to build the library for any compiler. You just need to find
+the correct compiler switches that will achieve these principles for your
+compiler of choice.</p>
+
+<p><b>Note:</b> if you are building an application in <i>debug</i> mode, you
+should link with a <i>debug</i> build of STLplus. Similarly, if you are
+building an application in <i>release</i> mode, you should link with a
+<i>release</i> build of STLplus. This is because both the application and
+STLplus itself include the STLplus headers and there can be subtle differences
+in implementation between release and debug builds.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="makefiles">Using my build system with Gnu gcc</h2>
+
+<p>If you are using the Gnu gcc as your compiler, then I supply a set of make rules with STLplus
+that will not only build this project but any other projects you are using too. In the STLplus
+source directory is a Makefile. This is nearly empty. It contains the following:</p>
+
+<pre class="script">
+include ../../makefiles/gcc.mak
+</pre>
+
+<p>The <code>makefiles</code> module is obtained from the same place that you got the STLplus
+library. It needs to be downloaded separately. It contains the gcc.mak makefile rules which
+automatically adjust to any project provided that it is organised in a certain way.</p>
+
+<p>The STLplus Makefile assumes that the <code>makefiles</code> module is in the same parent
+directory as the <code>stlplus</code> module. This is recommended, but if you wish to
+use a different configuration, you will need to edit the include path in the Makefile to reflect
+the change.</p>
+
+<h3>Building with my Make System</h3>
+
+<p>The gcc.mak makefile is a generic build system which provides a standard set of make rules for compiling
+and linking any libraries and applications. It is not specific to STLplus. You
+are free to use it as the build system for your own projects if you prefer.
+It is designed to be as simple as
+possible to use whilst allowing multi-library projects and different build
+configurations - it currently supports a Debug build, a Release build and a
+Gprof (code profiling) build. You do not have to use it of course - you can
+write your own Makefile. However, you are strongly recommended to use the
+standard makefiles not only to build STLplus, but also your own code.</p>
+
+<p>To build the STLplus library, first start a command-line shell (either using the
+shell for Unix using the <code>shell</code> command in
+XEmacs). Then change directory to the stlplus source directory. Then simply
+run one of the following commands:</p>
+
+<dl>
+
+<dt>make</dt>
+<dd>Builds a debug library</dd>
+
+<dt>make RELEASE=on</dt>
+<dd>Builds a release library</dd>
+
+<dt>make GPROF=on</dt>
+<dd>Builds a code profiling library (using gprof)</dd>
+
+</dl>
+
+<p>You can build all three of these variants of the library without them
+interfering since the object files
+are stored in separate subdirectories for each build.</p>
+
+<p>In all three cases the build creates an object library called libstlplus.a.
+This is stored in a subdirectory which is build-specific. Again, refer to the <a href="porting.html">porting</a> page for the
+Build Name column. As an example, the build for DEC Alpha running Linux has the Build Name
+"LINUX-alpha". This then has an extra suffix added depending on the variant:</p>
+
+<dl>
+<dt>-debug</dt><dd>for the debug variant</dd>
+<dt>-release</dt><dd>for the release variant</dd>
+<dt>-gprof</dt><dd>for the gprof variant</dd>
+</dl>
+
+<p>So, for example, the debug variant of the DEC Alpha build will be stored in a subdirectory called
+"LINUX-alpha-debug".</p>
+
+<p>When you use my makefile system in a
+multi-library project, the make system will automatically select the correct
+version of libstlplus.a depending on the configuration chosen for the build.
+For example, if you build an application using the DEC Alpha build, debug variant, the
+build system will automatically link with LINUX-alpha-debug/libstlplus.a.</p>
+
+<h3>Using with my Make System</h3>
+
+<p>To use the STLplus library as part of another project, you need to create a
+Makefile for that project that will make the stlplus headers available and
+will link in the appropriate libstlplus.a file. The recommended way of doing
+this is to use the standard gcc.mak makefile provided as part of the makefiles
+module. Here is an example Makefile to build another object library from
+source that includes the STLplus headers:</p>
+
+<pre class="script">
+LIBRARIES = ../../stlplus/source
+include ../../makefiles/gcc.mak
+</pre>
+
+<p>This is stored in a file called Makefile in the source code directory of
+the project.</p>
+
+<p>The LIBRARIES variable is a space-separated list of libraries to include in
+the project. It should point to the source code directory of each library. 
+The gcc.mak makefile rules will build the current directory and
+will add the LIBRARIES as extra include paths during compilation. Since this
+Makefile only builds an object library, there is no link step.</p>
+
+<p>When using this generic makefile, there are some rules to follow to make it
+work.</p>
+
+<ul>
+
+<li>Library directories should have the same name as the library.</li>
+
+<li>The library directory should have a subdirectory called source which
+contains all of the source code plus the Makefile.</li>
+
+<li>There should be no further sub-directories below the source directory.</li>
+
+<li>All libraries in a project must have unique names.</li>
+
+</ul>
+
+<p>The current directory, i.e. the one containing the Makefile, is
+always called source, so the directory above that, which has the name of the
+project, is used as the name of the library.</li>
+
+<p>To build a program rather than a library requires just one more line to be added to the Makefile.
+Here is an example Makefile that builds a program:</p>
+
+<pre class="script">
+IMAGE     = client
+LIBRARIES = ../../stlplus/source
+include ../../makefiles/gcc.mak
+</pre>
+
+<p>The IMAGE variable tells the make system first that a program is being
+built and second where the linked program should be placed. In this case there
+is no path to the IMAGE so it will be built in the current directory. The name
+of the program will be client (in fact, on Windoze, client.exe, but the .exe
+extension should never be specified).</p>
+
+<p>A common variant is to link all programs into a common "bin" directory at
+the same level of directory as the library directories. This is two levels up
+from the source directory:</p>
+
+<pre class="script">
+IMAGE     = ../../bin/client
+LIBRARIES = ../../stlplus/source
+include ../../makefiles/gcc.mak
+</pre>
+
+<p>The overall directory structure is now:</p>
+
+<ul>
+
+<li type="circle">&lt;parent directory&gt;
+
+<ul>
+
+<li type="circle">bin
+<ul>
+<li type="square">client.exe</li>
+</ul>
+</li>
+
+<li type="circle">makefiles
+<ul>
+<li type="square">gcc.mak</li>
+</ul>
+</li>
+
+<li type="circle">stlplus
+<ul>
+<li type="circle">source
+<ul>
+<li type="square">Makefile</li>
+<li type="square">&lt;stlplus source files&gt;</li>
+<li type="circle">CYGWIN-debug
+<ul>
+<li type="square">libstlplus.a</li>
+</ul>
+</li>
+</ul>
+</li>
+<li type="circle">docs</li>
+<li type="circle">messages</li>
+</ul>
+</li>
+
+<li type="circle">client
+<ul>
+<li type="circle">source
+<ul>
+<li type="square">Makefile</li>
+<li type="square">&lt;client program source files&gt;</li>
+<li type="circle">CYGWIN-debug
+<ul>
+<li type="square">libclient.a</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+
+</ul>
+
+</li>
+
+</ul>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="no-makefiles">Using your own build system with Gnu gcc</h2>
+
+<p>The previous section explained how to use my build system with the Gnu tools. However, you don't
+have to use my build system at all for this since there are no special steps in building STLplus.</p>
+
+<h3>Building Without my Make System</h3>
+
+<p>Simply compile the source files with a .cpp extension using the following options:</p>
+
+<pre class="script">
+release build: gcc -I. -D&lt;platform&gt; -funsigned-char -DNDEBUG -O3 -c &lt;source file&gt; -o &lt;object file&gt;
+debug build:   gcc -I. -D&lt;platform&gt; -funsigned-char -g           -c &lt;source file&gt; -o &lt;object file&gt;
+</pre>
+
+<p>The convention is to give the object file the same name as the source file
+but with a .o extension. I prefer to put the object code in a target
+subdirectory with a name that reflects the build - for example CYGWINrelease
+indicates a Cygwin release build. This way you keep the object code for the
+different builds separate.</p>
+
+<p>It will make your life easier if you bundle the object files into a library:</p>
+
+<pre class="script">
+cd &lt;target dir&gt;
+ar cr libstlplus.a &lt;object files&gt;
+</pre>
+
+<h3>Using Without my Make System</h3>
+
+<p>For compilation, simply make sure that the directory containing the STLplus
+source files is in your include path. For example:</p>
+
+<pre class="script">
+gcc -I$STLPLUS/source ...
+</pre>
+
+<p>This assumes that the environment variable STLPLUS points to the directory
+containing the STLplus installation. You will have to define the variable with
+the correct path if you want to do it this way. Alternatively, just give the full
+path in the -I option.</p>
+
+<p>For linking, you need to simply include the libstlplus.a library in the
+link. For a debug build of your program, link with the debug build of the
+STLplus library. For a release build, link with the release build of STLplus.
+For example:</p>
+
+<pre class="script">
+ld ... $STLPLUS/source/&lt;target_dir&gt;/libstlplus.a ... -lstdc++
+</pre>
+
+<p>In this case, &lt;target_dir&gt; will be CYGWIN-debug for a debug build and
+CYGWINrelease for a release build. The last part of this command (-lstdc++)
+links in the STL library. You need this because STLplus is layered onto the
+STL.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="cygwin">Unix-emulation build on Windoze using Cygwin and Gnu gcc</h2>
+
+<p>You can build Unix command-line tools and libraries on Windows using the Gnu gcc
+compiler if you first install the 
+<a href="http://www.cygwin.com/">Cygwin</a> system. This system is a
+Unix-emulation layer which provides a Unix-like systems interface to the
+Windows operating system. For example, you access the file system as if it was
+a Unix file-system, create subprocesses using the Unix functions fork and exec, create pipes
+using Unix pipe and so on. This is a great way of porting Unix utilities to
+Windows, but has the disadvantage that you have to use Unix-like paths instead
+of Windows-like paths. I use Cygwin to develop the Unix version of
+STLplus whilst actually sitting at a Windows-based PC. For a native Windows
+version, see the next section.</p>
+
+<p>Cygwin provides a complete development environment including the gcc
+compiler, the gdb debugger, make and all the usual Unix commands. Furthermore,
+the <a href="http://www.xemacs.org/">XEmacs</a> project provides a Cygwin
+build of XEmacs which acts as a fully integrated development environment.</p>
+
+<p>You need to install Cygwin and, if you like it, XEmacs, before you can
+build the Cygwin version of the STLplus library. Then simply follow the instructions in the previous
+sections for building STLplus with Gnu tools.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="mingw">Native build on Windoze using Cygwin and Gnu gcc</h2>
+
+<p>The Cygwin development environment introduced in the last section
+also allows <i>native</i> Windows applications to be built using the Gnu compiler.
+Unlike Unix-emulation builds, this does not use the Unix emulation layer and you therefore
+access operating services through the Windows system calls directly.</p>
+
+<p><b>Note:</b> version 3.2 and later of gcc works very well in this mode. Prior
+versions were incomplete and could only be made to build a native Windows
+application with a bit of a bodge. If you want to produce native builds using
+Cygwin, then if possible upgrade to at least v3.2 of gcc to make your life
+easier. These instructions only apply to v3.2 and later.</p>
+
+<p>You build native applications with the Cygwin gcc compiler by specifying a
+special compiler switch (-mno-cygwin) for both compilation and linking. </p>
+
+<p>The following settings are used
+in addition to the standard rules for the Cygwin builds:</p>
+
+<pre class="script">
+compile   : same as Cygwin plus: -mno-cygwin
+link      : same as Cygwin plus: -mno-cygwin
+</pre>
+
+<p>The standard Makefile system I supply can be switched into native
+compilation mode when
+compiling on Cygwin (and only then) by setting the environment variable CYGMING
+to the value "on". This name is a reflection of the fact that the ability to
+compile native Windows applications comes from a combination of the Cygwin
+project and the Mingw project (Mingw standas for "minimum Gnu on Windows").
+The CYGMING variable can be set in the command line to make:</p>
+
+<pre class="script">
+make CYGMING=on
+</pre>
+
+<p>This is a one-off setting. To make the setting more permanent, change the
+environment of the shell you're running:</p>
+
+<pre class="script">
+export CYGMING=on
+make
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="unix-other">Other Unix builds using Gnu gcc</h2>
+
+<p>STLplus is designed to be portable to any Unix system, well at least any
+Posix-compliant Unix system, but this is only
+true when using the Gnu gcc compiler. Native compilers on the various flavours
+of Unix are not supported. This is not a realistic goal when there are so many
+variations between compilers.</p>
+
+<p>On Linux, the native compiler is Gnu's gcc so there is not a problem. On
+other platforms, you will need to install Gnu gcc and the associated Gnu tools
+such as gdb and the linker.</p>
+
+<h3>Using Without my Make System</h3>
+
+<p>Once the Gnu tools are installed, the building and using instructions are
+basically the same as for the Cygwin Unix-emulation build.</p>
+
+<h3>Using With my Make System</h3>
+
+<p>The only problem you may have is that your version of Unix is not recognised
+by the default makefile gcc.mak. In that case, you can easily add support for
+your platform. The key is the first executable code in the gcc.mak file:</p>
+
+<pre class="script">
+OS     := $(shell uname -s)
+
+ifneq ($(findstring CYGWIN,$(OS)),)
+...
+</pre>
+
+<p>This executes the 'uname' system command and then tries to identify the
+operating system by recognising a substring of the return value. This is then
+used to set PLATFORM to a simplified name for that platform. For example, the
+current version of Cygwin that I'm using has a uname of "CYGWIN_NT-5.0". The
+basic version shown above only recognises the Cygwin build and sets PLATFORM
+to be the simplified form "CYGWIN". In general, the PLATFORM value should be a
+short representation of the operating system name in uppercase. Different
+names should be used for versions of the operating system that use different
+object code and are not binary compatible. Binary compatible versions of an
+operating system should be mapped onto the same short name. Thus, support for
+Linux can be easily added:</p>
+
+<pre class="script">
+# Build on Linux
+ifneq ($(findstring Linux,$(UNAME)),)
+PLATFORM  := LINUX
+endif
+</pre>
+
+<p>In fact, support for Linux and Solaris has already been added in this way.
+Further platforms will be added as I try them.</p>
+
+<p>The PLATFORM name is used as the prefix to the subdirectory used to store
+object code. Thus the Cygwin debug build is stored in CYGWIN-debug whilst the
+Linux debug build is stored in LINUXdebug. This organisation means that the
+same disk can be mounted on different operating systems and built without the
+different operating systems conflicting with each other. It also keeps the
+different kinds of build (e.g. release or debug) in separate directories.</p>
+
+<p>The PLATFORM value is also passed to the compiler as a macro definition in
+the form -D&lt;platform&gt;, where &lt;platform&gt; is the name of the platform (e.g. -DLINUX). This
+means that if it proves necessary to differentiate between platforms to get
+any part of the C++ code working, then this is done by adding "#ifdef LINUX" or
+whatever compiler switches to the code. The macro _WIN32 is defined for native
+Windows builds regardless of the compiler - if this is not set then the
+default is to assume a vanilla Unix build. To date, only very minor
+differences have been found between different Unix platforms.
+However, if you use a different
+build system it is a good idea to pass this parameter to the compiler (e.g.
+-DLINUX) in case future updates to the library do need to have these switches.
+Check the ../../makefiles/gcc.mak file for the values currently supported, even if you don't
+plan to use my make system.</p>
+
+<p>One final trick worth noting if you are using my build system - the IMAGE variable can be used to put
+different operating system programs into different subdirectories by using the
+PLATFORM variable. For example, here's a variant on the Makefile shown earlier
+for the client program:</p>
+
+<pre class="script">
+IMAGE     = ../../bin/${PLATFORM}/client
+LIBRARIES = ../../stlplus/source
+include ../../makefiles/gcc.mak
+</pre>
+
+<p>This will put Cygwin binaries in ../../bin/CYGWIN and Linux binaries into
+../../bin/LINUX.</p>
+
+<p>Furthermore, the IMAGE variable can put each different build into a
+different subdirectory by using the SUBDIR variable instead of PLATFORM. The
+SUBDIR variable includes a prefix for the platform and the suffix for the
+different build configuration, so the debug build will be called CYGWIN-debug
+for the Cygwin build and LINUX-debug for the Linux build.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="microsoft">Micro$oft Visual Studio</h2>
+
+<p>The STLplus can alternatively be built on Windows using the native Microsoft Visual Studio
+compiler. The STLplus library appears as a project under Visual Studio. Beware that
+there is a terminology problem here - Microsoft call a library a project and a
+project a workspace, and so on. I will try to remember to use Microsoft
+terminology here.</p>
+
+<h3>Building</h3>
+
+<p>The STLplus library comes with a Visual Studio project file (<code>stlplus.dsp</code>) which is
+kept in the <code>source</code> directory. To add the STLplus project to an existing workspace, select the menu item
+Project->Insert&nbsp;Project&nbsp;into&nbsp;Workspace... and then navigate into
+the <code>stlplus</code> directory and into the <code>source</code> subdirectory. There you will find
+the project file <code>stlplus.dsp</code>. Select this file and click OK. The stlplus
+project will be added to your workspace.</p>
+
+<p>The project can now be built. First make stlplus the current project by
+selecting menu item Project->Set&nbsp;Current&nbsp;Project->stlplus. Then
+select the configuration you wish to build. You can build all of them one at a
+time or even use the batch build, but I'll explain the simplest way. Select
+Build->Set&nbsp;Active&nbsp;Configuration and a dialog will display all the
+project/configuration combinations. The Debug configuration is for use in
+debug builds, the Release is for use in release builds (no debug information).
+Select a
+configuration and click OK. Finally, build the library by selecting
+Build->Build&nbsp;stlplus.lib. At this stage, if you wish, you can select
+other configurations and build them too. Each configuration is stored
+separately so they do not overwrite each other.</p>
+
+<p><b>Note:</b> the supplied project file will build STLplus so that it uses
+the multi-threaded versions of the C runtime library (msvcrt.dll). The default
+for a new project however is to use the single-threaded versions. You will
+need to adjust the project settings, either for STLplus or for your
+application so that all projects use the same settings. Sadly, this is a
+side-effect of Microsoft's poor design for Visual Studio which means that
+workspace settings seem to be saved in project files. They leave it to the
+user to resolve the problems this causes. The symptom that will tell you that
+you have this problem is that, when you link the application, every symbol in
+the C runtime library will result in an error message from the linker saying
+that it is multiply defined.</p>
+
+<h3>Using</h3>
+
+<p>To use any of the STLplus headers, you need to set up an include path for
+the C++ compiler and you need to set up a project dependency for the
+linker.</p>
+
+<p>To set up the include path, select the project that you
+wish to have access to the stlplus project. Then select the menu item
+Project->Settings. A mind-bogglingly complicated dialog will pop up. Select
+the configuration popup menu in the top left and choose
+All&nbsp;Configurations. Then select the C++ tab from the set of tabs at the
+top of the right-hand pane. Then select
+the Category popup menu just below the tabs and select Preprocessor. This has
+a text field called Additional&nbsp;include&nbsp;directories. Type in the path
+to the stlplus source subdirectory where all the headers are found. You have
+to type this because Microsoft didn't think to give you a directory selection
+dialog to help you here. Click OK to dismiss the mind-boggling dialog.</p>
+
+<p>To set up the linker dependency, make sure the project you wish to use
+stlplus is still selected in the right-hand project pane. Then, select the
+menu item Project->Dependencies. The project you wish to set up dependencies
+for will be selected in the popup menu at the top and the other projects,
+including stlplus, will be listed in the list entry below that. Click on
+stlplus so that a tick appears. This makes the selected project depend on
+stlplus and therefore will cause any program built with the selected project
+link with the stlplus project. Click on OK to dismiss the dependencies
+dialog.</p>
+
+<p><b>Note:</b> you should only set up a dependency on an application project,
+not on a project that just creates a library. Sadly, Microsoft think a
+dependency on a library file should be resolved by copying the contents of the
+STLplus library file into the other library file, giving you two copies of the
+object code. This will subsequently cause a link error. The symptom is that
+the functions from STLplus will be reported as multiply defined.</p>
+
+<p>To test the configuration, try including an STLplus header in your code and
+calling a function (or creating a class) from the library. You should be able
+to compile and link the project successfully.</p>
+
+<p>The most common error is to get the include path wrong or to forget to set
+the include path for all configurations. This can be detected by the compiler
+giving an error on a #include line in your code that includes the STLplus
+header. If this happens, redo the include path step above.</p>
+
+<p>The second most
+common error is to simply forget to set up the linker dependency, since this
+does not prevent compilation from working. This will manifest itself by a
+series of linker errors due to missing symbols. If this happens, repeat the
+linker dependency step above.</p>
+
+<p>The final common error is to have different projects with different
+run-time library selections. This manifests itself by linker errors whereby
+standard library functions are multiply defined in different libraries. To fix
+this, select the menu item Project->Settings and select a specific
+Configuration (you cannot do this for All&nbsp;Configurations. For example,
+select the Debug configuration. Then select the C++ tab at the top right and
+then select the popup menu immediately below the tag, choosing the
+Code&nbsp;Generation option. There are four popup menus here and the top right
+of them is labelled Use&nbsp;Run-time&nbsp;Library. This should be the same
+for all projects - check this by clicking on different projects in the left
+hand pane whilst watching the contents of the run-time library popup. If there
+are inconsistencies, correct them. For a debug build, always pick a debug
+library, but you can then choose whether it is a single-threaded static
+library, a multi-threaded static library or a multi-threaded DLL. Choose the
+same for all projects. Then change the configuration to Release and check them
+too. This time, choose the non-debug versions of the run-time library. When
+you are happy that you have consistency, click OK to dismiss the dialog and
+try building again.</p>
+
+<p>In the default project file supplied with STLplus, the Debug configuration
+links with the Debug Multi-Threaded DLL and the Release configuration links with
+the Multi-Threaded DLL. You can either adopt the same conventions or
+change your copy of the stlplus project file.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>ini_manager.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>ini_manager.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">INI_MANAGER_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">INI_MANAGER_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  A subsystem for managing INI (i.e. .ini) files</span>
+<span style="color: #000099">  An INI file has the following format</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">    file           ::= header { section }*</span>
+<span style="color: #000099">    header         ::= { comment | blank }*</span>
+<span style="color: #000099">    section        ::= section_header { declaration | comment | blank }*</span>
+<span style="color: #000099">    section_header ::= '[' title ']' '\n'</span>
+<span style="color: #000099">    declaration    ::= variable '=' value '\n'</span>
+<span style="color: #000099">    comment        ::= ';' text '\n'</span>
+<span style="color: #000099">    blank          ::= '\n'</span>
+<span style="color: #000099">    title          ::= [~']']*</span>
+<span style="color: #000099">    variable       ::= [~'=']*</span>
+<span style="color: #000099">    value          ::= .*</span>
+<span style="color: #000099">    text           ::= .*</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Whitespace is trimmed from the leading and trailing ends of title, variable and value</span>
+<span style="color: #000099">  Note: a header is represented internally as a Clint section (i.e. a section with no name)</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"smart_ptr.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"textio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;list&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">ini_manager</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">ini_manager</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">explicit</span> <span style="color: #000000">ini_manager</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filenames</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">ini_manager</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// file management</span>
+
+  <span style="color: #000099">// add files starting with the most local file (e.g. the current project) which has depth 0</span>
+  <span style="color: #000099">// and working back to the most global (e.g. the installation settings) which has a depth of size()-1</span>
+  <span style="color: #000099">// This does nothing if the file has already been loaded - it is not permitted to manage the same file twice.</span>
+  <span style="color: #000099">// Returns true if the file loaded okay or was already loaded (it is counted as successful if the file did</span>
+  <span style="color: #000099">// not exist, only read errors cause a failure)</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_file</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filename</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// as above, returns false if *none* of the files were added</span>
+  <span style="color: #000099">// filenames[0] is the local file, and so on</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_files</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">filenames</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// saves modified ini files - returns true if all modified files were written successfully</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">save</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the number of files being managed</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">size</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the ini filename associated with a depth</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">filename</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether a file in the ini manager is writable</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">writable</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether a file is empty</span>
+  <span style="color: #000099">// An ini file is considered empty if it has no named sections and the header is empty or missing</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">empty</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// erase the ini file from the ini manager and from the disk</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">erase</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// remove the file from the ini manager but do not erase it from the disk</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">remove</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// section management</span>
+
+  <span style="color: #000099">// returns the union of all section names in all of the ini files</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">section_names</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// returns the section names in one of the ini files</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">section_names</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// tests whether a section is found in any of the ini files</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">section_exists</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">title</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// tests whether the section is found in the specific ini file</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">section_exists</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">title</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// adds a section to the specified ini file - does nothing if it is already present</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_section</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether a section is empty</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">empty_section</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// removes a section from the specified ini file if it exists there but cannot remove it from any other file</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">erase_section</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// removes all the contents of a section from the specified ini file but keeps the empty section</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">clear_section</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// variable management</span>
+
+  <span style="color: #000099">// test whether a variable exists in any of the ini files</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">variable_exists</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether a variable exists in specified ini file</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">variable_exists</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the union of all variables declared in all ini files</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">variable_names</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the set of all varaibale names from one file</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">variable_names</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the depth of the first ini file to define a variable</span>
+  <span style="color: #000099">// returns 0 if defined in the local ini file, etc. Returns (unsigned)-1 if the variable doesn't exist</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">variable_depth</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the filename that first defines the variable</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable_filename</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the value of a variable as a single unprocessed string</span>
+  <span style="color: #000099">// if the variable does not exist the string will be empty, but beware that</span>
+  <span style="color: #000099">// you also get an empty string if a variable exists but has no value</span>
+  <span style="color: #000099">// you can differentiate between the two cases by using variable_exists_all above</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable_value</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the value from the specified file</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable_value</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the value of a variable as a processed string</span>
+  <span style="color: #000099">// processing splits the value at commas and furthermore supports quoted strings (so that values can contain commas for example)</span>
+  <span style="color: #000099">// quoted strings are dequoted before they are added to the result</span>
+  <span style="color: #000099">// the result is a vector of dequoted strings, one per value in the comma-separated list</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">variable_values</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the processed variable from the specified file</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span> <span style="color: #000000">variable_values</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">variable</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// add a variable to the specified file</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">variable</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// add a variable as a processed string</span>
+  <span style="color: #000099">// processing means that the values in the string vector are converted into a comma-separated list</span>
+  <span style="color: #000099">// values containing reserved characters are automatically quoted - so you should not even try to quote them yourself</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">variable</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">values</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// erase a variable from the specified file</span>
+  <span style="color: #000099">// this does not remove the variable from other ini files, so the variable may still exist</span>
+  <span style="color: #000099">// to mask a global variable, set the variable to an empty string instead</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">erase_variable</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">variable</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// sundry line-entry management</span>
+
+  <span style="color: #000099">// add a comment to the specified ini file</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_comment</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">comment</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// add a blank line to the specified ini file</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">add_blank</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">section</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">depth</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// diagnostic print routines</span>
+
+  <span style="color: #990000">friend</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">ini_manager</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">indent</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">ini_manager</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">ini_file</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">ini_file</span><span style="color: #330033">&gt;</span> <span style="color: #330033">&gt;</span> <span style="color: #000000">m_files</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

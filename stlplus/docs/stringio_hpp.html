@@ -1,0 +1,77 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>stringio.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>stringio.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">STRINGIO_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">STRINGIO_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Classes for redirecting I/O to/from a string</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"textio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// string Output</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">ostext</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">otext</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">ostext</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">get_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">get_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">osbuff</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">obuff</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">ostext</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">str</span><span style="color: #330033">;</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">osbuff</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">put</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">char</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// string Input</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">istext</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">itext</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">istext</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">get_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">get_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">isbuff</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">ibuff</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">istext</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">data</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">i</span><span style="color: #330033">;</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">isbuff</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">int</span> <span style="color: #000000">peek</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">int</span> <span style="color: #000000">get</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

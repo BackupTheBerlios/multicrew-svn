@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - stringio.hpp - string-based derivative of textio</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>stringio - TextIO Derivative using string</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="stringio_hpp.html">Browse Header stringio.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#outputs">Output Strings</a></li>
+<li><a href="#inputs">Input Strings</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>Sometimes it is useful to be able to redirect output or source input from an
+in-memory string. That is the purpose of this package. It provides
+costomisations for the TextIO input and output devices that work on a single
+string.</p>
+
+<p>Note that for large I/O requirements, the
+<a href="string_vectorio.html">string_vectorio</a> package might be
+more appropriate.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="outputs">Output Strings</h2>
+
+<h3>Usage</h3>
+
+<p>The most common and simplest way of using string output devices is to used the
+derived class ostext. This is a derivation of otext and can be used wherever
+otext would be used. For
+example:</p>
+
+<pre class="cpp">ostext my_output;</pre>
+
+<p>Once an output string device has been opened, it can be used as the base class otext
+device, giving access to all of the output chevron operators (&lt;&lt;). See the
+TextIO Documentation for details.</p>
+
+<p>For example:</p>
+
+<pre class="cpp">
+my_output &lt;&lt; "Hello World" &lt;&lt; endl;
+</pre>
+
+<p>This fills in the string with the text "Hello World\n".</p>
+
+<p>The internal string which receives the output text can be accessed by the
+get_string function.</p>
+
+<pre class="cpp">
+string&amp; result = my_output.get_string();
+</pre>
+
+<p>The string output device has the same newline conversion functions as any
+TextIO output device, so the '\n' character can be mapped onto any OS-specific
+convention. For example:</p>
+
+<pre class="cpp">
+ostext my_output;
+my_output.set_newline_mode(textio_output_unix);
+</pre>
+
+<p>This example forces Unix conventions on the output string.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="inputs">Input Strings</h2>
+
+<h3>Usage</h3>
+
+<p>Input files are used in a very similar way to output files. The main
+difference is that, with input strings, the input device needs to be initialised
+with the string contents by passing a string to the constructor.</p>
+
+<p>For example:</p>
+
+<pre class="cpp">istext my_input("Hello World");</pre>
+
+<p>This device can now be used as an input to a chevron expression to extract
+the elements of the string. For example, the &gt;&gt; operator for a string gets
+the next non-whitespace sequence from a device. Thus the words can be split very
+easily:</p>
+
+<pre class="cpp">
+string first_word;
+my_input &gt;&gt; first_word;
+string second_word;
+my_input &gt;&gt; second_word;
+</pre>
+
+<p>The input string device has the concept of end-of-file in that the device
+eof() function returns true if all of the string has been read.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

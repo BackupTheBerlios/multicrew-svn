@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - iostreamio.hpp - IOstream-based derivative of textio</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>iostreamio - TextIO Derivative using standard IOstream</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="iostreamio_hpp.html">Browse Header iostreamio.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#outputs">Output Devices</a></li>
+<li><a href="#inputs">Input Devices</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>The STLplus library uses its own TextIO subsystem as it's preferred I/O
+system. However, the standard C++ I/O system is IOstream. The reasons for
+replacing IOstream throughout the STLplus are given in the documentation for
+<a href="textio.html">TextIO</a>.</p>
+
+<p>However, there will be times when the STLplus is used in an application
+that does use IOstream. This package provides a pair of TextIO wrapper classes
+that convert IOstream device classes to TextIO device classes.</p>
+
+<p>For example, consider the <a href="error_handler.html">error handler</a>
+subsystem. It takes a TextIO Output device as an argument:</p>
+
+<pre class="cpp">
+class error_handler
+{
+public:
+  error_handler(otext&amp; device,unsigned limit = 0,bool show = true) 
+  ...
+};
+</pre>
+
+<p>The <tt>otext</tt> object required by the constructor is the superclass for
+all output devices in the TextIO subsystem.</p>
+
+<p>What if the user of the error handler wants to use an IOstream device with
+the error handler?</p>
+
+<p>The answer is to put a TextIO wrapper around the IOstream device using the
+classes defined in <tt>iostreamio.hpp</tt>. For example:</p>
+
+<pre class="cpp">
+#include &lt;fstream&gt;
+#include "iostreamio.hpp"
+using namespace std;
+...
+// create and open the IOstream device
+ofstream output_stream("errors.log", ios::binary);
+// create and initialise the TextIO wrapper device
+oiotext output(output_stream);
+// now initialise the error handler
+error_handler errors(output);
+</pre>
+
+<p>The <tt>oiotext</tt> object is a subclass of <tt>otext</tt>. Any text
+output to this device will be routed to the underlying <tt>ofstream</tt> class
+(a subclass of <tt>ostream</tt>).</p>
+
+<p>The TextIO device stores a reference to the IOstream device. Therefore, as
+usual in C++, the IOstream device must remain in scope throughout the lifetime
+of the TextIO device. The above example achieves this by declaring both
+objects in the same scope. Furthermore, closing the TextIO device does <i>not</i>
+close the IOstream device, it simply disconnects it.</p>
+
+<p>Note that the iostream device is opened in binary mode. Unfortunately this
+has to be your responsibility - it doesn't seem to be possible to change the
+mode of a file after opening it, so it wasn't possible to set it to binary
+mode within the TextIO device's constructor.</p>
+
+<p>The reason for setting the iostream device to binary mode is so that the
+TextIO device can take responsibility for line-end handling. For example, if
+the TextIO device is in DOS line-end mode, then all newlines will be passed to
+the iostream device as cr/lf pairs. Since the iostream is in binary mode, it
+will be written to the file in that format. If both TextIO and iostream
+devices are in text mode, the two subsytems can end up creating a mess (such
+as double line-ends).</p>
+
+<p>You could if you prefer put the iostream device in text mode and the TextIO
+device into binary mode instead.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="outputs">Output Devices</h2>
+
+<p>The interface to the output device class is:</p>
+
+<pre class="cpp">
+class oiotext : public otext
+{
+public:
+  oiotext(std::ostream&amp;);
+  void open(std::ostream&amp;);
+
+  std::ostream&amp; get_stream(void);
+  const std::ostream&amp; get_stream(void) const;
+};
+</pre>
+
+<p>The name of the class is constructed as follows:</p>
+
+<blockquote>
+oiotext = (o)utput (io)stream (text)io device
+</blockquote>
+
+<p>This follows the normal convention for TextIO devices: an (o) for output,
+followed by one or more characters representing the subclass and then the word
+(text) which is common to all TextIO device classes.</p>
+
+<p>The constructor and the <tt>open</tt> method do the same thing - they
+associate the <tt>ostream</tt> (or a subclass of <tt>ostream</tt>) with the
+<tt>oiotext</tt> device. Any subclass of <tt>ostream</tt> can be used, not
+just file objects of class <tt>ofstream</tt>.</p>
+
+<p>The <tt>get_stream</tt> methods allow the attached stream to be accessed
+directly. This will fail catastrophically if there is no device attached (i.e.
+if the device has not been opened or if it has been closed).</p>
+
+<p>Once an <tt>ostream</tt> has been attached to the <tt>oiotext</tt> device,
+it can be used like any other <tt>otext</tt> device. For example:</p>
+
+<pre class="cpp">
+// create and open the IOstream device
+ofstream output_stream("output.txt", ios::binary);
+// create and initialise the TextIO wrapper device
+oiotext output(output_stream);
+...
+// now use the device
+output &lt;&lt; "Hello World!" &lt;&lt; endl;
+</pre>
+
+<p>This will redirect the text <tt>"Hello World!"</tt> and a newline to the
+underlying <tt>ostream</tt> object (in the example it is called
+<tt>output_stream</tt>). This in turn prints the text to the file
+<tt>output.txt</tt>.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="inputs">Input Devices</h2>
+
+<p>The interface to the input device class is:</p>
+
+<pre class="cpp">
+class iiotext : public itext
+{
+public:
+  iiotext(std::istream&amp;);
+  void open(std::istream&amp;);
+
+  std::istream&amp; get_stream(void);
+  const std::istream&amp; get_stream(void) const;
+};
+</pre>
+
+<p>The name of the class is constructed as follows:</p>
+
+<blockquote>
+iiotext = (i)nput (io)stream (text)io device
+</blockquote>
+
+<p>This again follows the normal convention for TextIO devices.</p>
+
+<p>The constructor and the <tt>open</tt> method associate the <tt>istream</tt>
+(or a subclass of <tt>istream</tt>) with the <tt>iiotext</tt> device. Again,
+any subclass of <tt>istream</tt> can be used.</p>
+
+<p>The <tt>get_stream</tt> methods allow the attached stream to be accessed
+directly. They will fail catastrophically if there is no device attached.</p>
+
+<p>Once an <tt>istream</tt> has been attached to the <tt>iiotext</tt> device,
+it can be used like any other <tt>itext</tt> device. For example:</p>
+
+<pre class="cpp">
+// create and open the IOstream device
+ifstream input_stream("data.txt", ios::binary);
+// create and initialise the TextIO wrapper device
+iiotext input(input_stream);
+// now read a series of floats, one per line of the input file
+while(input)
+{
+  float data = 0.0;
+  input &gt;&gt; float &gt;&gt; skipendl;
+  ...
+}
+</pre>
+
+<p>This example reads the data file <tt>data.txt</tt> which consists of one
+floating point value per line. Note that, although the file is opened as an
+IOstream device (specifically, an <tt>ifstream</tt>), it is read using TextIO
+functions (for example, the <tt>skipendl</tt> manipulator).</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

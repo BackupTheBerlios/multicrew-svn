@@ -1,0 +1,347 @@
+/* Style Sheet for STLplus Web Pages */
+/* http://stlplus.sourceforge.net */
+/* Author: Andy Rushton */
+/* Copyright (c) Andy Rushton 2004 */
+/* License: BSD license, see license.html */
+
+/* uncomment the following line for debugging div margins */
+/* div {border: 1px solid; margin: 1px; padding: 1px;} */
+
+/* Overall document characteristics */
+
+body
+{
+  color: #000000;
+  background-color: #ffffff;
+}
+
+/* divisions related to header information */
+
+#header
+{ 
+  border: 1px solid;
+}
+
+#headerBanner 
+{
+}
+#headerBanner p
+{
+  font-size: xx-large;
+  font-weight: bold;
+  text-align: center;
+  margin: 0;
+  padding: 3px;
+}
+
+#headerNavigation 
+{
+  white-space: nowrap;
+}
+#headerNavigation p
+{
+  font-size: medium;
+  text-align: center;
+  margin: 0;
+}
+#headerNavigation a 
+{
+  border: 1px dotted;
+  padding: 0 2em;
+  font-weight: bold;
+/*  font-variant: small-caps; */
+  text-decoration: none;
+}
+
+/* Divisions related to document navigation */
+
+#document
+{ 
+}
+
+#documentTitle
+{
+}
+
+#documentTitle h1
+{
+  font-size: xx-large;
+/*  font-size: 150%; */
+/*  padding: 20px; */
+  text-align: center;
+}
+
+#documentNavigation 
+{
+  padding-left: 35%;
+  padding-right: 5%;
+}
+#documentNavigation ul
+{
+/*  border: 1px solid; */
+  padding : 0;
+  list-style: none;
+}
+#documentNavigation li
+{
+  margin-left: 25px;
+}
+#documentNavigation li>ul
+{
+  list-style-type: circle;
+}
+#documentNavigation li>a 
+{
+  font-weight: bold; 
+/*  font-variant: small-caps; */
+  text-decoration: none;
+}
+
+/* Contents */
+
+#documentContents 
+{
+  float: left;
+  /* have to respecify the colour because floats are not 'in' the document */
+  width: 32%;
+  height: 150px;
+  padding : 3px;
+}
+#documentContents h2
+{
+  text-align: center;
+  padding: 0px;
+  margin: 0;
+}
+#documentContents ul
+{
+  padding : 0;
+  margin : 0;
+  list-style: none;
+}
+#documentContents li
+{
+  text-align: center;
+}
+#documentContents li>a 
+{
+  text-decoration: none;
+}
+
+/* divisions in the document body */
+
+#documentSection
+{ 
+/*  border: 1px solid; */
+}
+
+/* Divisions related to footers */
+
+#footer
+{ 
+  border: 1px solid;
+}
+
+/* Headers */
+
+h1
+{
+  padding: 20px;
+}
+
+h2
+{
+  padding: 3px;
+}
+
+h3
+{
+  padding: 3px;
+}
+
+/* Ordinary Paragraphs */
+
+div>p
+{
+  text-align: left;
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
+/* Annotation */
+
+address
+{ 
+  font-style: italic;
+  text-align: right;
+}
+
+p.datestamp
+{ 
+  font-size: small;
+  font-style: italic;
+  text-align: right;
+}
+
+div>blockquote
+{ 
+  margin-left: 10%;
+}
+
+/* Inline Formatting */
+
+b
+{ 
+  font-weight: bold;
+}
+
+/* Other blocks */
+
+hr
+{
+}
+
+/* Links */
+
+a:link
+{
+}
+
+a:visited
+{
+}
+
+a:hover
+{
+}
+
+a:active
+{
+}
+
+/* Source Code Examples */
+
+pre
+{
+/*  font-size: smaller; */
+  font-family: monospace;
+  border-style: outset;
+  border-width: thin;
+  padding: 10px;
+}
+
+div>pre
+{
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
+pre.vhdl
+{
+}
+
+pre.cpp
+{
+}
+
+pre.terminal
+{
+}
+
+pre.script
+{
+}
+
+pre.syntax
+{
+}
+
+pre.node
+{
+}
+
+/* Images */
+
+p.figure
+{ 
+  text-align: center;
+  font-weight: bold;
+  padding: 25px 3px;
+  border-style: outset;
+  border-width: thin;
+  margin-left: 10%;
+  margin-right: 10%;
+}
+
+/* Lists */
+
+div>dl
+{ 
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
+div>ol
+{ 
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
+div>ul
+{ 
+  margin-left: 5%;
+  margin-right: 5%;
+  padding: 0;
+  padding-left: 25px;
+}
+
+li
+{
+  margin-left: 10px;
+  margin-right: 0;
+  padding: 0;
+}
+
+li>ul
+{ 
+  margin-left: 10px;
+  margin-right: 0;
+  padding: 0;
+}
+
+dt
+{
+  font-weight: bold;
+  margin-left: 0;
+  padding-top: 3px;
+}
+
+dd
+{
+  margin-left: 20px;
+}
+
+/* Tables */
+
+table
+{ 
+  margin: 10px;
+}
+
+caption
+{
+  text-align: center;
+  font-size: medium;
+  font-weight: bold;
+  padding: 6px;
+  border: none;
+}
+
+th
+{
+}
+
+td
+{
+}
+

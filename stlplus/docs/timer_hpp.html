@@ -1,0 +1,56 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>timer.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>timer.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">TIMER_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">TIMER_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  A CPU timer encapsulated as a class. Measures the CPU time used since its</span>
+<span style="color: #000099">  construction and allows this cumulative time to be reported at any time.</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;time.h&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"textio.hpp"</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">timer</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000000">clock_t</span> <span style="color: #000000">m_clock</span><span style="color: #330033">;</span>
+  <span style="color: #000000">time_t</span> <span style="color: #000000">m_time</span><span style="color: #330033">;</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// constructor resets the timer to zero</span>
+  <span style="color: #000000">timer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">timer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// reset the timer to zero without destroying it</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">reset</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the elapsed time in seconds, expressed as a float</span>
+  <span style="color: #990000">float</span> <span style="color: #000000">elapsed</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// get the CPU time in seconds, expressed as a float</span>
+  <span style="color: #990000">float</span> <span style="color: #000000">cpu</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get a printable string representing the elapsed time and CPU time</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">text</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// print the elapsed time and CPU time using the same representation as above</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">timer</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

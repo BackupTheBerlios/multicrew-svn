@@ -351,7 +351,10 @@ conf_pstruct conf_init(const char *name)
 			{ obool = tbool = TRUE; }
 			if ((stch[pos_str]=='\n')||(pos_str>254))
 				obool = TRUE;
-			else
+			else if (stch[pos_str]=='#') {
+				while( fgetc(archive)!='\n' );
+				obool = TRUE;
+			} else
 				pos_str++;
 		} while (obool);
 		if (pos_str == 255)

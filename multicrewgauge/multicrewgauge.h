@@ -272,7 +272,7 @@ private:
 
 class GaugeMetafileRecorder : public GaugeRecorder, private Thread {
 public:
-	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id );
+	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement );
 	virtual ~GaugeMetafileRecorder();
 	virtual void sendProc();
 	virtual void receive( SmartPtr<Packet> packet );
@@ -302,7 +302,7 @@ private:
 
 class GaugeMetafileViewer : public GaugeViewer  {
 public:
-	GaugeMetafileViewer( MulticrewGauge *mgauge, int id );
+	GaugeMetafileViewer( MulticrewGauge *mgauge, int id, int metafileElement );
 	virtual ~GaugeMetafileViewer();
 	virtual void receive( SmartPtr<Packet> packet );
 	virtual void sendProc();
@@ -324,8 +324,6 @@ class MulticrewGauge : public MulticrewModule {
 	PGAUGE_CALLBACK installCallback();
 	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	
-	Config *config();
-
  protected:
 	friend Gauge;
 	void detached( Gauge *gauge );

@@ -28,8 +28,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "signals.h"
 #include "network.h"
 #include "packets.h"
-#include "multicrewcore.h"
+#include "config.h"
 #include "thread.h"
+#include "config.h"
 
 
 class DLLEXPORT MulticrewModule : public ModulePacketFactory, 
@@ -46,6 +47,7 @@ public:
 	virtual void sendCompleted();
 	virtual void sendFailed();
 	virtual void receive( SmartPtr<ModulePacket> packet );
+	SmartPtr<FileConfig> config();
 	
 protected:
 	virtual void handlePacket( SmartPtr<Packet> packet )=0;

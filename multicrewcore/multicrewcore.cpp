@@ -23,12 +23,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <list>
 #include <deque>
 #include <map>
+#include <vector>
+#include <sstream>
+
+#include "../stlplus/source/string_utilities.hpp"
 
 #include "streams.h"
 #include "signals.h"
 #include "multicrewcore.h"
 #include "position.h"
 #include "log.h"
+#include "config.h"
 #include "fsuipcmodule.h"
 
 static MulticrewCore *multicrewCore = 0;
@@ -106,30 +111,39 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 
 		// FSUIPC module
 		d->fsuipcModule = new FsuipcModule( d->hostMode );
-		d->fsuipcModule->watch( 0xbdc, 4, true ); // flaps control
-		d->fsuipcModule->watch( 0xbd0, 4, false ); // spoiler control
-		d->fsuipcModule->watch( 0xbb2, 2, false ); // elevator control
-		d->fsuipcModule->watch( 0xbb6, 2, false ); // ailerons control
-		d->fsuipcModule->watch( 0xbba, 2, false ); // rudder control
-		d->fsuipcModule->watch( 0xbc8, 2, true ); // parking brake
-		d->fsuipcModule->watch( 0xbe8, 4, true, true ); // gears commanded
-		d->fsuipcModule->watch( 0x88c, 8, true ); // engine 1
-		d->fsuipcModule->watch( 0x924, 8, true ); // engine 2
-		d->fsuipcModule->watch( 0x3bfc, 4, true ); // ZFW
-		d->fsuipcModule->watch( 0x280, 2, true ); // nav + strobe lights 
-		d->fsuipcModule->watch( 0x28c, 2, true ); // landing lights
-		d->fsuipcModule->watch( 0xd0c, 4, true ); // light (FS2000+)
-		//d->fsuipcModule->watch( 0x560, 36, false ); // position
-		//d->fsuipcModule->watch( 0x3060, 6*8 ); // acceleration
-		//d->fsuipcModule->watch( 0x3090, 6*8, false ); // velocity
-		d->fsuipcModule->watch( 0x281c, 2, true ); // master battery switch
-		d->fsuipcModule->watch( 0x2e80, 4, true ); // avionics master switch
-		d->fsuipcModule->watch( 0x3100, 4, true ); // alternator, battery, avionics
-		d->fsuipcModule->watch( 0x2e80, 4, true ); // avionics master switch
-		d->fsuipcModule->watch( 0x3125, 4, true ); // fuel pumps
 
 		// emit signal
 		planeLoaded.emit();
+	}
+
+	// setup fsuipc watches
+	if( !d->fsuipcModule.isNull() ) {
+		SmartPtr<FileConfig> config = module->config();
+		for( int i=1; ; i++ ) {
+			std::ostringstream num;
+			num << i;
+			
+			// get fsuipc line
+			std::string line = config->stringValue( "fsuipc", num.str(), "" );
+			if( line.length()==0 ) break;
+			
+			// break line into components
+			std::vector<std::string> tokens =
+               split( line, "," );
+			if( tokens.size()!=3 )
+				dlog << "invalid fsuipc for " << module->moduleName 
+					 << " id " << num << std::endl;
+			
+			// convert into datatypes		
+			int id = (int)to_uint( trim(tokens[0]) );
+			int len = (int)to_uint( trim(tokens[1]) );
+			bool safe = to_bool( trim(tokens[2]) );
+			dout << "fsuipc watch " << id << " len=" << len 
+				 << " safe=" << safe << std::endl;
+			
+			// add to watches
+			d->fsuipcModule->watch( id, len, safe );
+		}
 	}
 
 	return true;

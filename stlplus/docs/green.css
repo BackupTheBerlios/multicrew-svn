@@ -1,0 +1,171 @@
+/* Style Sheet for STLplus Web Pages */
+/* http://stlplus.sourceforge.net */
+/* Author: Andy Rushton */
+/* Copyright (c) Andy Rushton 2004 */
+/* License: BSD license, see license.html */
+
+body
+{
+  color: #000000;
+  background-color: #f8fff8;
+}
+
+/* divisions related to header information */
+
+#header
+{ 
+  color: #008000;
+  background-color: #eeffee;
+}
+
+/* Divisions related to document navigation */
+
+#document
+{ 
+  color: #008000;
+  background-color: #f8fff8;
+}
+
+/* Contents */
+
+#documentContents 
+{
+  /* have to respecify the colour because floats are not 'in' the document */
+  color: #008000;
+  background-color: #f8fff8;
+}
+
+/* divisions in the document body */
+
+#documentSection
+{ 
+  color: #000000;
+}
+
+/* Divisions related to footers */
+
+#footer
+{ 
+  background-color: #eeffee;
+}
+
+/* Headers */
+
+h1
+{
+  color: #008000;
+}
+
+h2
+{
+  color: #008000;
+}
+
+h3
+{
+  color: #008000;
+}
+
+/* Ordinary Paragraphs */
+
+hr
+{
+  color: #008000;
+}
+
+/* Links */
+
+a:link
+{
+  color: #008000;
+}
+
+a:visited
+{
+  color: #338033;
+}
+
+a:hover
+{
+  color: #800000;
+}
+
+a:active
+{
+  color: #800000;
+}
+
+/* Fixed Text */
+
+pre
+{
+  background-color: #ffffff;
+}
+
+div>pre
+{
+}
+
+pre.vhdl
+{
+  background-color: #ffeeee;
+}
+
+pre.cpp
+{
+  background-color: #eeffee;
+}
+
+pre.terminal
+{
+  background-color: #ffffff;
+}
+
+pre.script
+{
+  background-color: #eeeeff;
+}
+
+pre.syntax
+{
+  background-color: #eeeeee;
+}
+
+pre.node
+{
+  background-color: #cccccc;
+}
+
+/* Images */
+
+p.figure
+{ 
+  background-color: #ffffff;
+}
+
+/* Lists */
+
+dt
+{
+  color: #008000;
+}
+
+/* Tables */
+
+table
+{ 
+}
+
+caption
+{
+}
+
+th
+{
+  background-color: #eeffee;
+}
+
+td
+{
+}
+

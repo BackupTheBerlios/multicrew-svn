@@ -1,0 +1,63 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>exceptions.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>exceptions.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">EXCEPTIONS_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">EXCEPTIONS_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author: Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  The set of general exceptions thrown by STLplus components</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;stdexcept&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Thrown if a pointer or an iterator is dereferenced when it is null</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">null_dereference</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">logic_error</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">null_dereference</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">description</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">null_dereference</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Thrown if an iterator is dereferenced when it is pointing to the end element</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">end_dereference</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">logic_error</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">end_dereference</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">description</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">end_dereference</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Thrown if an iterator is used with the wrong container. In other words, an</span>
+<span style="color: #000099">// iterator is created as a pointer to a sub-object within a container. If</span>
+<span style="color: #000099">// that iterator is then used with a different container, this exception is</span>
+<span style="color: #000099">// thrown.</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">wrong_object</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">logic_error</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">wrong_object</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">description</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">wrong_object</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

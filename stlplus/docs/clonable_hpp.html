@@ -1,0 +1,44 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>clonable.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>clonable.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">CLONABLE_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">CLONABLE_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  This abstract class defines the clonable interface</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  The clonable interface is used by smart_ptr_clone and by the persistence</span>
+<span style="color: #000099">  functions for polymorphic types. </span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  If you make any class a subclass of clonable, then you must provide a</span>
+<span style="color: #000099">  clone() method with the type profile specified here. This method must copy</span>
+<span style="color: #000099">  the object (i.e. *this), returning a new-allocated object with the same</span>
+<span style="color: #000099">  contents.</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  If you provide this interface, all systems requiring a clonable object will</span>
+<span style="color: #000099">  work correctly.</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">clonable</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #990000">virtual</span> <span style="color: #000000">clonable</span><span style="color: #330033">*</span> <span style="color: #000000">clone</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

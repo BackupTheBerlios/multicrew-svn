@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>os_fixes.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>os_fixes.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">OS_FIXES_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">OS_FIXES_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Contains work arounds for OS or Compiler specific problems to try to make</span>
+<span style="color: #000099">  them look more alike</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  It is strongly recommended that this header be included as the first</span>
+<span style="color: #000099">  #include in every source file</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Problems with unnecessary or unfixable compiler warnings</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span><span style="color: #330033">)</span>
+<span style="color: #000099">// Microsoft Visual Studio</span>
+<span style="color: #000099">// shut up the following irritating warnings</span>
+<span style="color: #000099">//   4275 - VC6, exported class was derived from a class that was not exported</span>
+<span style="color: #000099">//   4786 - VC6, identifier string exceeded maximum allowable length and was truncated (only affects debugger)</span>
+<span style="color: #000099">//   4305 - VC6, identifier type was converted to a smaller type</span>
+<span style="color: #000099">//   4503 - VC6, decorated name was longer than the maximum the compiler allows (only affects debugger)</span>
+<span style="color: #000099">//   4309 - VC6, type conversion operation caused a constant to exceeded the space allocated for it</span>
+<span style="color: #000099">//   4290 - VC6, C++ exception specification ignored</span>
+<span style="color: #000099">//   4800 - VC6, forcing value to bool 'true' or 'false' (performance warning)</span>
+<span style="color: #000099">//   4675 - VC7.1, "change" in function overload resolution _might_ have altered program</span>
+<span style="color: #990000">#pragma</span> <span style="color: #000000">warning</span><span style="color: #330033">(</span><span style="color: #000000">disable</span><span style="color: #330033">:</span> <span style="color: #993399">4275</span> <span style="color: #993399">4786</span> <span style="color: #993399">4305</span> <span style="color: #993399">4503</span> <span style="color: #993399">4309</span> <span style="color: #993399">4290</span> <span style="color: #993399">4800</span> <span style="color: #993399">4675</span><span style="color: #330033">)</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">__BORLANDC__</span><span style="color: #330033">)</span>
+<span style="color: #000099">// Borland</span>
+<span style="color: #000099">// Shut up the following irritating warnings</span>
+<span style="color: #000099">//   8022 - A virtual function in a base class is usually overridden by a</span>
+<span style="color: #000099">//          declaration in a derived class.</span>
+<span style="color: #000099">//          In this case, a declaration with the same name but different</span>
+<span style="color: #000099">//          argument types makes the virtual functions inaccessible to further</span>
+<span style="color: #000099">//          derived classes</span>
+<span style="color: #000099">//   8008 - Condition is always true.</span>
+<span style="color: #000099">//          Whenever the compiler encounters a constant comparison that (due to</span>
+<span style="color: #000099">//          the nature of the value being compared) is always true or false, it</span>
+<span style="color: #000099">//          issues this warning and evaluates the condition at compile time.</span>
+<span style="color: #000099">//   8060 - Possibly incorrect assignment.</span>
+<span style="color: #000099">//          This warning is generated when the compiler encounters an assignment</span>
+<span style="color: #000099">//          operator as the main operator of a conditional expression (part of</span>
+<span style="color: #000099">//          an if, while, or do-while statement). This is usually a</span>
+<span style="color: #000099">//          typographical error for the equality operator.</span>
+<span style="color: #000099">//   8066 - Unreachable code.</span>
+<span style="color: #000099">//          A break, continue, goto, or return statement was not followed by a</span>
+<span style="color: #000099">//          label or the end of a loop or function. The compiler checks while,</span>
+<span style="color: #000099">//          do, and for loops with a constant test condition, and attempts to</span>
+<span style="color: #000099">//          recognize loops that can't fall through.</span>
+<span style="color: #990000">#pragma</span> <span style="color: #000000">warn</span> <span style="color: #330033">-</span><span style="color: #993399">8022</span>
+<span style="color: #990000">#pragma</span> <span style="color: #000000">warn</span> <span style="color: #330033">-</span><span style="color: #993399">8008</span>
+<span style="color: #990000">#pragma</span> <span style="color: #000000">warn</span> <span style="color: #330033">-</span><span style="color: #993399">8060</span>
+<span style="color: #990000">#pragma</span> <span style="color: #000000">warn</span> <span style="color: #330033">-</span><span style="color: #993399">8066</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Problems with redefinition of min/max in various different versions of library headers</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #000099">// The Windoze headers define macros called max/min which conflict with the templates std::max and std::min.</span>
+<span style="color: #000099">// So, to avoid conflicts, MS removed the std::max/min rather than fixing the problem!</span>
+<span style="color: #000099">// From Visual Studio .NET (SV7, compiler version 13.00) the STL templates have been added correctly.</span>
+<span style="color: #000099">// This fix switches off the macros and reinstates the STL templates for earlier versions (SV6).</span>
+<span style="color: #000099">// Note that this could break MFC applications that rely on the macros (try it and see).</span>
+
+<span style="color: #000099">// For MFC compatibility, only undef min and max in non-MFC programs - some bits of MFC</span>
+<span style="color: #000099">// use macro min/max in headers. For VC7 both the macros and template functions exist</span>
+<span style="color: #000099">// so there is no real need for the undefs but to it anyway for consistency. So, if</span>
+<span style="color: #000099">// using VC6 and MFC then template functions will not exist</span>
+
+<span style="color: #000099">// I've created extra template function definitions minimum/maximum that avoid all the problems above</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span><span style="color: #330033">)</span> <span style="color: #330033">&amp;&amp;</span> <span style="color: #330033">!</span><span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MFC_VER</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">NOMINMAX</span>
+<span style="color: #990000">#undef</span> <span style="color: #000000">max</span>
+<span style="color: #990000">#undef</span> <span style="color: #000000">min</span>
+<span style="color: #000099">// replace missing template definitions in VC6</span>
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span><span style="color: #330033">)</span> <span style="color: #330033">&amp;&amp;</span> <span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span> <span style="color: #330033">&lt;</span> <span style="color: #993399">1300</span><span style="color: #330033">)</span>
+<span style="color: #990000">namespace</span> <span style="color: #000000">std</span>
+<span style="color: #330033">{</span>
+  <span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">max</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">l</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span> <span style="color: #330033">{</span><span style="color: #990000">return</span> <span style="color: #000000">l</span> <span style="color: #330033">&gt;</span> <span style="color: #000000">r</span> <span style="color: #330033">?</span> <span style="color: #000000">l</span> <span style="color: #330033">:</span> <span style="color: #000000">r</span><span style="color: #330033">;</span><span style="color: #330033">}</span>
+  <span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">min</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">l</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span> <span style="color: #330033">{</span><span style="color: #990000">return</span> <span style="color: #000000">l</span> <span style="color: #330033">&lt;</span> <span style="color: #000000">r</span> <span style="color: #330033">?</span> <span style="color: #000000">l</span> <span style="color: #330033">:</span> <span style="color: #000000">r</span><span style="color: #330033">;</span><span style="color: #330033">}</span>
+<span style="color: #330033">}</span>
+<span style="color: #990000">#endif</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">maximum</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">l</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span> <span style="color: #330033">{</span><span style="color: #990000">return</span> <span style="color: #000000">l</span> <span style="color: #330033">&gt;</span> <span style="color: #000000">r</span> <span style="color: #330033">?</span> <span style="color: #000000">l</span> <span style="color: #330033">:</span> <span style="color: #000000">r</span><span style="color: #330033">;</span><span style="color: #330033">}</span>
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">minimum</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">l</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span> <span style="color: #330033">{</span><span style="color: #990000">return</span> <span style="color: #000000">l</span> <span style="color: #330033">&lt;</span> <span style="color: #000000">r</span> <span style="color: #330033">?</span> <span style="color: #000000">l</span> <span style="color: #330033">:</span> <span style="color: #000000">r</span><span style="color: #330033">;</span><span style="color: #330033">}</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Problem with missing __FUNCTION__ macro</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// this macro is used in debugging but was missing in Visual Studio prior to version 7</span>
+<span style="color: #000099">// it also has a different name in Borland</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span><span style="color: #330033">)</span> <span style="color: #330033">&amp;&amp;</span> <span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span> <span style="color: #330033">&lt;</span> <span style="color: #993399">1300</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">__FUNCTION__</span> <span style="color: #993399">0</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">__BORLANDC__</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">__FUNCTION__</span> <span style="color: #000000">__FUNC__</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Problems with differences between namespaces</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #000099">// problem in gcc pre-v3 where the sub-namespaces in std aren't present</span>
+<span style="color: #000099">// this mean that the statement "using namespace std::rel_ops" created an error because the namespace didn't exist</span>
+
+<span style="color: #000099">// I've done a fix here that creates an empty namespace for this case, but I</span>
+<span style="color: #000099">// do *not* try to move the contents of std::rel_ops into namespace std</span>
+<span style="color: #000099">// This fix only works if you use "using namespace std::rel_ops" to bring in the template relational operators (e.g. != defined i.t.o. ==)</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">__GNUC__</span><span style="color: #330033">)</span>
+<span style="color: #990000">namespace</span> <span style="color: #000000">std</span>
+<span style="color: #330033">{</span>
+  <span style="color: #990000">namespace</span> <span style="color: #000000">rel_ops</span>
+  <span style="color: #330033">{</span>
+  <span style="color: #330033">}</span>
+<span style="color: #330033">}</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Problems with the typename keyword</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #000099">// GCC pre-version 3 didn't handle typename in typedefs properly, so I needed to implement a work-around</span>
+<span style="color: #000099">//     after version 3, typename is required for a typedef in a template function under circumstances that aren't yet clear</span>
+<span style="color: #000099">//     these cases are handled by the definition of the TYPEDEF_TYPENAME macro</span>
+<span style="color: #000099">// Visual Studio version 7.1 requires a typename in a parameter specification in similarly obscure situations</span>
+<span style="color: #000099">//     this appears to be specific to VC7.1 (.NET 2003) and after and is not compatible with any gcc version</span>
+<span style="color: #000099">//     this case is handled by the definition of the PARAMETER_TYPENAME macro</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">__GNUC__</span><span style="color: #330033">)</span> <span style="color: #330033">&amp;&amp;</span> <span style="color: #330033">(</span><span style="color: #000000">__GNUC__</span> <span style="color: #330033">&gt;</span><span style="color: #330033">=</span> <span style="color: #993399">3</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">TYPEDEF_TYPENAME</span> <span style="color: #990000">typename</span>
+<span style="color: #990000">#else</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">TYPEDEF_TYPENAME</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span><span style="color: #330033">)</span> <span style="color: #330033">&amp;&amp;</span> <span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span> <span style="color: #330033">&gt;</span><span style="color: #330033">=</span> <span style="color: #993399">1300</span><span style="color: #330033">)</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PARAMETER_TYPENAME</span> <span style="color: #990000">typename</span>
+<span style="color: #990000">#else</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PARAMETER_TYPENAME</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// problems with missing functions</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_MSC_VER</span><span style="color: #330033">)</span> <span style="color: #330033">||</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">__BORLANDC__</span><span style="color: #330033">)</span>
+<span style="color: #990000">unsigned</span> <span style="color: #000000">sleep</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">seconds</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #990000">#else</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;unistd.h&gt;</span>
+<span style="color: #990000">#endif</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Function for establishing endian-ness</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Different machine architectures store data using different byte orders.</span>
+<span style="color: #000099">// This is referred to as Big- and Little-Endian Byte Ordering. </span>
+<span style="color: #000099">//</span>
+<span style="color: #000099">// The issue is: where does a pointer to an integer type actually point?</span>
+<span style="color: #000099">//</span>
+<span style="color: #000099">// In both conventions, the address points to the left of the word but:</span>
+<span style="color: #000099">// Big-Endian - The most significant byte is on the left end of a word</span>
+<span style="color: #000099">// Little-Endian - The least significant byte is on the left end of a word</span>
+<span style="color: #000099">//</span>
+<span style="color: #000099">// Bytes are addressed left to right, so in big-endian order byte 0 is the</span>
+<span style="color: #000099">// msB, whereas in little-endian order byte 0 is the lsB. For example,</span>
+<span style="color: #000099">// Intel-based machines store data in little-endian byte order so byte 0 is</span>
+<span style="color: #000099">// the lsB.</span>
+<span style="color: #000099">//</span>
+<span style="color: #000099">// This function establishes byte order at run-time</span>
+
+<span style="color: #990000">bool</span> <span style="color: #000000">little_endian</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,1756 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - textio.hpp - A Text I/O Subsystem</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>textio - A Text I/O Subsystem</h1>
+</div>
+
+<div id="documentNavigation">
+
+<ul>
+<li><a href="textio_hpp.html">Browse Header textio.hpp</a></li>
+
+<li><a href="#introduction">Introduction</a>
+<ul>
+<li><a href="#why">Why TextIO was written</a></li>
+<li><a href="#hierarchy">The Device Hierarchy</a></li>
+<li><a href="#usage">Usage</a></li>
+</ul>
+</li>
+
+<li><a href="#otext">Output Devices - Class otext</a>
+<ul>
+<li><a href="#otext_management">Device Management</a></li>
+<li><a href="#otext_errors">Error Handling</a></li>
+<li><a href="#otext_newline">Newline Conversion</a></li>
+<li><a href="#otext_open">Open Mode</a></li>
+<li><a href="#otext_format_integer">Integer Format Control</a></li>
+<li><a href="#otext_format_float">Floating-Point Format Control</a></li>
+<li><a href="#otext_position">Positional Information</a></li>
+<li><a href="#otext_chevron">Output Chevron (&lt;&lt;) Operators</a></li>
+<li><a href="#otext_manip">Output Manipulators</a></li>
+</ul>
+</li>
+
+<li><a href="#itext">Input Devices - Class itext</a>
+<ul>
+<li><a href="#itext_devices">Device Management</a></li>
+<li><a href="#itext_errors">Error Handling</a></li>
+<li><a href="#itext_state">State Tests</a></li>
+<li><a href="#itext_raw">Raw Input Functions</a></li>
+<li><a href="#itext_newline">Newline Conversion</a></li>
+<li><a href="#itext_position">Positional Information</a></li>
+<li><a href="#itext_chevron">Input Chevron (&gt;&gt;) Operators</a></li>
+<li><a href="#itext_manip">Input Manipulators</a></li>
+</ul>
+</li>
+
+<li><a href="#chevrons">Overloading Chevron Operators</a></li>
+
+<li><a href="#customisation">Device Customisation</a>
+<ul>
+<li><a href="#custom_obuff">Output Buffer</a></li>
+<li><a href="#custom_otext">Output Device</a></li>
+<li><a href="#custom_ibuff">Input Buffer</a></li>
+<li><a href="#custom_itext">Input Device</a></li>
+</ul>
+</li>
+
+</ul>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<a name="why"><h3>Why TextIO was written</h3></a>
+
+<p>TextIO is a complete subsystem for managing Text-based I/O within C++. It is
+a complete replacement for &lt;iostream&gt;. It breaks the cardinal rule of
+programming:</p>
+
+<blockquote>
+"Do Not Re-invent The Wheel"<br>
+<cite>Og Ug III, C Programming for Neanderthals, Big Rock Publ, 20625BC</cite>
+</blockquote>
+
+<p>This is only true if the wheel you have is actually round in the first
+place. Sadly, Iostream is a bit of a square wheel.</p>
+
+<p>In the early days of Iostream, bugs were a big problem. This is not so much
+of a problem now, since many bugs have been ironed out. However, although this
+is improving, I see the initial bugginess of iostream as a direct consequence
+of the "complicated is beautiful" attitude that went into the "design" of
+iostream. This is a fundamentally flawed approach.</p>
+
+<p>The whole point of using a base class and derived class hierarchy is to
+allow a class to be extended to new problem domains. For example, if you want
+to pipe text output into a message window, all you need do is create a new
+derivation (say, called windowio) and then just use device operators exactly
+as for files. This is the principle, and the supplied version of iostream was
+indeed defined as a generic I/O module with customisations for files and for
+strings. However, because of the "complicated is beautiful" attitude referred
+to above, it is nearly impossible to create your own customisation. I have
+tried a couple of times and spend a lot of time trying, but haven't yet found
+out how to do it. Nor have I ever seen anyone else do it.</p>
+
+<p>In particular, iostream starts with a complicated concept of a bi-directional
+I/O stream and then derives the simpler input and output streams from that. The
+result is that, to customise iostream, you need to invent the complicated
+bi-directional device even if you are never going to use it.  The result is that
+no-one ever does customise iostream and we end up with software full of hacks.</p>
+
+<p>Finally, there have always been problems with the iostream customisation
+for files, because it does not co-exist sensibly with &lt;stdio.h&gt;. This is
+because the "designers" of iostream reinvented file I/O and did so in a way
+that was incompatible with stdio.</p>
+
+<p>This is all a shame, because iostream was a very good idea. Unfortunately
+the good idea was spoilt by a bad implementation. I suspect a committee was
+involved. Committee-designed software is never any good.</p>
+
+<p>Now that I have had a good whinge to explain the motivation for TextIO, lets
+get on with looking at it.</p>
+
+<p>TextIO is based on the good parts of iostream whilst discarding the bad
+parts. In other words, it is based on the concepts of iostream, but does not
+share any of the implementation.</p>
+
+<p>Basically that means it works on text input and output devices and uses
+overloaded "chevron" operators to "pipe" text into or out of those devices. The
+left chevron operator (&lt;&lt;) is used for text output whilst the right chevron
+operator (&gt;&gt;) is used for text input.</p>
+
+<p>For example:</p>
+
+<pre class="cpp">fout &lt;&lt; "The total is: " &lt;&lt; total &lt;&lt; endl;</pre>
+
+<p>TextIO expressions are easy to read and indeed easy to program.</p>
+
+<p>TextIO overcomes all the problems in my whinge above.</p>
+
+<p>It is written in-house, so any bugs can be easily fixed. It is inherently
+very simple, since it is based on a "simple is beautiful" approach. This
+minimises the chance of bugs in the first place. It also minimises the effort
+taken to fix any bugs that do arise. It is based on standard C++, using none of
+the newer features and it uses only the standard C library functions defined in
+the ANSI standard and so should be very portable.</p>
+
+<p>Customisation is made simple by using a "simple is beautiful" approach and in
+particular, starting from simple concept and building into more complicated ones
+rather than vice versa. This means that no unnecessary preparation work is
+required for customisation - for example no bi-directional I/O device need to be
+defined. I have yet to need such a thing.</p>
+
+<p>Finally, File based text I/O is based directly on &lt;stdio.h&gt; and
+therefore is entirely compatible with it. </p>
+
+<a name="hierarchy"><h3>The Device Hierarchy</h3></a>
+
+<p>The TextIO base classes are defined in textio.hpp. This defines the interface
+to TextIO input and output devices - there are two base classes defined, one
+called itext which defines an input text device and another called otext for an
+output text device. These classes are generally not used directly, although they
+can be, but their main function is that they define the common interface
+provided by all derivations of them.
+
+<p>A TextIO device contains a buffer and it is this buffer the does all the
+work. Different types of buffer can be attached to a device to route text to and
+from different physical locations. For example, an obvious buffer type is the
+file buffer, which allows text to be routed to and from files. If it is desired
+to route text to and from a pipe, then this could be done by writing a new
+buffer type for pipes.</p>
+
+<p>To simplify the interface, these customisations of the buffers and the code
+required to attach the different buffer types is encapsulated into a derivative
+device. Thus, the code required to manage file buffers is encapsulated in a file
+input device and a file output device.</p>
+
+<p>There are a number of derivations already, and more can be added with ease.
+The current set of derivations are:</p>
+
+<dl>
+
+<dt><a href="fileio.html">fileio.h</a></dt>
+
+<dd>
+<p>This is a customisation of TextIO for files and is based on the stdio type
+FILE*. In particular, it uses the built-in buffering system defined in stdio so
+that file operations stay synchronised even when mixing stdio and
+fileio. Standard file objects are also defined here so that TextIO can be used
+with standard input, standard output and standard error.</p>
+</dd>
+
+<dt><a href="stringio.html">stringio.h</a></dt>
+<dd>
+<p>This is a customisation for the STL string, so that for example, formatted
+output can be directed to an in-memory string rather than a file. Conversely,
+text input can be taken from a string. An example of the use of this is a
+scripting system which can take input from either a file (using fileio) or an
+interactive command (using stringio).</p>
+</dd>
+
+<dt><a href="string_vectorio.html">string_vectorio.h</a></dt>
+<dd>
+<p>This is a customisation which uses a vector of strings, where each string in
+the vector represents a line of text. Apart from that, it is similar to stringio.</p>
+</dd>
+
+<dt><a href="iostreamio.html">iostreamio.h</a></dt>
+<dd>
+<p>This is a customisation which allows co-existence of iostream and TextIO.
+It provides TextIO input and output devices which use iostream input and
+output devices to perform the low-lever I/O.</p>
+</dd>
+
+<dt><a href="multiio.html">multiio.h</a></dt>
+<dd>
+<p>This is a customisation which allows output to be routed to any
+number of TextIO output devices simultaneously. It also has an imput form
+which effectively concatenates the inputs from any number of input devices.</p>
+</dd>
+
+</dl>
+
+<p>The class hierarchy is:</p>
+
+<ul>
+<li>itext (textio.hpp)</li>
+<ul>
+<li>iftext (fileio.hpp)</li>
+<li>istext (stringio.hpp)</li>
+<li>isvtext (string_vectorio.hpp)</li>
+<li>iiotext (iostreamio.hpp)</li>
+<li>imtext (multiio.hpp)</li>
+</ul>
+<li>otext (textio.hpp)</li>
+<ul>
+<li>oftext (fileio.hpp)</li>
+<li>ostext (stringio.hpp)</li>
+<li>osvtext (string_vectorio.hpp)</li>
+<li>oiotext (iostreamio.hpp)</li>
+<li>omtext (multiio.hpp)</li>
+</ul>
+</ul>
+
+<p>To give some idea of how easy TextIO is to customise, FileIO - probably the
+most complicated of all the derivatives - required only
+about 400 lines of C++ (a lot of which are the type definitions in the
+header!). That is how easy it is to customise TextIO, and you are strongly
+recommended to create new customisations. That is, write text handling
+functions so that they operate on text input (itext) or output (otext)
+devices, then route that text to any target data structure or object or
+whatever your imagination will stretch to, simply by deriving a new
+customisation of TextIO to provide input and output devices of that target
+type. See the section on Customisation for guidelines on how to perform this
+customisation.</p>
+
+<a name="usage"><h3>Usage</h3></a>
+
+<p>Both itext and otext are implemented using smart pointer classes (see
+<a href="smart_ptr.html">smart_ptr.hpp</a>) to a buffer class. The devices contain no data at all - the whole
+system is defined by the buffer class and the device classes just provide a
+clean and abstract interface.</p>
+
+<p>The implementation using a smart pointer means that devices can be assigned
+and that such assignments create aliases. For example, you can create an output
+file device and assign it to another output file device. Both devices will then
+be aliases of the same file and can be used interchangeably. Synchronisation of
+the two objects is absolutely guaranteed since the two device objects actually
+point to the same buffer object. Furthermore, text devices can be
+passed by value or returned by value from a function and these operations simply
+create aliases of the underlying file object. There is no copy overhead in the
+parameter passing. Even more useful is that using
+smart pointers allows a textio device to be created in a function and then
+returned by value. Believe it or not, this is impossible in iostream!</p>
+
+<p>The final benefit of using smart pointers is that, when the last alias to a
+buffer is destroyed, the buffer is destroyed too, closing the device
+automatically. Thus it is not necessary to explicitly close a TextIO device,
+although you can if you wish.</p>
+
+<p>When writing I/O routines for data types, they should be written for the
+baseclasses - so an input (read) routine should be written in terms of the
+baseclass itext. For example, the read function might look like this:</p>
+
+<pre class="cpp">
+bool read(itext&amp; device, ...)
+</pre>
+
+<p>Note that the device is passed as a reference of the baseclass. In C++, a
+reference to a baseclass has similar properties to a pointer to a baseclass in
+that any derivative of the baseclass can be passed. This is not true of
+pass-by-value. Thus the reference modifier (&amp;) must be present. Then, in
+use, any derivative can be used as the source of the text for the read function.
+Here's a code fragment for calling this read function with a file device. It
+uses the FileIO derivative of TextIO:</p>
+
+<pre class="cpp">
+  iftext source("my_data_file.ext");
+  if (!read(source, ...))
+    ...
+</pre>
+
+<p>Note how the FileIO derivative iftext of itext is created and initialised
+with the name of the file to open. The derived class is then passed to the read
+function within which it is treated as the baseclass.</p>
+
+<p>The reason for writing all I/O functions using the baseclass itext or otext
+is that it means the I/O functions will work on any derivative of these devices,
+even derivatives nor written yet. All derivatives inherit the behaviour of the
+baseclasses and therefore are compatible with them. If I had written the read
+function to take the file input device iftext, then I would have locked my code
+into only doing file I/O and nothing else. Just because I intend to read from a
+file now doesn't mean that I will never want to read from a different kind of
+device. For example, evenb a compiler which appears to be an obvious candidate
+for file input could be reconfigured to read from a pipe and therefore directly
+compile automatically generated source code without ever saving it to a file.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="otext">Output Devices - Class otext</h2>
+
+<p>Class otext is a text-output device. It defines the common interface to all
+the derivations. In particular, it defines all the output chevron (&lt;&lt;)
+operators for the basic types, which can then be further overloaded for
+user-defined types. However, all the chevron operators are based on the
+low-level routines, so these will be described first to give an overview of the
+basic functionality of a text-output device.</p>
+
+<a name="otext_management"><h3>Device Management</h3></a>
+
+<p>The basic constructors, destructors and associated member functions are:</p>
+
+<pre class="cpp">otext (void);</pre>
+
+<p>This is the basic constructor which creates an uninitialised text-output
+device. This is a useful concept - a device can be created, then opened and
+closed one or more times with different actual devices, which could indeed be
+any mixture of classes of device, including file devices, string devices and
+any other devices that are available. </p>
+
+<pre class="cpp">otext (obuff*);</pre>
+
+<p>This is a composite constructor that creates a text-output device and then
+opens it - see the open operator below. Its main use is as a basis for creating
+constructors for derived classes - see Customisation.</p>
+
+<pre class="cpp">~otext (void);</pre>
+
+<p>The destructor dealiases the device and destroys the underlying buffer if
+this is the last alias. Before deletion, the destructor implicitly calls close()
+if the device is already initialised. </p>
+
+<pre class="cpp">bool initialised (void) const;</pre>
+
+<p>This function tests whether the device has been initialised by either the
+composite constructor or the open function. An uninitialised output device will
+act like /dev/null by discarding text output. </p>
+
+<pre class="cpp">void open (obuff*);</pre>
+
+<p>This function opens a file-output device by associating an output buffer with
+it. The output buffer should be dynamically allocated since the destructor will
+delete it when the last alias is destroyed. This function is rarely used
+directly - usually the derived customisations provide neater constructors that
+create the output buffer automatically. For example, the FileIO constructor
+takes a filename as its argument. However, it can be useful if it is desired to
+switch output from one kind of buffer to another kind. For example, some output
+can be piped to a string output buffer whilst other output could be piped to a
+file output buffer. In this case, the base class otext should be used and the
+buffers created manually. Note that the open() function implicitly calls close()
+if the device is already initialised to close any previous device association.</p>
+
+<pre class="cpp">void close (void);</pre>
+
+<p>This simply closes the underlying output buffer and deletes it. This leaves
+the text-output device uninitialised. The device can be re-initialised by
+open(). Since both open() and the destructor call close(), this function is
+rarely used directly. </p>
+
+<pre class="cpp">void flush (void) const;</pre>
+
+<p>Flushes any internal buffering associated with a device. If a device is
+unbuffered, then it has no effect. Generally this is used to synchronise two
+otherwise unrelated devices, such as standard output and standard input. It is
+rarely necessary to use it for any other purpose since the built-in management
+of output buffers automatically flushes a full buffer and flushes a buffer prior
+to a device being closed. </p>
+
+<pre class="cpp">otext (const otext&amp;);</pre>
+
+<p>The copy constructor, used to initialise an output-text device from another
+device, to pass by value to a function and to return by value from a
+function. Implemented using a smart pointer so is very efficient and guarantees
+synchronisation of devices aliased in this way. </p>
+
+<p>Tip: you can initialise an otext device with one of the standard output
+devices and thus make it an alias of the standard device.</p>
+
+<pre class="cpp">otext&amp; operator = (const otext&amp;);</pre>
+
+<p>The assignment operator - implements aliasing in exactly the same way as the
+copy constructor above so that it is possible to assign one device to another
+and make them aliases. Implicitly calls the destructor for the old value of the
+device which is the target of the assignment. </p>
+
+<a name="otext_errors"><h3>Error Handling</h3></a>
+
+<pre class="cpp">
+bool error (void) const;
+int error_number (void) const;
+std::string error_string(void) const;
+</pre>
+
+<p>If an error occurs during text output, for example a file write fails due to
+a disk being full, then an internal error flag is set. In addition, an error
+number is stored so that the error can be diagnosed. For example, the FileIO
+derivative calls the stdio ferror() function to get the error code and stores
+it. The error code can be retrieved by the error_number() function and a
+textual representation of the error can be retrieved using the error_string() function. The error()
+function returns the state of the flag. When the error flag is set, the device  
+becomes a null device - in other words it discards text. </p>
+
+<pre class="cpp">void set_error(int error_number);</pre>
+
+<p>Allows the error flag to be set. You usually use this when writing
+customisations and never when using the devices in a program.</p>
+
+<pre class="cpp">void clear_error(void);</pre>
+
+<p>Clears the error flag and thus re-enables the device for output.</p>
+
+<pre class="cpp">operator bool (void) const;</pre>
+
+<p>The bool type conversion operator allows the state of the device to be tested
+in an if(device) test. It returns true if it is possible to write to the
+device. Another way of looking at this is that this operator returns false if an
+error has been raised or the device is not initialised.</p>
+
+<pre class="cpp">bool operator ! (void) const;</pre>
+
+<p>The ! operator tests the state of the device to give exactly the opposite
+result as the above bool type conversion. It is meant for use in an if(!device)
+test. Another way of looking at it is this operator returns true if it is not
+possible to write to the device. </p>
+
+<a name="otext_newline"><h3>Newline Conversion</h3></a>
+
+<pre class="cpp">
+void set_newline_mode(newline_t newline = native);
+newline_t newline_mode(void) const;
+</pre>
+
+<p>This allows the newline handling of the output device to be controlled. The
+idea is that, in your code, you <b>always</b> use '\n' to represent
+end-of-line. The device then converts that into the required character
+sequence. There are five possible values for the newline mode:</p>
+
+<dl>
+
+<dt>textio_output_binary <i>or</i> otext::binary_mode</dt>
+<dd>No end-of-line conversion, for when you do want absolute control of the
+output format.</dd>
+
+<dt>textio_output_unix <i>or</i> otext::unix_mode</dt>
+<dd>Unix conversion - represents the end-of-line as a single newline character (LF).</dd>
+
+<dt>textio_output_msdos <i>or</i> otext::msdos_mode</dt>
+<dd>MS-Dos conversion - represents the end-of-line as a return/newline pair (CR-LF).</dd>
+
+<dt>textio_output_macos <i>or</i> otext::macos_mode</dt>
+<dd>MacOS conversion - represents the end-of-line as a return (CR).</dd>
+
+<dt>textio_output_native <i>or</i> otext::native_mode (default)</dt>
+<dd>Native conversion - uses the conventions for the current platform.</dd>
+
+</dl>
+
+<p>There are also some shortcut functions to achieve the same affect:</p>
+
+<pre class="cpp">
+void set_unix_mode(void);
+void set_msdos_mode(void);
+void set_macos_mode(void);
+void set_binary_mode(void);
+</pre>
+
+<a name="otext_open"><h3>Open Mode</h3></a>
+
+<p>Some kinds of device have the option of opening in either overwrite or
+append mode. For example, FileIO has this concept. With these devices, the
+open mode is set by an enumeration value passed as a parameter to the open
+function or the constructor. There are only two values:</p>
+
+<dl>
+
+<dt>textio_output_overwrite <i>or</i> otext::overwrite (default)</dt>
+<dd>Open the device in overwrite mode. For example, in FileIO this would
+delete the existing file contents and start writing the file from the
+beginning.</dd>
+
+<dt>textio_output_append <i>or</i> otext::append </dt>
+<dd>Open the deviuce in append mode. For example, in FileIO this would open an
+existing file at the end of the existing contents and continue writing from
+there. If the file doesn't exist, it will be created and the write will start
+at the beginning.</dd>
+
+</dl>
+
+<a name="otext_format_integer"><h3>Integer Format Control</h3></a>
+
+<p>These functions are used to control the display format for built-in integer
+types.</p>
+
+<pre class="cpp">
+void set_integer_width(unsigned width = 0);
+unsigned integer_width(void) const;
+</pre>
+
+<p>The integer width specifies the number of digits to print for an integer. The default is 0,
+which means that integers are printed in a field just wide enough to represent
+the value.</p>
+
+<pre class="cpp">
+void set_integer_radix(unsigned radix = 10);
+unsigned integer_radix(void) const;
+</pre>
+
+<p>Sets the radix (base) for integer printout. The default is radix 10, but any
+value in the range 2-36 is possible. Radices greater than 10 use characters to
+represent digits, as you expect for radix 16. However, radices up to 36 are
+possible, using the character set [0-9a-z].</p>
+
+<pre class="cpp">
+void set_integer_display(radix_t radix_display = c_style_or_hash);
+radix_t integer_display(void) const;
+</pre>
+
+<p>This allows the way the radix is presented to be set. There are five possible
+values for the radix display:</p>
+
+<dl>
+
+<dt>radix_none <i>or</i> otext::none</dt>
+<dd>just print the number with no radix indicated</dd>
+
+<dt>radix_hash_style <i>or</i> otext::hash_style</dt>
+<dd>none for decimal, hash style for all others</dd>
+
+<dt>radix_hash_style_all <i>or</i> otext::hash_style_all</dt>
+<dd>hash style for all radices including decimal<dd>
+
+<dt>radix_c_style <i>or</i> otext::c_style</dt>
+<dd>C style for hex and octal, none for others</dd>
+
+<dt>radix_c_style_or_hash <i>or</i> otext::c_style_or_hash (default)</dt>
+<dd>C style for hex and octal, none for decimal, hash style for others</dd>
+
+</dl>
+
+<p>Hash style formatting is 'base#value', for example 16#ff is the radix 16
+value ff (= 255 decimal). C-style formatting is 0ddd for octal and 0xddd for
+hex.</p>
+
+<p>All this is better explained in the documentation for the to_string
+functions defined in <a href="string_utilities.html">string_utilities.hpp</a>.</p>
+
+<a name="otext_format_float"><h3>Floating-Point Format Control</h3></a>
+
+<p>These functions are used to control the display format for built-in
+floating-point types.</p>
+
+<pre class="cpp">
+void set_float_width(unsigned width = 0);
+unsigned float_width(void) const;
+</pre>
+
+<p>This is used to set the field width for the floating point number. If the
+formatted number is smaller than this, it will be padded to this width. The
+padding will be added to the left or right of the number dependeing on the
+floating-point alignment setting described above.</p>
+
+<pre class="cpp">
+void set_float_precision(unsigned width = 6);
+unsigned float_precision(void) const;
+</pre>
+
+<p>Sets the number of decimal places that will be displayed. The default value
+of 6 is the same as the default for the printf family of functions.</p>
+
+<pre class="cpp">
+void set_float_display(display_t display = mixed);
+display_t float_display(void) const;
+</pre>
+
+<p>Sets the style of printout for the floating point number. There are three
+possible enumeration values for the display format:</p>
+
+<dl>
+
+<dt>display_fixed <i>or</i> otext::fixed</dt>
+<dd>Displays the floating point number using a fixed-point representation.
+Equivalent to the printf format code "%f".</dd>
+
+<dt>display_floating <i>or</i> otext::floating</dt>
+<dd>Displays the number using floating point representation regardless of the
+value of the number. Equivalent to the printf format "%e".</dd>
+
+<dt>display_mixed <i>or</i> otext::mixed (default)</dt>
+<dd>Uses fixed point representation for small exponents but switches to
+floating point representation for large (positive or negative) exponents.
+Equivalent to the printf format "%g".</dd>
+
+</dl>
+
+<a name="otext_position"><h3>Positional Information</h3></a>
+
+<p>The following functions provide information regarding the number of bytes
+written to the device after newline conversion. So, for example, in msdos mode,
+'\n' will result in two bytes being written. They also provide line and column
+information which is maintained by counting the number of newline sequences
+that have been written.</p>
+
+<pre class="cpp">
+unsigned long bytes(void) const;
+unsigned line(void) const;
+unsigned column(void) const;
+</pre>
+
+<p>The line and column counts recognise the number of times the '\n' character
+is converted into the operating system specific sequence. In binary mode, the
+number of '\n' characters is still counted but not converted. Chances are the
+line and column counts are meaningless in binary mode, but the byte count will
+be useful.</p>
+
+<a name="otext_chevron"><h3>Output Chevron (&lt;&lt;) Operators</h3></a>
+
+<p>The remaining operators in the class are the chevron operators. These form a
+set of &lt;&lt; operators that write text output according to the type being
+written. Generally, these write unformatted text - for example there is no
+support for field width, but this limitation can be overcome by using the
+dformat or vdformat functions from dprint.h within the chevron expression. </p>
+
+<p>The general form of an output expression using a text-output device is:</p>
+
+<pre class="cpp">device &lt;&lt; object1 &lt;&lt; object2 &lt;&lt; object3; </pre>
+
+<p>This causes text to be written to the device representing the values of
+object1, object2 and object3.</p>
+
+<p>There is no whitespace included in the write operations, so whitespace must
+be explicitly added. This can be done by adding strings and characters in the
+output device. For example:</p>
+
+<pre class="cpp">device &lt;&lt; object1 &lt;&lt; ' ' &lt;&lt; object2 &lt;&lt; '\t' &lt;&lt; object3 &lt;&lt; '\n';</pre>
+
+<p>The mixture of chevrons and assorted quote marks can become confusing, so
+there are three constants provided which represent the three whitespace
+characters - space, tab and newline (for end of line). The above example could be
+written:</p>
+
+<pre class="cpp">device &lt;&lt; object1 &lt;&lt; space &lt;&lt; object2 &lt;&lt; tab &lt;&lt; object3 &lt;&lt; newline;</pre>
+
+<p>The following chevron operators are defined:</p>
+
+<pre class="cpp">
+otext&amp; operator &lt;&lt; (char);
+otext&amp; operator &lt;&lt; (signed char);
+otext&amp; operator &lt;&lt; (unsigned char);
+</pre>
+
+<p>Simply writes a single character to the output device.</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (const char*);</pre>
+
+<p>Writes a whole char* to the output device, using the usual C convention that
+the string will be terminated by zero. If the char* is itself a null pointer,
+then the string "&lt;null&gt;" is written. If '\n' characters are embedded in the
+string, then they will be expanded according to the newline conversion settings
+for the device.</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (const string&amp;);</pre>
+
+<p>Writes an STL string to the output device, using the string's size() function
+to determine the length of string to write. It is impossible for a string to be
+null.</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (const vector&lt;string&gt;&amp;);</pre>
+
+<p>Prints the string vector as a newline-separated series of strings.</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (<i>integer_type</i>);</pre>
+
+<p>There is a whole family of operators defined for use with the various integer
+types found in C++. In the definition above, integer_type can mean any one of
+the following: bool, short, unsigned short, int, unsigned int, long, unsigned
+long. All these operators write the integer value according to the formatting
+settings (see earlier).</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (<i>float_type</i>);</pre>
+
+<p>Similar to above, there is a set of operators that write floating point
+numbers for the various floating point types found in C++. In the definition
+above, float_type can be one of the following: float, double. The format is
+determined by the floating point formatting settings.</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (void*);</pre>
+
+<p>Writes an address in a format compatible with the equivalent read
+operator. Note that this is a circular definition. What I mean is that this is
+implementation-defined but I will ensure that the &gt;&gt; operator is
+compatible with the &lt;&lt; operator. You might discover that this tends to be
+hexadecimal C format but don't tell anyone I said that - this is not
+guaranteed.</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (itext&amp;);</pre>
+
+<p>This is effectively a text copy operator. It reads text from the input device
+and pipes it to the output device until eof() becomes true on the input
+device. This is the neatest way you will ever find of creating a copy of some
+text - just create the two devices and pipe the input into the output. Imagine
+writing the Unix cat command with this baby.</p>
+
+<a name="otext_manip"><h3>Output Manipulators</h3></a>
+
+<p>There is one final chevron operator which requires a bit more
+explanation. This is the device manipulator operator. It takes a pointer to a
+function as its argument and then applies that function to the device.</p>
+
+<p>The definition of the operator is:</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (void (*)(otext&amp;));</pre>
+
+<p>This means that the operator takes as its argument a pointer to a function
+with the following parameter profile:</p>
+
+<pre class="cpp">void manipulator_function (otext&amp;);</pre>
+
+<p>There are a number of pre-defined manipulators in the definition of otext:</p>
+
+<pre class="cpp">
+void flush (otext&amp;);
+void endl (otext&amp;);
+void close (otext&amp;);
+void hex(otext&amp;);
+void oct(otext&amp;);
+void dec(otext&amp;);
+</pre>
+
+<p>The flush manipulator flushes any buffer associated with the
+device. Basically a neat encapsulation of a call to the flush() member function
+so that it can be called in the middle of a chevron expression. Useful for
+synchronising standard output with standard input when prompting for
+questions:</p>
+
+<pre class="cpp">
+fout &lt;&lt; "How many widgets should I create: " &lt;&lt; flush;
+fin &gt;&gt; response &gt;&gt; skipline;
+</pre>
+
+<p>The endl manipulator simply writes a newline character ('\n').</p>
+
+<p>The close manipulator simply closes the device. It is equivalent to calling
+the close() member function of the device.</p>
+
+<p>In use, the name of the manipulator function is simply included in the
+chevron expression:</p>
+
+<pre class="cpp">device &lt;&lt; flush;</pre>
+
+<p>The hex, oct and dec manipulators are shortcuts for changing the integer
+radix to base 16, 8 or 10 respectively.</p>
+
+<p>In addition to these device manipulators, the following character constants are
+provided:</p>
+
+<pre class="cpp">
+const char newline = '\n';
+const char space = ' ';
+const char tab = '\t';
+const char null = '\0';
+</pre>
+
+<p>These used to be manipulator functions, but were converted to character
+constants for efficiency. In use, the name of the character constant is simply
+included in the chevron expression:</p>
+
+<pre class="cpp">device &lt;&lt; space;</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="itext">Input Devices - Class itext</h2>
+
+<p>Class itext is a text-input device. It defines the common interface to all
+the derivations. In particular, it defines all the input chevron operators
+("&gt;&gt;") for the basic types, which can then be further overloaded for
+user-defined types. However, all the chevron operators are based on the
+low-level routines, so these will be described first to give an overview of the
+basic functionality of a text-input device.</p>
+
+<p>Remember that this description covers the base class. Derivatives usually
+offer more simple to use and self-explanatory constructors which are appropriate
+to that derivative.</p>
+
+<a name="itext_devices"><h3>Device Management</h3></a>
+
+<p>The basic constructors, destructors and associated member functions are:</p>
+
+<pre class="cpp">itext (void);</pre>
+
+<p>This is the basic constructor which creates an uninitialised text-input
+device. This is a useful concept - a device can be created, then opened and
+closed one or more times with different actual devices, which could indeed be
+any mixture of classes of device, including file devices, string devices,
+internet devices and any other devices that are available. </p>
+
+<pre class="cpp">itext (ibuff*);</pre>
+
+<p>This is a composite constructor that creates an initialised text-input device
+and then opens it - see the open operator below. Its main use is as a basis for
+creating constructors for derived classes - see Customisation.</p>
+
+<pre class="cpp">~itext (void);</pre>
+
+<p>The destructor dealiases the device and destroys the underlying buffer if
+this is the last alias. Before deletion, the destructor implicitly calls close()
+if the device is initialised. </p>
+
+<pre class="cpp">bool initialised (void) const;</pre>
+
+<p>This function tests whether the device has been initialised by either the
+composite constructor or the open function. An uninitialised input device will
+act like /dev/null by just returning an end-of-file condition. </p>
+
+<pre class="cpp">void open (ibuff*);</pre>
+
+<p>This function opens an input device by associating an input buffer with
+it. The input buffer should be dynamically allocated since the destructor will
+delete it when the last alias is destroyed. This function is rarely used
+directly - usually the derived customisations provide neater constructors that
+create the input buffer automatically. For example, the FileIO constructor takes
+a filename. However, it can be useful if it is desired to switch input from one
+kind of buffer to another. For example, some input can come from a string input
+buffer whilst other input could come from a file input buffer. In this case, the
+base class itext should be used and the buffers created manually and attached to
+the device using this open function. Note that the open() function implicitly
+calls close() if the device is already initialised. </p>
+
+<pre class="cpp">void close (void);</pre>
+
+<p>This simply closes the underlying input buffer and deletes it. This leaves
+the text-input device uninitialised. The device can be re-initialised by
+open(). Since both open() and the destructor call close(), this function is
+rarely used directly. However, it should be called if you want to perform
+further operations on the file - in particular, close() ensures that any buffer
+associated with the file is flushed.</p>
+
+<pre class="cpp">itext (const itext&amp;amp;);</pre>
+
+<p>The copy constructor, used to initialise an input-text device from another
+device, to pass by value to a function and to return by value from a
+function. Is very efficient and guarantees synchronisation of devices aliased in
+this way. </p>
+
+<pre class="cpp">itext&amp; operator = (const itext&amp;);</pre>
+
+<p>The assignment operator - implements aliasing in exactly the same way as the
+copy constructor above so that it is possible to assign one device to another
+and make them aliases. Implicitly calls the destructor for the old value of the
+device which is the target of the assignment. </p>
+
+<a name="itext_errors"><h3>Error Handling</h3></a>
+
+<pre class="cpp">
+bool error (void) const;
+int error_number (void) const;
+std::string error_string(void) const;
+</pre>
+
+<p>If an error occurs during text input, for example the requested file could
+not be opened or the text is the wrong format for a chevron operator to read it,
+then an internal error number is set. These function returns the state of this
+flag. The error function indicates that an error has occurred and the
+error_number function gives the code number for the error. The error_message
+function gives a textual representation of the error. The error number
+depends on the type of device - for example, with FileIO the error_number will
+be set to the operating system errno at the time the error was detected. This
+value can be used to diagnose the error.</p>
+
+<p>When the error flag is set, the device becomes a null device - in other words
+it is as if the end of file had been reached.</p>
+
+<pre class="cpp">void set_error(int error_number);</pre>
+
+<p>Allows the error flag to be set. You usually use this when writing
+customisations and never when using the devices in a program.</p>
+
+<pre class="cpp">void clear_error(void);</pre>
+
+<p>Clears the error flag and thus re-enables the device for input.</p>
+
+<pre class="cpp">operator bool (void) const;</pre>
+
+<p>The bool type conversion operator allows the state of the device to be tested
+in an if(device) test. It returns true if it is possible to read from the
+device. Another way of looking at this is that this operator returns false if an
+error has been raised or the device is not initialised.</p>
+
+<pre class="cpp">bool operator ! (void) const;</pre>
+
+<p>The ! operator tests the state of the device to give exactly the opposite
+result as the above bool type conversion. It is meant for use in an if(!device)
+test. Another way of looking at it is this operator returns true if it is not
+possible to read from the device. </p>
+
+<a name="itext_state"><h3>State Tests</h3></a>
+
+<pre class="cpp">bool eof (void) const;</pre>
+
+<p>Tests for the condition that the device is at the end-of-file. In fact,
+input-text devices need not be files, but this is nevertheless a useful
+concept. It really means that the end of text has been found, regardless of the
+source of that text. For example, with stringio the eof() condition means the
+end of the string has been reached. </p>
+
+<p>Every text I/O subsystem I have encountered has been vague about when an
+end-of-file is signalled (at the last character or after it has been read are
+the two options) and in fact iostream is inconsistent with stdio in this
+respect. To make matters worse, the Visual C++ version of iostream is different
+from the Gnu version!</p>
+
+<p>So, for TextIO, I will be the first to define it clearly. The test for eof()
+is <i>exactly</i> equivalent to the test peek()==EOF, in other words, the next
+character to be fetched from the device will be the EOF character, that is,
+conceptually the character after the last valid character in the device. You can
+fetch a single EOF from a device, but trying to fetch another character will
+cause an error.</p>
+
+<pre class="cpp">bool eoln (void) const;</pre>
+
+<p>Tests whether the end of line has been reached. More specifically, it carries
+out the test peek()=='\n'. In other words, eoln() will be true if the next
+character to be fetched will be the end-of-line character. The exact definition
+of what constitutes an end of line depends on the customisation, for example, in
+FileIO it means the end of the line in the text file whereas in string_vectorio
+it means the end of one string in the array. </p>
+
+<a name="itext_raw"><h3>Raw Input Functions</h3></a>
+
+<p>These functions are usually used within higher-level functions, but can be
+accessed directly.</p>
+
+<pre class="cpp">int peek (void);</pre>
+
+<p>Allows the next character in the device to be examined without disturbing the
+device. The character is returned as an int so as to allow for the EOF
+pseudo-character to be returned. Provided the return value is not EOF (more
+specifically, the integer value -1), this can safely be converted to char. The
+return value of peek() is guaranteed to be consistent with a following call to
+get(). No errors can be caused by a peek operation.</p>
+
+<pre class="cpp">int get (void);</pre>
+
+<p>This function allows the text-input device to be used as raw character data,
+although it is still subject to the newline conversions. The text will be
+fetched a character at a time. The return value is returned as an int so as to
+allow for the EOF pseudo-character to be returned, just as with peek(). If the
+return value of get() is not EOF, this can safely be converted to char. Trying
+to get EOF a second time will mean the error flag will be set - in other words
+it is not an error to read the EOF character, but it is an error to try to read
+past the EOF. </p>
+
+<a name="itext_newline"><h3>Newline Conversion</h3></a>
+
+<p>The input device will convert any end-of-line convention into a '\n'
+character during reading. There is no need to know in advance which convention
+is being used in a file, since any of LF/CR-LF/CR will be converted into a
+'\n'. However, conversion mode can be switched off to treat the device as raw
+(binary) data.</p>
+
+<pre class="cpp">
+void set_newline_mode(newline_t newline = convert);
+newline_t newline_mode(void) const;
+</pre>
+
+<p>There are only two modes for input (compare with the five modes for
+output):</p>
+
+<dl>
+
+<dt>textio_input_binary <i>or</i> itext::binary_mode</dt>
+<dd>No end-of-line conversion</dd>
+
+<dt>textio_input_convert <i>or</i> itext::convert_mode (default)</dt>
+<dd>Convert any end-of-line sequence to '\n'</dd>
+
+</dl>
+
+<p>There are shortcut functions for setting the mode:</p>
+
+<pre class="cpp">
+void set_convert_mode(void);
+void set_binary_mode(void);
+</pre>
+
+<a name="itext_position"><h3>Positional Information</h3></a>
+
+<p>The following functions provide information regarding the number of bytes
+read from the device before newline conversion. So, for example, in newline
+conversion mode, the sequence CR-LF will result in two bytes being read, but
+only one character '\n' will be returned to the calling program. These
+functions also provide line and column information which is maintained by
+counting the number of newline sequences that have been read.</p>
+
+<pre class="cpp">
+unsigned long bytes(void) const;
+unsigned line(void) const;
+unsigned column(void) const;
+</pre>
+
+<p>The line and column counts recognise the number of times an end of line
+sequence is converted into '\n'. In binary mode, the number of '\n' characters
+is still counted but not converted. Chances are the line and column counts are
+meaningless in binary mode, but the byte count will be useful.</p>
+
+<a name="itext_chevron"><h3>Input Chevron (&gt;&gt;) Operators</h3></a>
+
+<p>The remaining operators in the class are the chevron operators. These form a
+set of &gt;&gt; operators that interpret the text input as the relevant type and
+read in a value into an object of that type.</p>
+
+<p>The general form of an input expression using a text-input device is:</p>
+
+<pre class="cpp">device &gt;&gt; object1 &gt;&gt; object2 &gt;&gt; object3; </pre>
+
+<p>This causes text to be read from device and interpreted as the values of
+object1, object2 and object3.</p>
+
+<p>Most of the chevron operators skip leading whitespace before trying to read a
+value from the device. Thus there is no need to perform any skip-white type
+operations. The exception is the raw character-reading operator. In this case,
+there is a skipwhite device manipulator - see below.</p>
+
+<p>The following chevron operators are defined:</p>
+
+<pre class="cpp">
+itext&amp; operator &gt;&gt; (char&amp;);
+itext&amp; operator &gt;&gt; (signed char&amp;);
+itext&amp; operator &gt;&gt; (unsigned char&amp;);
+</pre>
+
+<p>This is a raw character-reading operator. It simply gets the next character,
+including any whitespace character, in its raw form. The result is undefined if
+the next character is EOF, since the type conversion of EOF to char is
+undefined, so it should be used in conjunction with one of the tests listed
+above. </p>
+
+<pre class="cpp">itext&amp; operator &gt;&gt; (string&amp;);</pre>
+
+<p>Skips white space and then reads non-whitespace characters into the target
+string until the next whitespace character is reached. In a crude sense, it
+tokenises the source. Note that it does not get a whole line of text, just the
+next token. To get a whole line of text into a string, use the getline()
+function defined next.</p>
+
+<pre class="cpp">bool getline(string&amp; line);</pre>
+
+<p>This gets the whole of the next line of text and places it into the
+argument. It returns true if the read succeeded, false if it failed, usually due
+to end-of-file being reached. Thus it can be used in a simple while loop:</p>
+
+<pre class="cpp">
+string line;
+while(device.getline(line))
+  ...  // do something with the line
+</pre>
+
+<pre class="cpp">itext&amp; operator &gt;&gt; (<i>integer_type</i>&amp;);</pre>
+
+<p>There is a whole family of operators defined for use with the various integer
+types found in C++. In the definition above, integer_type can mean any one of
+the following: bool, short, unsigned short, int, unsigned int, long, unsigned
+long. All these operators skip whitespace, then read an integer value in either
+the hash format or the conventional C formats of decimal, octal (indicated by a
+leading 0) or hexadecimal (indicated by a leading 0x or 0X).</p>
+
+<pre class="cpp">itext&amp; operator &gt;&gt; (<i>float_type</i>&amp;);</pre>
+
+<p>Similar to above, there is a set of operators that read in floating point
+numbers for the various floating point types found in C++. In the definition
+above, float_type can be one of the following: float, double. All
+these operators skip whitespace, then read a floating point value. The fraction
+part and the exponent are optional, so the format is: </p>
+
+<pre class="script">[sign]mantissa[.fraction][exponent]</pre>
+
+<p>The exponent is prefixed by the letter E in either upper or lower case. </p>
+
+<pre class="cpp">itext&amp; operator &gt;&gt; (void*&amp;);</pre>
+
+<p>Reads in an address in a format which is compatible with the equivalent
+text-output operator.</p>
+
+<pre class="cpp">itext&amp; operator &gt;&gt; (otext&amp;);</pre>
+
+<p>This is the pipe operator - it simply writes data to the output device until
+eof() becomes true.</p>
+
+<a name="itext_manip"><h3>Input Manipulators</h3></a>
+
+<p>There is one final chevron operator which requires a bit more
+explanation. This is the device manipulator operator. It takes a pointer to a
+function as its argument and then applies that function to the device.</p>
+
+<p>The definition of the operator is:</p>
+
+<pre class="cpp">itext&amp; operator &gt;&gt; (void (*)(itext&amp;));</pre>
+
+<p>This means that the operator takes as its argument a pointer to a function
+with the following parameter profile:</p>
+
+<pre class="cpp">void manipulator_function (itext&amp;);</pre>
+
+<p>There are six pre-defined manipulators in the definition of itext:</p>
+
+<pre class="cpp">void skipwhite (itext&amp;);</pre>
+
+<p>Skips all whitespace on the device until a non-whitespace character is
+found. Whitespace is defined by the C standard function isspace() from
+ctype.h. Will not read EOF and so will not cause the error flag to be set.</p>
+
+<pre class="cpp">void skiponewhite (itext&amp;);</pre>
+
+<p>As above, but consumes at most one whitespace character. That means zero or
+one characters are skipped.</p>
+
+<pre class="cpp">void skipspaces (itext&amp;);</pre>
+
+<p>Skips all whitespace on the device <i>except newline</i> until a
+non-whitespace character is found.</p>
+
+<pre class="cpp">void skipendl (itext&amp;);</pre>
+
+<p>Skips all whitespace like the skipwhite manipulator but stops <i>after</i>
+consuming a newline character. Usually used for skipping any whitespace at the
+end of a line and stopping at the beginning of the next line.</p>
+
+<pre class="cpp">void skipline (itext&amp;);</pre>
+
+<p>Skips all text, whether whitespace or not, and stops <i>after</i> consuming a
+newline character. Usually used for skipping the rest of the line and stopping
+at the beginning of the next line.</p>
+
+<pre class="cpp">void close (itext&amp;);</pre>
+
+<p>Closes the device - equivalent to calling the close() member function.</p>
+
+<p>A manipulator function is expressed as the name of the function without
+parentheses. In other words, the name of the manipulator function is simply
+included in the chevron expression:</p>
+
+<pre class="cpp">device &gt;&gt; skipwhite;</pre>
+
+<p>Note: most of the pre-defined chevron operators call skipwhite implicitly
+before reading a value. The manipulator is provided for those rare occasions
+when it needs to be made explicit. The skiponewhite manipulator is useful if you
+want to terminate one token (for example an integer) by a space and then follow
+it by a character token which might itself be a whitespace character. In this
+case, skipwhite would consume the character token too!</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="chevrons">Overloading Chevron Operators</h2>
+
+<p>The great thing about TextIO which is inherited (dare I admit it) from
+iostream is the ease with which new chevron operators can be defined for new
+types to effectively extend the functionality. This is done by simply adding
+more overloadings of the chevron operators and letting the C++ overload
+resolution rules resolve which to call. This in fact is how the built-in chevron
+operators are handled and the concept can simply be extended indefinitely.</p>
+
+<p>Experience has shown that it is good practice to only use the chevron
+operators for human-readable text. This generally means that only the write
+operations (&lt;&lt;) get overloaded. For machine-readable text, for example for
+file formats which are to be machine generated and machine read, then it is a
+good idea to provide another write function (since human-readable is not
+necessarily compatible with machine-readable) and a read function. The common
+convention is to call these functions read and write.</p>
+
+<p>The basic profile of an overloaded chevron output operator is:</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (otext&amp;, type); </pre>
+
+<p>For efficiency, you might want to pass the type parameter by const
+reference instead of by value:</p>
+
+<pre class="cpp">otext&amp; operator &lt;&lt; (otext&amp;, const type&amp;);</pre>
+
+<p>As an example, lets suppose that we have a simple class that represents a
+complex number as two integers:</p>
+
+<pre class="cpp">
+class complex
+{
+public:
+  int re, im;
+};
+</pre>
+
+<p>Suppose we want the output format to be in the form "(%d,%d)". It is good
+practice to define output in terms of existing chevron operators for the member
+types:</p>
+
+<pre class="cpp">
+otext&amp; operator &lt;&lt; (otext&amp; ot, const complex&amp; c)
+{
+  return ot &lt;&lt; '(' &lt;&lt; c.re &lt;&lt; ',' &lt;&lt; c.im &lt;&lt; ')';
+}
+</pre>
+
+<p>Notice that the operator must return the output device - this allows the
+chevron operators to be concatenated, so that the device gets passed down the
+chevron expression from left to right.</p>
+
+<p>Another subtlety that can cause problems is where the data values in the
+class are not public but are accessed through members. The solution then is to
+define the chevron operator as a friend function. It cannot be declared as a
+member function because the first parameter is not the complex type. The complex
+class then looks like this:</p>
+
+<pre class="cpp">
+class complex
+{
+private:
+  int re, im;
+public:
+  complex(int r, int i) : re(r), im(i) {}
+  int real_part(void) const {return re;}
+  int imaginary_part(void) const {return im;}
+  friend otext&amp; operator &lt;&lt; (otext&amp;, const complex&amp;);
+};
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="customisation">Device Customisation</h2>
+
+<p>There are two stages to creating a customised device: first create a
+customised buffer, then create the customised device itself. Most of the work
+goes into the buffer.</p>
+
+<p>As an example, consider the customisation of TextIO that was used to create
+FileIO (see the source code if you want - its all there). I'll start with an
+output device since that is the most commonly required device.</p>
+
+<a name="custom_obuff"><h3>Output Buffer</h3></a>
+
+<p>The new output buffer must be derived from obuff (defined in
+textio_buffers.hpp but included in textio.hpp). The idea is to overload only the
+virtual functions in this class to create the customisation. Even then, some of
+the base-class virtual functions already have the correct behaviour, so there is
+no need to overload them. However, you will
+usually create some sensible constructors too.</p>
+
+<p>The obuff declaration, stripped of all the other nonsense, is:</p>
+
+<pre class="cpp">
+class obuff
+{
+public:
+  virtual std::string error_string(void) const;
+  virtual void flush(void);
+  virtual unsigned put(char) = 0;
+  virtual ~obuff(void);
+};
+</pre>
+
+<p>The only function you <i>must</i> provide is the put(char) function, since
+this has been defined as abstract.</p>
+
+<p>The error_string() function should be overloaded if your device has an
+external source of error strings other than the value stored in the obuff class
+itself (which is set by internal errors). Normally this can be ignored, but if
+it is overloaded, it should call the base class obuff::error_string() if the
+error number is not one of yours.</p>
+
+<p>The default flush() function does nothing. If your device has no concept of
+flushing, then this is fine, but if it does, then the function should be
+overloaded.</p>
+
+<p>Finally, the default destructor does nothing. The destructor for the buffer
+is called when the device is closed (TextIO implements the close() operation by
+simply deleting the buffer!). If you need to close anything down (for example,
+close a file) then you must provide a destructor. Otherwise, there is no
+need.</p>
+
+<p>For the FileIO output device, the buffer is called ofbuff (the convention is
+'o', followed by some unique letters representing its function, followed by
+"buff"). It will be implemented using &lt;stdio.h&gt; which is ANSI standard and
+therefore guaranteed portable.</p>
+
+<p>Adding some sensible constructors gives the buffer the following
+interface:</p>
+
+<pre class="cpp">
+class ofbuff : public obuff
+{
+  FILE* handle;
+  bool managed;
+  friend class oftext;
+public:
+  ofbuff (FILE* handle);
+  ofbuff (const char* filename,
+          size_t bufsize = oftext::preferred_buffer,
+          otext::open_t mode = otext::overwrite);
+  ofbuff (const string&amp; filename,
+          size_t bufsize = oftext::preferred_buffer,
+          otext::open_t mode = otext::overwrite);
+  virtual void flush (void);
+  virtual unsigned put (char);
+  ~ofbuff(void);
+};
+</pre>
+
+<p>The buffer has two modes of operation: managed and unmanaged. This refers to
+who closes the file. If the buffer is constructed with an already-open FILE*,
+then it will not close it on destruction (unmanaged). However, if it is
+constructed with a filename, then it will close the file on destruction
+(managed). Unmanaged mode is particulrly useful for attaching standard files to
+a device, since you don't want standard files to be closed when the device
+closes.</p>
+
+<p>The buffer does implement buffering, using an internal buffer size set via
+the constructor. The default buffer size is declared via a static constant
+called preferred_buffer in the oftext class (the otext derivative that uses this
+buffer). It also implements overwrite and append modes (optional - only provide
+append if it makes sense for your device).</p>
+
+<p>As you can see, the derivative is pretty simple. Now here's the
+implementation, starting with the constructors and destructor (since they are
+closely related):</p>
+
+<pre class="cpp">
+ofbuff::ofbuff (FILE* fh)
+{
+  managed = false;
+  handle = fh;
+}
+
+ofbuff::ofbuff (const string&amp; fname, size_t bufsize, otext::open_t mode)
+{
+  managed = true;
+  handle = fopen(fname.c_str(),(mode==otext::overwrite ? "wb" : "ab"));
+  if (!handle)
+    err = textio_uninitialised;
+  else if (setvbuf(handle,0,(bufsize ? _IOFBF : _IONBF),bufsize) != 0)
+    err = ferror(handle);
+}
+
+ofbuff::~ofbuff(void)
+{
+  flush();
+  if (managed &amp;&amp; handle)
+    fclose(handle);
+}
+</pre>
+
+<p>The other (char*) constructor has been omitted since it is almost identical
+to the string form. Notice how the error numbers are handled. Since errors in
+the stdio file system can be overridden later, they are stored as they occur. The
+member value err is used to store the error number, which is then accessed by
+the default error_number() function. This means that there is no need to provide
+a customisation of that function.</p>
+
+<p>Another, very important, point is that the file is opened in binary mode.
+This is because TextIO does its own line-end conversion, so any conversion
+provided by the operating system (e.g. Windoze converts text files) must be
+disabled.</p>
+
+<p>Buffering is provided by stdio's built-in buffering (remember, don't reinvent
+the wheel!) using the setvbuf() function.</p>
+
+<p>The only functions that haven't yet been written are the put(char) and flush()
+functions:</p>
+
+<pre class="cpp">
+void ofbuff::flush (void)
+{
+  if (handle &amp;&amp; fflush(handle) == EOF)
+    err = ferror(handle);
+}
+</pre>
+
+<p>The flush function is simple - the only tricks being to only flush a valid
+FILE* (it is legal to initialise the buffer with a null FILE* and in that case
+the buffer acts like a null device) and to capture any errors in the err field.</p>
+
+<pre class="cpp">
+unsigned ofbuff::put (char ch)
+{
+  if (!handle)
+  {
+    err = textio_uninitialised;
+    return 0;
+  }
+  if (fputc(ch, handle) == EOF)
+  {
+    err = ferror(handle);
+    return 0;
+  }
+  return 1;
+}
+</pre>
+
+<p>The put(char) function implements the folowing behaviour: if the handle is
+null, raise an error; otherwise, try to write a character to the file; if that
+fails capture the error from stdio. In all cases, the number of characters
+successfully written to the file is returned from the function.</p>
+
+<p>That's it! You can test the buffer by attaching it to a base otext:</p>
+
+<pre class="cpp">
+int main()
+{
+  otext output = new ofbuff("test.txt");
+  output &lt;&lt; "hello world" &lt;&lt; endl;
+  return 0;
+}
+</pre>
+
+<p>Note how the buffer must be created using new. However, life is made easier
+if a derived device is created to use this buffer...</p>
+
+<a name="custom_otext"><h3>Output Device</h3></a>
+
+<p>Once an output buffer is created, an output device is trivial, because it is
+only necessary to provide nice constructors and open() functions to allocate an
+output buffer and attach it to the base class otext. Here's the FileIO output
+device oftext:</p>
+
+<pre class="cpp">
+class oftext : public otext
+{
+public:
+  static size_t preferred_buffer;
+
+  // create an uninitialised device which acts like /dev/null
+  oftext (void);
+  // attach an already-opened file to this device
+  // this will not be closed when the device is destroyed
+  oftext (FILE* handle);
+  // open the file and attach it to this device
+  // this will be closed automatically when the device is destroyed
+  oftext (const char* filename,
+          size_t bufsize = preferred_buffer,
+          open_t mode = overwrite);
+  oftext (const string&amp; filename,
+          size_t bufsize = preferred_buffer,
+          open_t mode = overwrite);
+
+  // similar to the constructors - these destroy the previous device contents (closing if appropriate)
+  // then perform the open/attach as above
+  void open (FILE* handle);
+  void open (const char* filename,
+             size_t bufsize = preferred_buffer,
+             open_t mode = overwrite);
+  void open (const std::string&amp; filename,
+             size_t bufsize = preferred_buffer,
+             open_t mode = overwrite);
+
+  // get at the internal handle
+  // note that the handle and this device are guaranteed to be synchronised!
+  operator FILE* (void);
+};
+</pre>
+
+<p>The bodies of these functions are typically one-liners:</p>
+
+<pre class="cpp">
+size_t oftext::preferred_buffer = 4096;
+
+oftext::oftext (void) : otext() {}
+oftext::oftext (FILE* fh): otext(new ofbuff(fh)) {}
+oftext::oftext (const char* fname, size_t bufsize, open_t mode) : otext(new ofbuff(fname, bufsize, mode)) {}
+oftext::oftext (const string&amp; fname, size_t bufsize, open_t mode) : otext(new ofbuff(fname, bufsize, mode)) {}
+
+void oftext::open (FILE* fh) {otext::open(new ofbuff(fh));}
+void oftext::open (const char* fname, size_t bufsize, open_t mode) {otext::open(new ofbuff(fname, bufsize, mode));}
+void oftext::open (const string&amp; fname, size_t bufsize, open_t mode) {otext::open(new ofbuff(fname.c_str(), bufsize, mode));}
+
+oftext::operator FILE* (void)
+{
+  ofbuff* filebuf = dynamic_cast&lt;ofbuff*&gt;(buffer.pointer());
+  return filebuf ? filebuf-&gt;handle : 0;
+};
+</pre>
+
+<p>The only trick here is in the FILE* type conversion. The buffer is stored in
+the otext device by a smart pointer which contains an obuff*. This must be
+accessed and type converted to the ofbuff* derivative type and done in a
+type-safe way. In principle, noone
+should ever attach a non-ofbuff buffer to an oftext device, but it is
+theoretically possible, so the conversion must be type-safe - which is why
+dynamic_cast is used (note that this means the compiler's RTTI (run-time
+type-checking) feature must be enabled).</p>
+
+<p>Now, creating a file device can be done either with the base class otext as
+before, or using the derivative:</p>
+
+<pre class="cpp">
+int main()
+{
+  oftext output = "test.txt";
+  output &lt;&lt; "hello world" &lt;&lt; endl;
+  return 0;
+}
+</pre>
+
+<a name="custom_ibuff"><h3>Input Buffer</h3></a>
+
+<p>Creating input buffers is very similar to creating output buffers. This time
+an input buffer is created by deriving from the ibuff class.</p>
+
+<p>The ibuff declaration, stripped of all the other nonsense, is:</p>
+
+<pre class="cpp">
+class ibuff
+{
+public:
+  virtual int error_number(void) const;
+  virtual int peek(void) = 0;
+  virtual int get(void) = 0;
+  virtual ~ibuff(void);
+};
+</pre>
+
+<p>This time, you <i>must</i> provide two functions: peek and get. Both should
+return a character represented as an unsigned number (it must be unsigned) or -1
+if the end of the text input has been reached.</p>
+
+<p>The error_number() function should be overloaded if your device has an
+external source of error numbers other than the value stored in the obuff class
+itself (which is set by internal errors). Normally this can be ignored since
+your peek and get functions can indicate errors by assigning error numbers to
+the err field (not shown), but if it is overloaded, it must also call the base
+class obuff::error_number() to see if the TextIO internals have generated an
+error.</p>
+
+<p>Finally, provide a destructor if there is any mopping up to do on a close,
+such as closing a file.</p>
+
+<p>Again, the FileIO device will be used as an example. For the FileIO input
+device, the buffer is called ifbuff (the convention is 'i' for input, followed
+by some unique letters representing its function, followed by "buff"). It will
+be implemented using &lt;stdio.h&gt; which is ANSI standard and therefore
+guaranteed portable.</p>
+
+<p>Adding some sensible constructors gives the buffer the following
+interface:</p>
+
+<pre class="cpp">
+class ifbuff : public ibuff
+{
+  friend class iftext;
+  FILE* handle;
+  bool managed;
+public:
+  ifbuff (FILE*);
+  ifbuff (const char*, size_t bufsize = iftext::preferred_buffer);
+  ifbuff (const std::string&amp;, size_t bufsize = iftext::preferred_buffer);
+  virtual int peek (void);
+  virtual int get (void);
+  ~ifbuff(void);
+};
+</pre>
+
+<p>Note that again I've chosen not to overload the error_number function -
+errors will be indicated by writing to the err member field in the ibuff
+baseclass.</p>
+
+<p>The constructors and destructor are almost identical to the output buffer for
+FileIO:</p>
+
+<pre class="cpp">
+ifbuff::ifbuff (FILE* fp)
+{
+  managed = false;
+  handle = fp;
+}
+
+ifbuff::ifbuff (const char* fname, size_t bufsize)
+{
+  managed = true;
+  handle = fopen(fname, "rb");
+  if (!handle)
+    err = textio_uninitialised;
+  else if (setvbuf(handle, 0, (bufsize ? _IOFBF : _IONBF), bufsize) != 0)
+    err = ferror(handle);
+}
+
+ifbuff::~ifbuff (void)
+{
+  if (managed &amp;&amp; handle)
+    fclose (handle);
+}
+</pre>
+
+<p>The first constructor attaches an already-open file handle to the device. It
+assumes the calling function will close it so it is marked as an unmanaged
+file.</p>
+
+<p>The second constructor opens the file and sets up the file's internal
+buffering. At each stage, errors are logged by assigning to the err field.</p>
+
+<p>Finally, the destructor only closes open, managed, files.</p>
+
+<p>A very important point is that the file is opened in binary mode.
+This is because TextIO does its own line-end conversion, so any conversion
+provided by the operating system (e.g. Windoze converts text files) must be
+disabled.</p>
+
+<p>The final two functions required are the key ones: peek and get:</p>
+
+<pre class="cpp">
+int ifbuff::peek (void)
+{
+  if (!handle) return EOF;
+  int ch = getc(handle);
+  if (ch != EOF &amp;&amp; ungetc(ch, handle) == EOF)
+    err = ferror(handle);
+  return ch;
+}
+
+int ifbuff::get (void)
+{
+  if (!handle) return EOF;
+  int ch = getc(handle);
+  if (ch == EOF)
+    err = ferror(handle);
+  return ch;
+}
+</pre>
+
+<p>The peek function is implemented using the underlying stdio functions by
+getting a character and then ungetting it again. Errors are handled on the way -
+peeking at a null file (i.e. an uninitialised file buffer) returns EOF (-1)
+immediately. Otherwise, errors found in trying to get a character or put it back
+are recoded in the err field.</p>
+
+<p>The get function is similar except of course that it doesn't push the
+character back.</p>
+
+<a name="custom_itext"><h3>Input Device</h3></a>
+
+<p>Once an input buffer is created, an input device is trivial, just as with
+output devices. Here's the FileIO input
+device iftext:</p>
+
+<pre class="cpp">
+class iftext : public itext
+{
+public:
+  static size_t preferred_buffer;
+
+  // create an uninitialised device which acts like /dev/null
+  iftext (void);
+  // attach an already-opened file to this device
+  // this will not be closed when the device is destroyed
+  iftext (FILE* handle);
+  // open the file and attach it to this device
+  // this will be closed automatically when the device is destroyed
+  iftext (const char* filename,
+          size_t bufsize = preferred_buffer);
+  iftext (const std::string&amp; filename,
+          size_t bufsize = preferred_buffer);
+
+  // similar to the constructors - these destroy the previous device contents (closing if appropriate)
+  // then perform the open/attach as above
+  void open (FILE* handle);
+  void open (const char* filename,
+             size_t bufsize = preferred_buffer);
+  void open (const std::string&amp; filename,
+             size_t bufsize = preferred_buffer);
+
+  // get at the internal handle
+  // note that the handle and this device are guaranteed to be synchronised!
+  operator FILE* (void);
+};
+</pre>
+
+<p>Again, the bodies of these functions are pretty trivial since all the work is
+done in the buffer:</p>
+
+<pre class="cpp">
+size_t iftext::preferred_buffer = 4096;
+
+iftext::iftext (void) : itext () {}
+iftext::iftext (FILE* fh) : itext (new ifbuff (fh)) {}
+iftext::iftext (const char* fname, size_t bufsize) : itext (new ifbuff (fname, bufsize)) {}
+iftext::iftext (const string&amp; fname, size_t bufsize) : itext (new ifbuff (fname, bufsize)) {}
+void iftext::open (FILE* fh) {itext::open (new ifbuff (fh));}
+void iftext::open (const char* fname, size_t bufsize) {itext::open (new ifbuff (fname, bufsize));}
+void iftext::open (const string&amp; fname, size_t bufsize) {itext::open (new ifbuff (fname.c_str(), bufsize));}
+
+iftext::operator FILE* (void)
+{
+  ifbuff* filebuf = dynamic_cast&lt;ifbuff*&gt;(buffer.pointer());
+  return filebuf ? filebuf-&gt;handle : 0;
+};
+</pre>
+
+<p>As with the output buffer, the only clever bit here is the type conversion to
+FILE* which uses the type-safe type conversion dynamic_cast. If the buffer has
+no file handle, either because it is not a file buffer (naughty) or the buffer
+is uninitialised, then null is returned. This type conversion is specific to
+file devices based on stdio's FILE* and is unlikely to be relevant to nay
+derivative you may wish to write. The other functions are typical - as an
+example have a look at the implementation of stringio.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

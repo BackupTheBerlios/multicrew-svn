@@ -1,0 +1,127 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>tcp.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>tcp.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">TCP_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">TCP_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  A platform-independent (Unix and Windoze anyway) interface to TCP</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"smart_ptr.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Server Classes: A server creates a listening port which waits for incoming</span>
+<span style="color: #000099">// connections. This is placed on the port number appropriate for the service</span>
+<span style="color: #000099">// - for example, a Telnet server would typically use port 23. For a new</span>
+<span style="color: #000099">// service you should of course use any port not allocated to a standard</span>
+<span style="color: #000099">// service. I believe that RFC 1700 defines the standard service port numbers.</span>
+<span style="color: #000099">// When an incoming connection is made, the server accepts it and in the</span>
+<span style="color: #000099">// process creates a new connection on a different port. This leaves the</span>
+<span style="color: #000099">// standard port listening for further connections. In effect, the server</span>
+<span style="color: #000099">// farms out the handling of the connections themselves and only takes</span>
+<span style="color: #000099">// responsibility for accepting the connection. This is reflected in the class</span>
+<span style="color: #000099">// structure. A TCP_server performs the listening and accepting roles, but</span>
+<span style="color: #000099">// creates a TCP_connection to handle the accepted connection.</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">TCP_connection</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">TCP_connection</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">TCP_connection</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000000">TCP_connection</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">TCP_connection</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">TCP_connection</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">TCP_connection</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">message</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialised</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">address</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">port</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">send_ready</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">wait</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">send</span> <span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">receive_ready</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">wait</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">receive</span> <span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">TCP_connection_data</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">TCP_server_data</span><span style="color: #330033">;</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">TCP_connection_data</span><span style="color: #330033">&gt;</span> <span style="color: #000000">m_data</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">TCP_server</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">TCP_server</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">TCP_server</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">port</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">queue</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">TCP_server</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000000">TCP_server</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">TCP_server</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">TCP_server</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">TCP_server</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialise</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">port</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">queue</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialised</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">message</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">bool</span> <span style="color: #000000">connection_ready</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">wait</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">TCP_connection</span> <span style="color: #000000">connection</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">TCP_server_data</span><span style="color: #330033">;</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">TCP_server_data</span><span style="color: #330033">&gt;</span> <span style="color: #000000">m_data</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Client Class: a client is simpler in that there is no listening port - you</span>
+<span style="color: #000099">// just create a connection and get on with it. Thus the client class does the</span>
+<span style="color: #000099">// whole job - create the connection and handle communications to/from it.</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">TCP_client</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">TCP_client</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">TCP_client</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">address</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">port</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #990000">int</span> <span style="color: #000000">timeout</span><span style="color: #330033">=</span><span style="color: #993399">10000000</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">TCP_client</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000000">TCP_client</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">TCP_client</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">TCP_client</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">TCP_client</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">message</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialise</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">address</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">port</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #990000">int</span> <span style="color: #000000">timeout</span><span style="color: #330033">=</span><span style="color: #993399">10000000</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialised</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">address</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">port</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">send_ready</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">wait</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">send</span> <span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">receive_ready</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">wait</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">receive</span> <span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">TCP_client_data</span><span style="color: #330033">;</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">TCP_client_data</span><span style="color: #330033">&gt;</span> <span style="color: #000000">m_data</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

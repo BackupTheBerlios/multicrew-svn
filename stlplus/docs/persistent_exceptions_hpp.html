@@ -1,0 +1,56 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>persistent_exceptions.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>persistent_exceptions.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">PERSISTENT_EXCEPTIONS_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">PERSISTENT_EXCEPTIONS_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Exceptions for the persistent functions</span>
+<span style="color: #000099">  Declared here to break an include loop persistent.hpp/textio.hpp/smart_ptr.hpp</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;stdexcept&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+
+<span style="color: #000099">// exception thrown if you try to dump or restore an illegal polymorphic type</span>
+<span style="color: #990000">class</span> <span style="color: #000000">persistent_illegal_type</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">logic_error</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">persistent_illegal_type</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">type</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">persistent_illegal_type</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">short</span> <span style="color: #000000">key</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">persistent_illegal_type</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// exception thrown if a dump fails for any reason - but typically because the output stream couldn't take the data</span>
+<span style="color: #990000">class</span> <span style="color: #000000">persistent_dump_failed</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">runtime_error</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">persistent_dump_failed</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">message</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">persistent_dump_failed</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// exception thrown if you try to restore from an out of date or unrecognised byte stream</span>
+<span style="color: #990000">class</span> <span style="color: #000000">persistent_restore_failed</span> <span style="color: #330033">:</span> <span style="color: #990000">public</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">runtime_error</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">persistent_restore_failed</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">message</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #330033">~</span><span style="color: #000000">persistent_restore_failed</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,340 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - fileio.hpp - FILE* derivative of textio</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>fileio - TextIO Derivative Based on FILE*</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="fileio_hpp.html">Browse Header fileio.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#outputs">Output Files</a></li>
+<li><a href="#inputs">Input Files</a></li>
+<li><a href="#predefined">Predefined FileIO Devices</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>FileIO is a customisation of TextIO for file I/O using the functionality
+provided by the ANSI C standard stdio.h package. The basic type defined by the
+stdio package is the pointer type FILE* and this is the type used by FileIO to
+implement text I/O to and from files. The implementation is very tight in that
+FileIO and stdio can co-exist in the same code without conflict (eat dirt,
+iostream!). This is achieved by using the built-in buffering scheme provided by
+stdio so that there is no internal state in the FileIO device. There is even an
+implicit type conversion to FILE* so that a text output file device can be used
+as the target for an fprintf() statement.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="outputs">Output Files</h2>
+
+<h3>Usage</h3>
+
+<p>The most common and simplest way of using file output devices is to used the
+derived class oftext. This is a derivation of otext that does nothing more than
+provide a cleaner and more file-orientated interface to file-input devices. For
+example:</p>
+
+<pre class="cpp">oftext my_output_file("results.txt");</pre>
+
+<p>Once an output device has been opened, it can be used as the base class otext
+device, giving access to all of the output chevron operators (&lt;&lt;). See the
+TextIO Documentation for details.</p>
+
+<p>The oftext device provides a set of constructors and open() and close()
+functions that simply perform the low-level operations on the otext base class
+for you. There is no stored state in the oftext derivation (derived devices
+never have stored state - the buffer completely defines the behaviour). The
+interface is partly defined by otext, since oftext inherits all of the otext
+member functions. The additional functionality is:</p>
+
+<pre class="cpp">oftext (void); </pre>
+
+<p>The void constructor creates an uninitialised device.</p>
+
+<pre class="cpp">oftext (FILE*); </pre>
+
+<p>This constructor takes an already-opened FILE* handle and attaches it to the
+output buffer. It is assumed that any customisation, for example setting up of
+buffering, has been done by the calling program. It is also assumed that the
+file will be closed by the calling program since otherwise the other constructor
+would be used. This is known as an unmanaged file. This constructor is
+particularly useful for attaching the standard output and error handles stdout
+and stderr to a FileIO device so that TextIO formatting functions can be used on
+them.</p>
+
+<pre class="cpp">
+oftext (const char*, size_t bufsize = preferred_buffer, open_t mode = overwrite);
+oftext (const string&amp;, size_t bufsize = preferred_buffer, open_t mode = overwrite);
+</pre>
+
+<p>These two constructors are functionally identical, it is just convenient to
+have a string version so that filenames in strings are handled simply. These
+constructors create an output text device with an attached ofbuff which has been
+constructed with the filename, buffer size and mode passed as parameters. The
+file will be automatically opened and closed by the oftext device.</p>
+
+<p>These constructors are the more commonly used one for named files. The first
+argument is the filename. This is passed directly to the fopen() function to
+open in write mode, so the rules for filenames are exactly the same as for
+stdio. Since the buffer opens the file, it will also automatically close the
+file when the device is either explicitly closed or the destructor is called.
+The second argument is an optional buffer size. If greater than zero, the
+built-in buffering scheme of stdio will be invoked to attach a buffer to the
+output FILE*. The default is to buffer to the size of oftext::preferred_buffer,
+in other words this is a static value defined in the scope of the oftext
+class. Because the underlying buffering of stdio is used, FileIO and stdio are
+guaranteed to be synchronised and therefore it is acceptable to intermix the two
+packages even on buffered output files. The third argument is the mode of the
+file which may be either otext::append or otext::overwrite. Note that these are
+defined in the baseclass otext, not the FileIO derivative oftext.</p>
+
+<pre class="cpp">
+void open (FILE*);
+void open (const char*, size_t bufsize = preferred_buffer, open_t mode = overwrite);
+void open (const string&amp;, size_t bufsize = p[referred_buffer, open_t mode = overwrite);
+</pre>
+
+<p>These open() functions allow an existing oftext device to be attached to a
+new file. Any old file is first of all detached by calling the underlying
+close() function from the base class otext.</p>
+
+<p>Files are opened in text_output_native mode so that newlines ('\n') are
+converted into the conventions for the current operating system. To switch modes
+you should change the mode after the file has been opened using the baseclass
+set_newline_mode() function.</p>
+
+<pre class="cpp">
+oftext my_output_file("results.txt");
+my_output_file.set_newline_mode(textio_output_unix);
+</pre>
+
+<p>This example forces Unix conventions on the output file.</p>
+
+<pre class="cpp">operator FILE* (void);</pre>
+
+<p>This is the type-conversion operator to FILE* which allows the file handle
+being managed by the oftext device to be accessed directly. This allows the
+oftext device to be used directly as the target for fprintf() calls.</p>
+
+<p>These customisation functions are specific to file-input devices only. They
+do not apply to the base class otext nor to any other derivative. However, all
+the functionality of the base class otext is available for use with oftext
+objects, in particular the full set of chevron operators overloaded on the otext
+class. Furthermore, an oftext device can be passed as a parameter to any
+function that takes the base class otext as a parameter and indeed it is
+recommended that all print routines are customised for the base class otext and
+not any derivative. Derived class objects should only be used as parameters
+where the extended functionality of that derivative is specifically required
+within the function being called.</p>
+
+<h3>Usage with Base Class otext</h3>
+
+<p>The ofbuff buffer can be used directly with the TextIO input base class
+otext:</p>
+
+<pre class="cpp">otext my_output_file = new ofbuff("results.txt"); </pre>
+
+<p>This example defines a new otext object - an output text device - and
+initialises it with an ofbuff buffer. This customises the otext device for file
+output. The ofbuff buffer is in turn initialised by its second constructor which
+takes three arguments - the first is the filename and in this case is
+"results.txt"; the second is the buffer size to use and has been left as the
+default value. Since the mode is not specified, the default overwrite mode will
+be used.</p>
+
+<p>In practice the input base class otext is only used when it is desired to
+switch between different customisations.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="inputs">Input Files</h2>
+
+<h3>Usage</h3>
+
+<p>Input files are used in a very similar way to output files.</p>
+
+<p>The most common way of using file input devices is to used the derived class
+iftext. This is a derivation of itext. For example:</p>
+
+<pre class="cpp">iftext my_input_file("data.txt");</pre>
+
+<p>The iftext device provides a set of constructors and open() functions that
+simply perform the low-level operations to open and close files. The interface
+is almost completely defined by itext, since iftext inherits all of the itext
+member functions. The additional functionality is:</p>
+
+<pre class="cpp">iftext (void);</pre>
+
+<p>The void constructor creates an uninitialised device.</p>
+
+<pre class="cpp">iftext (FILE*);</pre>
+
+<p>This constructor takes an already-opened FILE* handle and attaches it to the
+input buffer. It is assumed that any customisation, for example setting up of
+buffering, has been done by the calling program. It is also assumed that the
+file will be closed by the calling program and not by FileIO since otherwise the
+other constructor would be used. This constructor is particularly useful for
+attaching the standard input handle stdin to a FileIO device so that TextIO
+formatting functions can be used on it.</p>
+
+<pre class="cpp">
+iftext (const char*, size_t bufsize = preferred_buffer);
+iftext (const string&amp;, size_t bufsize = preferred_buffer);
+</pre>
+
+<p>These constructors are the more commonly used one for named files. The first
+argument is the filename. This is passed directly to the fopen() function to
+open in read mode, so the rules for filenames are exactly the same as for
+stdio. Since the buffer opens the file, it will also automatically close the
+file when the device is either explicitly closed or the destructor is called.
+The second argument is an optional buffer size. If greater than zero, the
+built-in buffering scheme of stdio will be invoked to attach a buffer to the
+input FILE*. Because the underlying buffering of stdio is used, FileIO and stdio
+are guaranteed to be synchronised and therefore it is acceptable to intermix the
+two packages even on buffered input files.  The default buffer size will be
+suitable for most applications so in practice there is no need to specify a
+buffer size. The only exception is if you want unbuffered input (very slow) in
+which case a size of 0 should be specified.</p>
+
+<p>Note the convention for opening and closing files. If the FileIO opens the
+file, it will also close it. If the file is already open, then it will be left
+open when the FileIO device is destroyed.</p>
+
+<pre class="cpp">
+void open (FILE*);
+void open (const char*, size_t bufsize = TEXTIO_PREFERRED_SIZE);
+void open (const string&amp;, size_t bufsize = TEXTIO_PREFERRED_SIZE);
+</pre>
+
+<p>These open() functions allow an existing iftext device to be attached to a
+new file. Any old file is first of all detached by calling the underlying
+close() function from the base class itext.</p>
+
+<pre class="cpp">operator FILE* (void);</pre>
+
+<p>This is the type-conversion operator to FILE* which allows the file handle
+being managed by the iftext device to be accessed directly. This allows the
+iftext device to be used directly as the target for fscanf() calls.</p>
+
+<p>These customisation functions are specific to file-input devices only. They
+do not apply to the base class itext nor to any other derivative. However, all
+the functionality of the base class itext is available for use with iftext
+objects, in particular the full set of chevron operators overloaded on the itext
+class. Furthermore, an iftext device can be passed as a parameter to any
+function that takes the base class itext as a parameter and indeed it is
+recommended that all input routines are customised for the base class itext and
+not any derivative. Derived class objects should only be used as parameters
+where the extended functionality of that derivative is specifically required
+within the function being called.</p>
+
+<h3>Usage with Base Class itext</h3>
+
+<p>The ifbuff buffer can be used directly with the TextIO input base class
+itext:</p>
+
+<pre class="cpp">itext my_input_file = new ifbuff("data.txt"); </pre>
+
+<p>This example defines a new itext object - an input text device - and
+initialises it with an ifbuff buffer. This customises the itext device for file
+input. The ifbuff buffer is in turn initialised by its second constructor which
+takes two arguments - the first is the filename and in this case is "data.txt";
+the second is the buffer size to use and in this case is not specified, giving
+the default value.</p>
+
+<p>In practice the input base class itext is only used when it is desired to
+switch between different customisations. For example, you may wish to define an
+input device and then in an if statement either open it with a file-input buffer
+as above or alternatively open it with, for example, a string-input buffer as
+defined in stringio.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="predefined">Predefined FileIO Devices</h2>
+
+<p>The header defines the following set of predefined (and already opened)
+devices:</p>
+
+<pre class="cpp">
+extern iftext fin;
+extern oftext fout;
+extern oftext ferr;
+extern oftext fnull;
+</pre>
+
+<p>Device fin is attached to FILE* stdin, fout and ferr to stdout and stderr
+respectively, and fnull is an output null device which simply absorbs output
+silently. There is no null input device, but one can be created by constructing
+an iftext with no arguments (i.e. using the void constructor).</p>
+
+<p>Thus, to print to standard output:</p>
+
+<pre class="cpp">
+fout &lt;&lt; "Hello World" &lt;&lt; endl;
+</pre>
+
+<p>Remember that these connections mean that fout is buffered and ferr is
+unbuffered.</p>
+
+<p>To synchronise standard input and output, use the flush manipulator:</p>
+
+<pre class="cpp">
+string response;
+fout &lt;&lt; "Name: " &lt;&lt; flush;
+fin.getline(response);
+</pre>
+
+<p>This will print the string "Name: " and then flush the output buffer so that
+it appears on the screen. The user can then give a response terminated in
+return. The response is read in as a whole line by the getline() function.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

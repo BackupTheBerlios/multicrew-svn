@@ -1,0 +1,482 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>smart_ptr.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>smart_ptr.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">SMART_PTR_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">SMART_PTR_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Defines three smart pointer containers:</span>
+<span style="color: #000099">    - smart_ptr for simple types and classes</span>
+<span style="color: #000099">    - smart_ptr_clone for polymorphic class hierarchies</span>
+<span style="color: #000099">    - smart_ptr_nocopy for any class that cannot or should no be copied</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"exceptions.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"persistent_exceptions.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;map&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// internals</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">otext</span><span style="color: #330033">;</span>
+<span style="color: #990000">class</span> <span style="color: #000000">dump_context</span><span style="color: #330033">;</span>
+<span style="color: #990000">class</span> <span style="color: #000000">restore_context</span><span style="color: #330033">;</span>
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #990000">class</span> <span style="color: #000000">smart_ptr_holder</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Simple smart pointer class</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">class</span> <span style="color: #000000">smart_ptr</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #990000">typedef</span> <span style="color: #000000">T</span> <span style="color: #000000">value_type</span><span style="color: #330033">;</span>
+  <span style="color: #990000">typedef</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">reference</span><span style="color: #330033">;</span>
+  <span style="color: #990000">typedef</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">const_reference</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #000000">smart_ptr_holder</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">*</span> <span style="color: #000000">m_holder</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// constructors, assignments and destructors</span>
+
+  <span style="color: #000099">// create a null pointer</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create a pointer containing a *copy* of the object</span>
+  <span style="color: #000099">// this copy is taken because the pointer class maintains a dynamically allocated object </span>
+  <span style="color: #000099">// and the T&amp; may not be (usually is not) dynamically allocated</span>
+  <span style="color: #000099">// constructor form</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment form for an already-constructed smart-pointer</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// copy constructor implements counted referencing - no copy is made</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment of smart pointers implement counted referencing - no copy is made</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create a pointer containing a dynamically created object</span>
+  <span style="color: #000099">// Note: the object must be allocated *by the user* with new</span>
+  <span style="color: #000099">// constructor form - must be called in the form smart_ptr&lt;type&gt; x(new type(args))</span>
+  <span style="color: #990000">explicit</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment form</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// destructor decrements the reference count and delete only when the last reference is destroyed</span>
+  <span style="color: #330033">~</span><span style="color: #000000">smart_ptr</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// logical tests to see if there is anything contained in the pointer since it can be null</span>
+
+  <span style="color: #000099">// there are two forms:explicit and implicit</span>
+  <span style="color: #000099">// implicit: if(!r) or if(r)</span>
+  <span style="color: #000099">// explicit: if(r.null()) or if(r.present())</span>
+  <span style="color: #990000">operator</span> <span style="color: #990000">bool</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">!</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">present</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">null</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// dereference operators and functions</span>
+
+  <span style="color: #000099">// dereference the smart pointer to get the object - use in the form *p1</span>
+  <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">*</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">*</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// used as a prefix to a member access to the contained object e.g. p1-&gt;print() calls T::print()</span>
+  <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span><span style="color: #330033">-&gt;</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span><span style="color: #330033">-&gt;</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// explicit function forms of the above assignment and dereference operators</span>
+
+  <span style="color: #000099">// set the value</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_value</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// get the value</span>
+  <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// set the pointer</span>
+  <span style="color: #000099">// deletes the previous pointer and adopts the passed pointer instead</span>
+  <span style="color: #000099">// Note: the object must be allocated *by the user* with new</span>
+  <span style="color: #000099">// Warning: it is very easy to break the memory management with this operation</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set</span><span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// get the pointer</span>
+  <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">pointer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">pointer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// functions to manage counted referencing</span>
+
+  <span style="color: #000099">// test whether two pointers point to the same object(known as aliasing the object)</span>
+  <span style="color: #000099">// used in the form if(a.aliases(b))</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">aliases</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// find the number of aliases - used when you need to know whether an object is still referred to from elsewhere (rare!)</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">alias_count</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make this pointer unique with respect to any other references to the same object</span>
+  <span style="color: #000099">// if this pointer is already unique, it does nothing - otherwise it copies the object</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">make_unique</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// delete the object and make the pointer null - does not make it unique first, so all other pointers to this will be null too</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make the pointer unique and null in one step - does not affect other pointers that were pointing to the same object</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_unique</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make this pointer a unique copy of the parameter</span>
+  <span style="color: #000099">// useful for expressions like p1.copy(p2) which makes p1 a pointer to a unique copy of the contents of p2</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">copy</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// alternate form used in assignments: p1 = ps.copy()</span>
+  <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #000000">copy</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// persistence functions</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">dump</span><span style="color: #330033">(</span><span style="color: #000000">dump_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_dump_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">restore</span><span style="color: #330033">(</span><span style="color: #000000">restore_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_restore_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// comparisons required for using this class in an STL container</span>
+<span style="color: #000099">// These require == and &lt; operator in the contained type T</span>
+<span style="color: #000099">// the remaining relational operators are provided by template functions</span>
+<span style="color: #000099">// a null pointer is less-than a non-null, two nulls are equal</span>
+<span style="color: #000099">// these funcions are defined as non-members so that you only need provide</span>
+<span style="color: #000099">// the underlying T::operator&lt; and == if you are going to use these functions</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">&lt;</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// string/print utilities</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">smart_ptr_to_string</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print_smart_ptr</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print_smart_ptr</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">indent</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// persistence - call these rather than the methods</span>
+<span style="color: #000099">// the dump routine dumps smart_ptr-specific information and then calls dump_pointer on the contents</span>
+<span style="color: #000099">// similarly the restore routine calls restore_pointer</span>
+<span style="color: #000099">// so therefore the class T should have non-member dump/restore functions</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">dump_smart_ptr</span><span style="color: #330033">(</span><span style="color: #000000">dump_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_dump_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">restore_smart_ptr</span><span style="color: #330033">(</span><span style="color: #000000">restore_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #000000">smart_ptr</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_restore_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Cloning smart pointer class for polymorphic class hierarchies</span>
+<span style="color: #000099">// The contained class T should implement the clonable interface defined in clonable.hpp</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">class</span> <span style="color: #000000">smart_ptr_clone</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #990000">typedef</span> <span style="color: #000000">T</span> <span style="color: #000000">value_type</span><span style="color: #330033">;</span>
+  <span style="color: #990000">typedef</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">reference</span><span style="color: #330033">;</span>
+  <span style="color: #990000">typedef</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">const_reference</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #000000">smart_ptr_holder</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">*</span> <span style="color: #000000">m_holder</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// constructors, assignments and destructors</span>
+
+  <span style="color: #000099">// create a null pointer</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create a pointer containing a *copy* of the object</span>
+  <span style="color: #000099">// this copy is taken because the pointer class maintains a dynamically allocated object </span>
+  <span style="color: #000099">// and the T&amp; may not be (usually is not) dynamically allocated</span>
+  <span style="color: #000099">// constructor form</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment form for an already-constructed smart-pointer</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// copy constructor implements counted referencing - no copy is made</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment of smart pointers implement counted referencing - no copy is made</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create a pointer containing a dynamically created object</span>
+  <span style="color: #000099">// Note: the object must be allocated *by the user* with new</span>
+  <span style="color: #000099">// constructor form - must be called in the form smart_ptr_clone&lt;type&gt; x(new type(args))</span>
+  <span style="color: #990000">explicit</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment form</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// destructor decrements the reference count and delete only when the last reference is destroyed</span>
+  <span style="color: #330033">~</span><span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// logical tests to see if there is anything contained in the pointer since it can be null</span>
+
+  <span style="color: #000099">// there are two forms:explicit and implicit</span>
+  <span style="color: #000099">// implicit: if(!r) or if(r)</span>
+  <span style="color: #000099">// explicit: if(r.null()) or if(r.present())</span>
+  <span style="color: #990000">operator</span> <span style="color: #990000">bool</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">!</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">present</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">null</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// dereference operators and functions</span>
+
+  <span style="color: #000099">// dereference the smart pointer to get the object - use in the form *p1</span>
+  <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">*</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">*</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// used as a prefix to a member access to the contained object e.g. p1-&gt;print() calls T::print()</span>
+  <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span><span style="color: #330033">-&gt;</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span><span style="color: #330033">-&gt;</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// explicit function forms of the above assignment and dereference operators</span>
+
+  <span style="color: #000099">// set the value</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_value</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// get the value</span>
+  <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// set the pointer</span>
+  <span style="color: #000099">// deletes the previous pointer and adopts the passed pointer instead</span>
+  <span style="color: #000099">// Note: the object must be allocated *by the user* with new</span>
+  <span style="color: #000099">// Warning: it is very easy to break the memory management with this operation</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set</span><span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// get the pointer</span>
+  <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">pointer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">pointer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// functions to manage counted referencing</span>
+
+  <span style="color: #000099">// test whether two pointers point to the same object(known as aliasing the object)</span>
+  <span style="color: #000099">// used in the form if(a.aliases(b))</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">aliases</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// find the number of aliases - used when you need to know whether an object is still referred to from elsewhere (rare!)</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">alias_count</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make this pointer unique with respect to any other references to the same object</span>
+  <span style="color: #000099">// if this pointer is already unique, it does nothing - otherwise it copies the object</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">make_unique</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// delete the object and make the pointer null - does not make it unique first, so all other pointers to this will be null too</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make the pointer unique and null in one step - does not affect other pointers that were pointing to the same object</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_unique</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make this pointer a unique copy of the parameter</span>
+  <span style="color: #000099">// useful for expressions like p1.copy(p2) which makes p1 a pointer to a unique copy of the contents of p2</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">copy</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// alternate form used in assignments: p1 = ps.copy()</span>
+  <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span> <span style="color: #000000">copy</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// persistence functions</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">dump</span><span style="color: #330033">(</span><span style="color: #000000">dump_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_dump_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">restore</span><span style="color: #330033">(</span><span style="color: #000000">restore_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_restore_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// comparisons required for using this class in an STL container</span>
+<span style="color: #000099">// These require == and &lt; operator in the contained type T</span>
+<span style="color: #000099">// the remaining relational operators are provided by template functions</span>
+<span style="color: #000099">// a null pointer is less-than a non-null, two nulls are equal</span>
+<span style="color: #000099">// these funcions are defined as non-members so that you only need provide</span>
+<span style="color: #000099">// the underlying T::operator&lt; and == if you are going to use these functions</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">&lt;</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// string/print utilities</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">smart_ptr_clone_to_string</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print_smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print_smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">indent</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// persistence - call these rather than the methods</span>
+<span style="color: #000099">// the dump routine dumps smart_ptr_clone-specific information and then calls dump_interface</span>
+<span style="color: #000099">// similarly the restore routine calls restore_interface</span>
+<span style="color: #000099">// so therefore the class T should implement the persistent interface defined by the class persistent in persistent.hpp</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">dump_smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #000000">dump_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_dump_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">restore_smart_ptr_clone</span><span style="color: #330033">(</span><span style="color: #000000">restore_context</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #000000">smart_ptr_clone</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">data</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">persistent_restore_failed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// No-copy smart pointer class for managing objects that cannot be copied</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">class</span> <span style="color: #000000">smart_ptr_nocopy</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #990000">typedef</span> <span style="color: #000000">T</span> <span style="color: #000000">value_type</span><span style="color: #330033">;</span>
+  <span style="color: #990000">typedef</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">reference</span><span style="color: #330033">;</span>
+  <span style="color: #990000">typedef</span> <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">const_reference</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #000000">smart_ptr_holder</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">*</span> <span style="color: #000000">m_holder</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// constructors, assignments and destructors</span>
+
+  <span style="color: #000099">// create a null pointer</span>
+  <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// copy constructor implements counted referencing - no copy is made</span>
+  <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">r</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment of smart pointers implement counted referencing - no copy is made</span>
+  <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create a pointer containing a dynamically created object</span>
+  <span style="color: #000099">// Note: the object must be allocated *by the user* with new</span>
+  <span style="color: #000099">// constructor form - must be called in the form smart_ptr_nocopy&lt;type&gt; x(new type(args))</span>
+  <span style="color: #990000">explicit</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// assignment form</span>
+  <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// destructor decrements the reference count and delete only when the last reference is destroyed</span>
+  <span style="color: #330033">~</span><span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// logical tests to see if there is anything contained in the pointer since it can be null</span>
+
+  <span style="color: #000099">// there are two forms:explicit and implicit</span>
+  <span style="color: #000099">// implicit: if(!r) or if(r)</span>
+  <span style="color: #000099">// explicit: if(r.null()) or if(r.present())</span>
+  <span style="color: #990000">operator</span> <span style="color: #990000">bool</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">!</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">present</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">null</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// dereference operators and functions</span>
+
+  <span style="color: #000099">// dereference the smart pointer to get the object - use in the form *p1</span>
+  <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">*</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span><span style="color: #330033">*</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// used as a prefix to a member access to the contained object e.g. p1-&gt;print() calls T::print()</span>
+  <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span><span style="color: #330033">-&gt;</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #990000">operator</span><span style="color: #330033">-&gt;</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// explicit function forms of the above assignment and dereference operators</span>
+
+  <span style="color: #000099">// get the value</span>
+  <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">&amp;</span> <span style="color: #000000">value</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #990000">throw</span><span style="color: #330033">(</span><span style="color: #000000">null_dereference</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// set the pointer</span>
+  <span style="color: #000099">// deletes the previous pointer and adopts the passed pointer instead</span>
+  <span style="color: #000099">// Note: the object must be allocated *by the user* with new</span>
+  <span style="color: #000099">// Warning: it is very easy to break the memory management with this operation</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set</span><span style="color: #330033">(</span><span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">data</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// get the pointer</span>
+  <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">pointer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">const</span> <span style="color: #000000">T</span><span style="color: #330033">*</span> <span style="color: #000000">pointer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">//////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// functions to manage counted referencing</span>
+
+  <span style="color: #000099">// test whether two pointers point to the same object(known as aliasing the object)</span>
+  <span style="color: #000099">// used in the form if(a.aliases(b))</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">aliases</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// find the number of aliases - used when you need to know whether an object is still referred to from elsewhere (rare!)</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">alias_count</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// delete the object and make the pointer null - does not make it unique first, so all other pointers to this will be null too</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// make the pointer unique and null in one step - does not affect other pointers that were pointing to the same object</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_unique</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// comparisons required for using this class in an STL container</span>
+<span style="color: #000099">// These require == and &lt; operator in the contained type T</span>
+<span style="color: #000099">// the remaining relational operators are provided by template functions</span>
+<span style="color: #000099">// a null pointer is less-than a non-null, two nulls are equal</span>
+<span style="color: #000099">// these funcions are defined as non-members so that you only need provide</span>
+<span style="color: #000099">// the underlying T::operator&lt; and == if you are going to use these functions</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">=</span><span style="color: #330033">=</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #990000">bool</span> <span style="color: #990000">operator</span><span style="color: #330033">&lt;</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// string/print utilities</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">smart_ptr_nocopy_to_string</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print_smart_ptr_nocopy</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">template</span><span style="color: #330033">&lt;</span><span style="color: #990000">typename</span> <span style="color: #000000">T</span><span style="color: #330033">&gt;</span>
+<span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">print_smart_ptr_nocopy</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #000000">str</span><span style="color: #330033">,</span> <span style="color: #990000">const</span> <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">T</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span> <span style="color: #000000">ptr</span><span style="color: #330033">,</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">indent</span><span style="color: #330033">,</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">null_string</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// there's no persistence on smart_ptr_nocopy because the whole point is that</span>
+<span style="color: #000099">// it stores an uncopyable object and persistence is a form of copying</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"smart_ptr.tpp"</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

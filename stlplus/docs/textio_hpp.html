@@ -1,0 +1,558 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>textio.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>textio.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">TEXTIO_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">TEXTIO_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  ------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;vector&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"smart_ptr.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"string_utilities.hpp"</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Builtin error codes - you can add your own when you create a new derivative</span>
+<span style="color: #000099">// buffer in which case you may wish to overload the error_string function of</span>
+<span style="color: #000099">// the buffer to give a textual form to your errors.</span>
+<span style="color: #000099">// All internal error codes are negative to differentiate them from system error codes.</span>
+
+<span style="color: #990000">extern</span> <span style="color: #990000">const</span> <span style="color: #990000">int</span> <span style="color: #000000">textio_uninitialised</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #990000">const</span> <span style="color: #990000">int</span> <span style="color: #000000">textio_put_failed</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #990000">const</span> <span style="color: #990000">int</span> <span style="color: #000000">textio_format_error</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #990000">const</span> <span style="color: #990000">int</span> <span style="color: #000000">textio_get_failed</span><span style="color: #330033">;</span>
+<span style="color: #990000">extern</span> <span style="color: #990000">const</span> <span style="color: #990000">int</span> <span style="color: #000000">textio_open_failed</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Text Output Device</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">otext</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">obuff</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">itext</span><span style="color: #330033">;</span>
+  <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">obuff</span><span style="color: #330033">&gt;</span> <span style="color: #000000">m_buffer</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// Local Types</span>
+  <span style="color: #000099">// These local enumerations are in the otext namespace</span>
+
+  <span style="color: #000099">// Newline conversion</span>
+  <span style="color: #000099">// The user of TextIO should always use '\n' for newlines, then TextIO will do the conversions</span>
+  <span style="color: #000099">// default: native</span>
+  <span style="color: #000099">// I appended the _mode suffix to avoid conflicts with macros</span>
+  <span style="color: #990000">enum</span> <span style="color: #000000">newline_t</span>
+  <span style="color: #330033">{</span>
+    <span style="color: #000000">binary_mode</span><span style="color: #330033">,</span> <span style="color: #000099">// no end of line conversion</span>
+    <span style="color: #000000">unix_mode</span><span style="color: #330033">,</span>   <span style="color: #000099">// Unix conversions (LF)</span>
+    <span style="color: #000000">msdos_mode</span><span style="color: #330033">,</span>  <span style="color: #000099">// MS-DOS conversion (CR-LF)</span>
+    <span style="color: #000000">macos_mode</span><span style="color: #330033">,</span>  <span style="color: #000099">// MacOS conversion (CR)</span>
+    <span style="color: #000099">// the mode of the platform you compiled this on</span>
+<span style="color: #990000">#if</span> <span style="color: #000000">defined</span><span style="color: #330033">(</span><span style="color: #000000">_WIN32</span><span style="color: #330033">)</span>
+    <span style="color: #000000">native_mode</span> <span style="color: #330033">=</span> <span style="color: #000000">msdos_mode</span>
+<span style="color: #990000">#else</span>
+    <span style="color: #000000">native_mode</span> <span style="color: #330033">=</span> <span style="color: #000000">unix_mode</span>
+<span style="color: #990000">#endif</span>
+  <span style="color: #330033">}</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">to_string</span><span style="color: #330033">(</span><span style="color: #000000">newline_t</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Open Mode</span>
+  <span style="color: #000099">// only used for otext devices where the two modes make sense, e.g. files but not pipes</span>
+  <span style="color: #990000">enum</span> <span style="color: #000000">open_t</span>
+  <span style="color: #330033">{</span>
+    <span style="color: #000000">overwrite</span><span style="color: #330033">,</span>  <span style="color: #000099">// destroy previous contents (default)</span>
+    <span style="color: #000000">append</span>      <span style="color: #000099">// append to previous contents</span>
+  <span style="color: #330033">}</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">to_string</span><span style="color: #330033">(</span><span style="color: #000000">open_t</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// profile for function manipulators</span>
+  <span style="color: #990000">typedef</span> <span style="color: #990000">void</span> <span style="color: #330033">(</span><span style="color: #330033">*</span><span style="color: #000000">manipulator_function</span><span style="color: #330033">)</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// Member functions</span>
+
+  <span style="color: #000099">// create an uninitialised otext</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create an initialised otext by attaching a buffer (any derivative of obuff)</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">(</span><span style="color: #000000">obuff</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// close the otext if its open by deleting the buffer (thus calling its destructor)</span>
+  <span style="color: #330033">~</span><span style="color: #000000">otext</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether this otext has a buffer attached</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialised</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// initialise otext by attaching a buffer (any derivative of obuff)</span>
+  <span style="color: #000099">// if a buffer is already attached, delete it first</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span><span style="color: #330033">(</span><span style="color: #000000">obuff</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// close the otext if its open by deleting the buffer (thus calling its destructor)</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// copy and assign create aliases - no deep copy is available - no deep copy makes sense!</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test the buffer's error function</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error_number</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_error</span><span style="color: #330033">(</span><span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// newline control</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_newline_mode</span><span style="color: #330033">(</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #000000">native_mode</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_unix_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_msdos_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_macos_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_native_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_binary_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">newline_t</span> <span style="color: #000000">newline_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_unix_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_msdos_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_macos_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_native_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_binary_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// integer formatting control</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_integer_width</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">width</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">integer_width</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_integer_radix</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">radix</span> <span style="color: #330033">=</span> <span style="color: #993399">10</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">integer_radix</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_integer_display</span><span style="color: #330033">(</span><span style="color: #000000">radix_display_t</span> <span style="color: #000000">display</span> <span style="color: #330033">=</span> <span style="color: #000000">radix_c_style_or_hash</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">radix_display_t</span> <span style="color: #000000">integer_display</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// floating-point formatting control</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_real_width</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">width</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">real_width</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_real_precision</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #000000">width</span> <span style="color: #330033">=</span> <span style="color: #993399">6</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">real_precision</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_real_display</span><span style="color: #330033">(</span><span style="color: #000000">real_display_t</span> <span style="color: #000000">display</span> <span style="color: #330033">=</span> <span style="color: #000000">display_mixed</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">real_display_t</span> <span style="color: #000000">real_display</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// low-level character write</span>
+  <span style="color: #000099">// put writes a single character</span>
+  <span style="color: #000099">// it is an error to put negative values, specifically EOF (-1)</span>
+  <span style="color: #000099">// the character must be unsigned char, since otherwise there are two definitions of -1</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">put</span><span style="color: #330033">(</span><span style="color: #990000">int</span> <span style="color: #000000">ch</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// composite operations on strings (C and STL) which repeatly call the above</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">put</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">put</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// number of characters written through the otext member functions</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">bytes</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// line and column for last character written</span>
+  <span style="color: #000099">// this only really has meaning if you are using text conversion mode (i.e. not binary)</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">line</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">column</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// flush the buffer explicitly (for example to synchronise standard output with standard input)</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">flush</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether the device is capable of accepting/not accepting output</span>
+  <span style="color: #990000">operator</span> <span style="color: #990000">bool</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #330033">{</span><span style="color: #990000">return</span> <span style="color: #330033">!</span><span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span><span style="color: #330033">}</span>
+  <span style="color: #990000">bool</span> <span style="color: #990000">operator</span> <span style="color: #330033">!</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span> <span style="color: #330033">{</span><span style="color: #990000">return</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #330033">)</span><span style="color: #330033">;</span><span style="color: #330033">}</span>
+
+  <span style="color: #000099">// the pipe operators &lt;&lt; are the main functions used with otext and its derivates</span>
+  <span style="color: #000099">// they are used in the form:</span>
+  <span style="color: #000099">//   device &lt;&lt; object1 &lt;&lt; object2 &lt;&lt; object3;</span>
+
+  <span style="color: #000099">// single character</span>
+  <span style="color: #000099">// TODO - wide char</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">char</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">signed</span> <span style="color: #990000">char</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">char</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// string output</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">char</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// string vector - writes whole array as a series of newline separated strings</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// integer output</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">bool</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">short</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">short</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">int</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">int</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">long</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">long</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// floating point output</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">float</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">double</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// pointer output, compatible with &gt;&gt; operator for void*;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #990000">void</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// manipulator - applies passed function to stream;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #000000">manipulator_function</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// pipe operator - pours one stream into the other until eof();</span>
+  <span style="color: #000099">// this is an easy way to copy one device into another</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&lt;&lt;</span> <span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// output manipulators, used in the form: fout &lt;&lt; flush &lt;&lt; endl;</span>
+
+<span style="color: #000099">// simply flush the buffer (if any)</span>
+<span style="color: #990000">void</span> <span style="color: #000000">flush</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// write a newline, iostream style</span>
+<span style="color: #990000">void</span> <span style="color: #000000">endl</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// close the device</span>
+<span style="color: #990000">void</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// set radix to hex/octal/decimal</span>
+<span style="color: #990000">void</span> <span style="color: #000000">hex</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">oct</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">dec</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// the following used to be manipulators, but for efficiency they are now defined as consts;</span>
+<span style="color: #990000">const</span> <span style="color: #990000">char</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #cc9933">'\n'</span><span style="color: #330033">;</span>
+<span style="color: #990000">const</span> <span style="color: #990000">char</span> <span style="color: #000000">space</span> <span style="color: #330033">=</span> <span style="color: #cc9933">' '</span><span style="color: #330033">;</span>
+<span style="color: #990000">const</span> <span style="color: #990000">char</span> <span style="color: #000000">tab</span> <span style="color: #330033">=</span> <span style="color: #cc9933">'\t'</span><span style="color: #330033">;</span>
+<span style="color: #990000">const</span> <span style="color: #990000">char</span> <span style="color: #000000">null</span> <span style="color: #330033">=</span> <span style="color: #cc9933">'\0'</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Text Input Device</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">itext</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">otext</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">ibuff</span><span style="color: #330033">;</span>
+  <span style="color: #000000">smart_ptr_nocopy</span><span style="color: #330033">&lt;</span><span style="color: #000000">ibuff</span><span style="color: #330033">&gt;</span> <span style="color: #000000">m_buffer</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// Newline conversion</span>
+  <span style="color: #000099">// When conversion is on, all end-of-line conventions (LF, CR-LF, CR) will be converted into a '\n'</span>
+  <span style="color: #000099">// When conversion is off, data comes in unmodified - note that this can make the eoln() test act strangely</span>
+  <span style="color: #990000">enum</span> <span style="color: #000000">newline_t</span>
+  <span style="color: #330033">{</span>
+    <span style="color: #000000">binary_mode</span><span style="color: #330033">,</span>      <span style="color: #000099">// no end of line conversion</span>
+    <span style="color: #000000">convert_mode</span>      <span style="color: #000099">// recognise and convert all end-of-line conventions</span>
+  <span style="color: #330033">}</span><span style="color: #330033">;</span>
+  <span style="color: #990000">friend</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">to_string</span><span style="color: #330033">(</span><span style="color: #000000">newline_t</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #990000">typedef</span> <span style="color: #990000">void</span> <span style="color: #330033">(</span><span style="color: #330033">*</span><span style="color: #000000">manipulator_function</span><span style="color: #330033">)</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// create an uninitialised itext</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// create an itext and initialise it with a buffer (any derivative of ibuff)</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">(</span><span style="color: #000000">ibuff</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// closes the itext if it is open and destroys any structures - including the buffer</span>
+  <span style="color: #330033">~</span><span style="color: #000000">itext</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test whether the itext has a buffer attached</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">initialised</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// attach a buffer (any derivative of ibuff)</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">open</span><span style="color: #330033">(</span><span style="color: #000000">ibuff</span><span style="color: #330033">*</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// detach the buffer and delete it (causing the destructor and therefore any closedown actions to be called)</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// copy and assignment create aliases - it is not sensible to allow a deep copy (think about it)</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test the buffer's error flag or retrieve its value</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error_number</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_error</span><span style="color: #330033">(</span><span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// formatting control</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_newline_mode</span><span style="color: #330033">(</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #000000">convert_mode</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_convert_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_binary_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">newline_t</span> <span style="color: #000000">newline_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_convert_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">is_binary_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// test for the two special 'characters' end-of-file (-1) and end-of-line (\n) using peek()</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">eof</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">eoln</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// low-level character access - peek allows one character lookahead, get allows one character to be read</span>
+  <span style="color: #000099">// Both return -1 to indicate EOF</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">peek</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">get</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// number of characters read through the itext member functions</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">bytes</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// line and column for last character read</span>
+  <span style="color: #000099">// this only really has meaning if you are using text conversion mode (i.e. not binary)</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">line</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">column</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// tests for whether an itext has/hasn't got text to be read</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">good</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">operator</span> <span style="color: #990000">bool</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #990000">operator</span> <span style="color: #330033">!</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+  <span style="color: #000099">// input-pipe operators are the main usage of itext</span>
+  <span style="color: #000099">// used in the form:</span>
+  <span style="color: #000099">//    device &gt;&gt; object1 &gt;&gt; object2 &gt;&gt; object3;</span>
+  <span style="color: #000099">// device is any derivative of itext, object is any type with a &gt;&gt; operator defined (you can overload)</span>
+
+  <span style="color: #000099">// just get next character, including any whitespace or end of line character;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">char</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">signed</span> <span style="color: #990000">char</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">char</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// skipwhite before reading then read until a whitespace is found</span>
+  <span style="color: #000099">// this is a kind of tokenising operator</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// gets the whole line</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">getline</span><span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&amp;</span> <span style="color: #000000">line</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get the whole file as a vector of strings, using newlines to split the input</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">vector</span><span style="color: #330033">&lt;</span><span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span><span style="color: #330033">&gt;</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// integer operations: skipwhite then read an integer in any of the recognised formats:</span>
+  <span style="color: #000099">// decimal: 12345</span>
+  <span style="color: #000099">// octal:   012345</span>
+  <span style="color: #000099">// hex:     0x12345</span>
+  <span style="color: #000099">// hash:    13#12345</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">bool</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">short</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">short</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">int</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">int</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">long</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">long</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// real operations, skipwhite then read floating-point number - fraction and exponent are optional</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">float</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">double</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// pointer operator, skipwhite, then reads a pointer written by &lt;&lt; operator for void*</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">*</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// manipulator - applies passed manipulator function to stream;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #000000">manipulator_function</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// pipe operator - pours one stream into the other until eof();</span>
+  <span style="color: #000099">// this is the easiest way to make a copy</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">&gt;&gt;</span> <span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// manipulators, used in the form: fin &gt;&gt; skipwhite &gt;&gt; ch</span>
+
+<span style="color: #000099">// skip all whitespace as defined by isspace() in &lt;cctype&gt;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">skipwhite</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// skip up to one whitespace as defined by isspace() in &lt;cctype&gt;</span>
+<span style="color: #990000">void</span> <span style="color: #000000">skiponewhite</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// skip whitespace excluding end of line - i.e. only spacing characters</span>
+<span style="color: #990000">void</span> <span style="color: #000000">skipspaces</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// skip all text until and including the next end-of-line character</span>
+<span style="color: #990000">void</span> <span style="color: #000000">skipline</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// skip all whitespace, but stop after an end-of-line character</span>
+<span style="color: #990000">void</span> <span style="color: #000000">skipendl</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// close the device</span>
+<span style="color: #990000">void</span> <span style="color: #000000">close</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #000099">// Internals</span>
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span style="color: #000099">// Output Buffer</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">obuff</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// constructor initialises output buffer with the mode fields - line buffering mode and newline conversion mode</span>
+  <span style="color: #000000">obuff</span><span style="color: #330033">(</span><span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">,</span> <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">native_mode</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Total number of characters written through put()</span>
+  <span style="color: #000099">// also number of lines and column number of last byte written</span>
+  <span style="color: #000099">// Note this may not correspond to the number of characters sent to otext due to newline conversion</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">increment</span><span style="color: #330033">(</span><span style="color: #990000">bool</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">bytes</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">line</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">column</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get line buffering mode - the TextIO device calls flush on every newline when in line beffering mode</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_line_buffer</span><span style="color: #330033">(</span><span style="color: #990000">bool</span> <span style="color: #000000">mode</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">line_buffer</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get newline handling mode - used by TextIO device to process CR/LF characters</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_newline_mode</span><span style="color: #330033">(</span><span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Integer formatting fields</span>
+  <span style="color: #000099">// field width for next formattable integer type, default: 0</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">integer_width</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_integer_width</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// base for integer display - from 2-36, default: 10</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">integer_radix</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_integer_radix</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// how to display an integer - see string_utilities, default: c_style_or_hash</span>
+  <span style="color: #000000">radix_display_t</span> <span style="color: #000000">integer_display</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_integer_display</span><span style="color: #330033">(</span><span style="color: #000000">radix_display_t</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Real formatting fields</span>
+  <span style="color: #000099">// field width for next formattable real type, default: 0</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">real_width</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_real_width</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// number of significant digits</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">real_precision</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_real_precision</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000099">// how to display a real - see string_utilities, default: display_mixed</span>
+  <span style="color: #000000">real_display_t</span> <span style="color: #000000">real_display</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_real_display</span><span style="color: #330033">(</span><span style="color: #000000">real_display_t</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Error number</span>
+  <span style="color: #000099">// zero if there is no error, any integer for an error</span>
+  <span style="color: #000099">// this may be any of the definitions defined in &lt;errno.h&gt; or any derivative specific number</span>
+  <span style="color: #000099">// this is set by otext itself but may also be set in any of your own derivatives</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_error</span><span style="color: #330033">(</span><span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error_number</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Customisation</span>
+  <span style="color: #000099">// To create a new output buffer, derive from this and then customise the</span>
+  <span style="color: #000099">// virtual functions. Also provide sensible constructors - for example FileIO</span>
+  <span style="color: #000099">// would have a constructor taking a filename and open mode. You only HAVE to</span>
+  <span style="color: #000099">// provide the abstract function put(char), all others are optional. These</span>
+  <span style="color: #000099">// functions are implicitly called by the otext class which contains your</span>
+  <span style="color: #000099">// buffer.</span>
+
+  <span style="color: #000099">// you should provide a destructor (also virtual) if your buffer needs closedown actions such as closing a file/pipe</span>
+
+  <span style="color: #000099">// the default flush does nothing</span>
+  <span style="color: #000099">// use this to flush any internal buffer - not relevant if your device isn't buffered</span>
+  <span style="color: #000099">// note that if you are buffering, you should not rely on flush being called explicitly when the buffer is full</span>
+  <span style="color: #000099">// - you need to manage the buffer yourself</span>
+  <span style="color: #000099">// flush is called from TextIO to synchronise devices e.g. stdin and stdout</span>
+  <span style="color: #000099">// It will be called on every newline if the buffer is in line buffer mode</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">void</span> <span style="color: #000000">flush</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// the only operation that you must provide</span>
+  <span style="color: #000099">// sends a single character to the target device</span>
+  <span style="color: #000099">// returns the number of characters written (0 or 1)</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">unsigned</span> <span style="color: #000000">put</span><span style="color: #330033">(</span><span style="color: #990000">unsigned</span> <span style="color: #990000">char</span><span style="color: #330033">)</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// use this to do any mopping up required on closing a buffer</span>
+  <span style="color: #000099">// the default destructor does nothing - overload this only if you need to</span>
+  <span style="color: #990000">virtual</span> <span style="color: #330033">~</span><span style="color: #000000">obuff</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// disallow copying</span>
+  <span style="color: #000000">obuff</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">obuff</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">obuff</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">obuff</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">otext</span><span style="color: #330033">;</span>
+  <span style="color: #990000">bool</span> <span style="color: #000000">m_line_buffer</span><span style="color: #330033">;</span>
+  <span style="color: #000000">otext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">m_newline</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">m_bytes</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_line</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_column</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_integer_width</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_integer_radix</span><span style="color: #330033">;</span>
+  <span style="color: #000000">radix_display_t</span> <span style="color: #000000">m_integer_display</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_real_width</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_real_precision</span><span style="color: #330033">;</span>
+  <span style="color: #000000">real_display_t</span> <span style="color: #000000">m_real_display</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">m_error_number</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// Input Buffer</span>
+
+<span style="color: #990000">class</span> <span style="color: #000000">ibuff</span>
+<span style="color: #330033">{</span>
+<span style="color: #990000">public</span><span style="color: #330033">:</span>
+  <span style="color: #000000">ibuff</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #000000">itext</span><span style="color: #330033">::</span><span style="color: #000000">convert_mode</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Total number of characters read through get()</span>
+  <span style="color: #000099">// also number of lines and column number of last byte read</span>
+  <span style="color: #000099">// Note this may not correspond to the number of characters read from the device due to newline conversion</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">increment</span><span style="color: #330033">(</span><span style="color: #990000">bool</span> <span style="color: #000000">newline</span> <span style="color: #330033">=</span> <span style="color: #990000">false</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">bytes</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">line</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">column</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// get newline handling mode - used by TextIO device to process CR/LF characters</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_newline_mode</span><span style="color: #330033">(</span><span style="color: #000000">itext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">newline_mode</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// Error number</span>
+  <span style="color: #000099">// zero if there is no error, any integer for an error</span>
+  <span style="color: #000099">// this may be any of the errno definitions defined in &lt;errno.h&gt; or any derivative specific number</span>
+  <span style="color: #000099">// this is set by itext itself but may also be set in any of your own derivatives</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">set_error</span><span style="color: #330033">(</span><span style="color: #990000">int</span> <span style="color: #000000">error</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">void</span> <span style="color: #000000">clear_error</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">error_number</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">error_string</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #990000">const</span><span style="color: #330033">;</span>
+
+
+  <span style="color: #000099">// Customisation</span>
+  <span style="color: #000099">// create a new buffer by customising the following functions</span>
+  <span style="color: #000099">// you should also provide a destructor (also virtual) if your buffer needs closedown actions</span>
+  <span style="color: #000099">// it REALLY IS as simple as that - see the existing derivatives for examples</span>
+
+  <span style="color: #000099">// peek and get are abstract functions, so you must provide them</span>
+  <span style="color: #000099">// peek gets the next character without consuming it, get gets the same character but also consumes it</span>
+  <span style="color: #000099">// this means that text input requires one-character lookahead</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">int</span> <span style="color: #000000">peek</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">;</span>
+  <span style="color: #990000">virtual</span> <span style="color: #990000">int</span> <span style="color: #000000">get</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span> <span style="color: #330033">=</span> <span style="color: #993399">0</span><span style="color: #330033">;</span>
+
+  <span style="color: #000099">// do any mopping up and close the input</span>
+  <span style="color: #000099">// default destructor does nothing</span>
+  <span style="color: #990000">virtual</span> <span style="color: #330033">~</span><span style="color: #000000">ibuff</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">private</span><span style="color: #330033">:</span>
+  <span style="color: #000099">// disallow copying</span>
+  <span style="color: #000000">ibuff</span><span style="color: #330033">&amp;</span> <span style="color: #990000">operator</span> <span style="color: #330033">=</span> <span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">ibuff</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+  <span style="color: #000000">ibuff</span><span style="color: #330033">(</span><span style="color: #990000">const</span> <span style="color: #000000">ibuff</span><span style="color: #330033">&amp;</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #990000">protected</span><span style="color: #330033">:</span>
+  <span style="color: #990000">friend</span> <span style="color: #990000">class</span> <span style="color: #000000">itext</span><span style="color: #330033">;</span>
+  <span style="color: #000000">itext</span><span style="color: #330033">::</span><span style="color: #000000">newline_t</span> <span style="color: #000000">m_newline_mode</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #990000">long</span> <span style="color: #000000">m_bytes</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_line</span><span style="color: #330033">;</span>
+  <span style="color: #990000">unsigned</span> <span style="color: #000000">m_column</span><span style="color: #330033">;</span>
+  <span style="color: #990000">int</span> <span style="color: #000000">m_error_number</span><span style="color: #330033">;</span>
+<span style="color: #330033">}</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">////////////////////////////////////////////////////////////////////////////////</span>
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

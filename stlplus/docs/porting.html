@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - Porting State</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" href="stlplus.css" type="text/css">
+<link rel="stylesheet" href="green.css" type="text/css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>Porting State</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#issues">Porting Issues</a></li>
+<li><a href="#progress">Porting Progress</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>My intention is to port the STLplus library to as many platforms as I can reasonably support.
+SourceForge help here by allowing access to a wide range of different platforms that I can run
+tests on.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="issues">Porting Issues</h2>
+
+<p>There are a number of porting issues to be overcome:</p>
+
+<dl>
+
+<dt>Different Operating Systems</dt>
+
+<dd>
+<p>One of the objectives of this library is to provide platform-independent
+access to operating system services that differ between platforms. The idea is
+to hide the implementation behind a common interface. By writing software to
+that interface, you automatically get portable software. At least, that is the
+theory.</p>
+</dd>
+
+<dt>Different CPU Architectures</dt>
+<dd>
+<p>Different CPUs have different word lengths, different byte ordering and different integer type
+definitions. The intention is that STLplus will work with all variations of these characteristics
+that I come across.</p>
+</dd>
+
+<dt>Different Compilers</dt>
+
+<dd>
+<p>The concept of portability means portability between operating systems,
+not necessarily portability between compilers. However, to cater for different
+tastes in compilers, under Windows the library will work for either the Gnu
+gcc compiler or the Microsoft Visual C++ compiler.</p>
+</dd>
+
+</dl>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="progress">Porting Progress</h2>
+
+<p>The following table shows the systems that STLplus has been ported to so far.</p>
+
+<table border="1" cellpadding="1" align="center" rules="cols,groups" frame="border">
+<caption>Porting State</caption>
+
+<colgroup>
+<col align="center">
+<col align="center">
+<col align="center">
+</colgroup>
+<colgroup>
+<col align="center">
+<col align="center">
+</colgroup>
+<colgroup>
+<col align="center">
+<col align="left">
+</colgroup>
+
+<thead valign="top">
+
+<tr>
+<th colspan="3">Platform</th>
+<th colspan="2">Build</th>
+<th colspan="2">State</th>
+</tr>
+
+<tr>
+<th>CPU</th>
+<th>OS</th>
+<th>Compiler</th>
+<th>Build Name</th>
+<th>-D Directives<br>(see note 1)</th>
+<th>Ported?<br>Date tested</th>
+<th>Notes</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+<td align="center">Intel 686</td>
+<td align="center">Windows NT/2k/XP</td>
+<td align="center">gcc (Unix emulation)</td>
+<td align="center"><code>CYGWIN-i686</code></td>
+<td align="center"><code></code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>23-4-2004</td>
+<td align="left">Windows XP, Cygwin 1.5.9, gcc v3.3.1</td>
+</tr>
+
+<tr>
+<td align="center">Intel 686</td>
+<td align="center">Windows NT/2k/XP</td>
+<td align="center">gcc (Windoze native)</td>
+<td align="center"><code>CYGMING-i686</code></td>
+<td align="center"><code>_WIN32</code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>23-4-2004</td>
+<td align="left">Windows XP, Cygwin 1.5.9, gcc v3.3.1<br>(uses the -mno-cygwin option)</td>
+</tr>
+
+<tr>
+<td align="center">Intel 686</td>
+<td align="center">Windows NT/2k/XP</td>
+<td align="center">Microsoft Visual Studio</td>
+<td align="center"></td>
+<td align="center"><code>_WIN32</code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>26-4-2004</td>
+<td align="left">Windows XP, MSVC v12 (i.e. Visual Studio 6)<br>MSVC v13 (i.e. Visual Studio .NET) reportedly OK</td>
+</tr>
+
+<tr>
+<td align="center">Intel 686</td>
+<td align="center">Linux</td>
+<td align="center">gcc</td>
+<td align="center"><code>LINUX-i686</code></td>
+<td align="center"><code></code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>26-4-2004</td>
+<td align="left">RedHat Linux 7.2, gcc 2.96</td>
+</tr>
+
+<tr>
+<td align="center">DEC Alpha</td>
+<td align="center">Linux</td>
+<td align="center">gcc</td>
+<td align="center"><code>LINUX-alpha</code></td>
+<td align="center"><code></code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>23-4-2004</td>
+<td align="left">Debian Gnu/Linux 2.2.20, gcc 2.95, 64-bit processor</td>
+</tr>
+
+<tr>
+<td align="center">AMD Opteron</td>
+<td align="center">Linux</td>
+<td align="center">gcc</td>
+<td align="center"><code>LINUX-x86_64</code></td>
+<td align="center"><code></code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>23-4-2004</td>
+<td align="left">SuSE Linux 2.4.21, gcc 3.2.2, 64-bit processor</td>
+</tr>
+
+<tr>
+<td align="center">Sun Sparc</td>
+<td align="center">Solaris</td>
+<td align="center">gcc</td>
+<td align="center"><code>SOLARIS-sun4u</code></td>
+<td align="center"><code>SOLARIS</code></td>
+<td align="center" style="background-color: #8fff8f">yes<br>23-4-2004</td>
+<td align="left">Solaris 5.8, gcc 2.95<br>The compiler directive is needed because Sun put
+declarations in strange headers. There are no code differences over other Posix builds.</td>
+</tr>
+
+<tr>
+<td align="center">Intel 686</td>
+<td align="center">Solaris</td>
+<td align="center">gcc</td>
+<td align="center"><code></code></td>
+<td align="center"><code>SOLARIS</code></td>
+<td align="center" style="background-color: #ff6f6f">no</td>
+<td align="left">Haven't got access to PC version of Solaris. However, I have ported to Solaris and
+to the PC, so no problems are expected</td>
+</tr>
+
+<tr>
+<td align="center">HP</td>
+<td align="center">HP-UX</td>
+<td align="center">gcc</td>
+<td align="center"><code></code></td>
+<td align="center"><code></code></td>
+<td align="center" style="background-color: #ff6f6f">no</td>
+<td align="left">No problems expected - Posix compliant</td>
+</tr>
+
+<tr>
+<td align="center">IBM</td>
+<td align="center">AIX</td>
+<td align="center">gcc</td>
+<td align="center"><code></code></td>
+<td align="center"><code></code></td>
+<td align="center" style="background-color: #ff6f6f">no</td>
+<td align="left">No problems expected - Posix compliant</td>
+</tr>
+
+</tbody>
+
+</table>
+
+<p><b>Note 1</b>: The -D directive is a C macro that selects between different implementations of
+code for different platforms. For example, a Windows application will use different system calls to
+a Unix application. The correct directive for the platform must be defined for the STLplus library
+to build on the target platform. Typically this is set as an option to the compiler - for example
+with the gcc compiler you would specify "<tt>gcc -DSOLARIS</tt>" when building on Solaris. The
+_WIN32 value that selects the Windows native build is set automatically by the compilers so you
+don't have to do this. If no -D directive is shown, then the default build is a generic Unix build
+and needs no special rules. See the documentation on <a href="building.html">building the
+library</a> for more on this.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - string_vectorio.hpp - vector&lt;string&gt;-based derivative of textio</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>string_vectorio - TextIO Derivative using vector&lt;string&gt;</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="string_vectorio_hpp.html">Browse Header string_vectorio.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#outputs">Output String Vectors</a></li>
+<li><a href="#inputs">Input String Vector</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>This package is very similar to the <a href="stringio.html">stringio</a>
+package. It allows redirection of output or sourcing of input from a vector of
+strings. It follows the convention that each string in the vector is a line of
+text. This means that when output is redirected to a string vector, the result
+will be a vector with one string per line of output. Similarly, when a string
+vector is used as input, a newline is inserted at the end of each string in the
+vector. This means that the test eoln() has meaning.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="outputs">Output String Vectors</h2>
+
+<h3>Usage</h3>
+
+<p>The way of using string vector output devices is to used the
+derived class osvtext. This is a derivation of otext and can be used wherever
+otext would be used. For
+example:</p>
+
+<pre class="cpp">osvtext my_output;</pre>
+
+<p>Once an output string device has been opened, it can be used as the base class otext
+device, giving access to all of the output chevron operators (&lt;&lt;). See the
+TextIO Documentation for details.</p>
+
+<p>For example:</p>
+
+<pre class="cpp">
+my_output &lt;&lt; "Hello World" &lt;&lt; endl &lt;&lt; "I'm here" &lt; endl;
+</pre>
+
+<p>This fills in the vector with two strings. The first string contains the text
+"Hello World", whilst the second contains the text "I'm here".</p>
+
+<p>The internal vector which receives the output text can be accessed by the
+get_vector function.</p>
+
+<pre class="cpp">
+vector&lt;string&gt;&amp; result = my_output.get_vector();
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="inputs">Input String Vector</h2>
+
+<h3>Usage</h3>
+
+<p>Input string vectors are used in a very similar way to outputs. The main
+difference is that, with input devices, the device needs to be initialised
+with the vector contents by passing a vector&lt;string&gt; to the constructor.</p>
+
+<p>For example:</p>
+
+<pre class="cpp">
+vector&lt;string&gt; data;
+data.push_back("Hello World");
+data.push_back("I'm here");
+isvtext my_input(data);
+</pre>
+
+<p>This device can now be used as an input to a chevron expression to extract
+the elements of the strings. For example, the &gt;&gt; operator for a string gets
+the next non-whitespace sequence from a device. Thus the words can be split very
+easily:</p>
+
+<pre class="cpp">
+string first_word;
+my_input &gt;&gt; first_word;
+string second_word;
+my_input &gt;&gt; second_word;
+string third_word;
+my_input &gt;&gt; third_word;
+string fourth_word;
+my_input &gt;&gt; fourth_word;
+</pre>
+
+<p>The input string device has the concept of end-of-file in that the device
+eof() function returns true if all of the string has been read. It also supports
+the concept of end-of-line such that the eoln() function returns true if the
+next read would get the '\n' character - which is returned when the input device
+steps from one string in the vector to the next string.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

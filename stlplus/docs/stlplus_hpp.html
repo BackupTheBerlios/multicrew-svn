@@ -1,0 +1,80 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>stlplus.hpp</title>
+<meta http-equiv="generator" content="ccolour C++ colouriser by Andy Rushton">
+</head>
+<body lang="en">
+<h1>stlplus.hpp</h1>
+<pre style="background-color: #ffffff">
+
+<span style="color: #990000">#ifndef</span> <span style="color: #000000">STLPLUS_HPP</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">STLPLUS_HPP</span>
+<span style="color: #000099">/*------------------------------------------------------------------------------</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Author:    Andy Rushton</span>
+<span style="color: #000099">  Copyright: (c) Andy Rushton, 2004</span>
+<span style="color: #000099">  License:   BSD License, see ../docs/license.html</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">  Header to include the whole of STLplus in one go</span>
+<span style="color: #000099"></span>
+<span style="color: #000099">------------------------------------------------------------------------------*/</span>
+<span style="color: #990000">#define</span> <span style="color: #000000">STLPLUS_VERSION</span> <span style="color: #009900">"2.2"</span>
+
+<span style="color: #000099">// fix operating system variations</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"os_fixes.hpp"</span>
+
+<span style="color: #990000">#include</span> <span style="color: #009900">&lt;string&gt;</span>
+
+<span style="color: #000099">// report on the build characteristics</span>
+<span style="color: #000099">// e.g. "Generic Unix, gcc v3.3, release"</span>
+<span style="color: #000099">//      this means that this version of STLplus is a Generic Unix (i.e. Posix) build,</span>
+<span style="color: #000099">//      built using the Gnu compiler gcc version 3.3 and this is a release build</span>
+<span style="color: #000000">std</span><span style="color: #330033">::</span><span style="color: #000000">string</span> <span style="color: #000000">stlplus_build</span><span style="color: #330033">(</span><span style="color: #990000">void</span><span style="color: #330033">)</span><span style="color: #330033">;</span>
+
+<span style="color: #000099">// Arithmetic</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"inf.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"string_arithmetic.hpp"</span>
+
+<span style="color: #000099">// Containers</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"triple.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"smart_ptr.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"digraph.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"hash.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"matrix.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"ntree.hpp"</span>
+
+<span style="color: #000099">// TextIO</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"textio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"fileio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"stringio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"string_vectorio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"iostreamio.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"multiio.hpp"</span>
+
+<span style="color: #000099">// String Formatting Utilities</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"dprintf.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"string_utilities.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"time.hpp"</span>
+
+<span style="color: #000099">// Subsystems</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"cli_parser.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"file_system.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"error_handler.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"ini_manager.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"library_manager.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"subprocesses.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"tcp.hpp"</span>
+
+<span style="color: #000099">// Persistent Data Types</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"persistent.hpp"</span>
+
+<span style="color: #000099">// Others</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"debug.hpp"</span>
+<span style="color: #990000">#include</span> <span style="color: #009900">"timer.hpp"</span>
+
+<span style="color: #990000">#endif</span>
+</pre>
+</body>
+</html>

@@ -48,7 +48,7 @@ class DLLEXPORT RegistryConfig : public Config {
 };
 
 
-class DLLEXPORT FileConfig : public Config {
+class DLLEXPORT FileConfig : public Shared, public Config {
  public:
     FileConfig( const std::string &file );
     virtual ~FileConfig();

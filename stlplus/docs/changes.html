@@ -1,0 +1,701 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - Versions and the Change Log</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>Change Log</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#v2.1">Changes from Version 2.1 to 2.2</a></li>
+<li><a href="#v2.0">Changes from Version 2.0 to 2.1</a></li>
+<li><a href="#v1.4">Changes from Version 1.4 to 2.0</a></li>
+<li><a href="#v1.3">Changes from Version 1.3 to 1.4</a></li>
+<li><a href="#v1.2">Changes from Version 1.2 to 1.3</a></li>
+<li><a href="#v1.1">Changes from Version 1.1 to 1.2</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>This section is an attempt to document all the changes made to the STLplus
+library. The change log was instituted after version 1.1 was frozen and made
+an official version. Therefore only the changes since then have been
+documented.</p>
+
+<p>The official open-source version of STLplus starts at version 2.0. Earlier
+versions were internal (Southampton University) versions. I have
+kept the changes for the pre-open-source versions for those users who are
+familiar with the older versions and want to know this historical information.</p>
+
+<p>Only the numbered versions from 2.0 upwards are available as downloads. The latest version is
+only available through CVS. Pre-version 2.0 are not available from SourceForge.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="v2.1">Changes from Version 2.1 to 2.2</h2>
+
+<h3>Changed license terms</h3>
+
+<p>I have changed the license from the Lesser Gnu Public License to the more relaxed and more open
+<a href="license.html">BSD License</a>. This makes the STLplus library usable by a wider audience
+and with fewer restrictions on how its used. I still hold the copyright and disclaim responsibility
+for any errors, as is normal for all software now.</p>
+
+<h3>Fixed CLI Parser Throw Clauses</h3>
+
+<p>The CLI Parser interface had throw clauses that claimed that constructors could only throw the
+cli_mode_error exception. In fact they can throw others and these have now been added. For
+example:</p>
+
+<pre class="cpp">
+cli_parser::cli_parser(char* argv[], cli_parser::definitions_t definitions, error_handler&amp; errors)
+  throw(cli_mode_error,error_handler_id_error,error_handler_format_error);
+</pre>
+
+<h3>Reworked Persistence of Cross-References</h3>
+
+<p>In a number of components (specifically: digraph, ntree) it is possible to make iterators persistent
+provided the object (for example the digraph) has been dumped before any iterators are dumped. I
+have generalised the code for this and moved the generalised code into persistent.cpp. The
+functionality is the same.</p>
+
+<h3>Added folder_all Function to file_system</h3>
+
+<p>The folder_all function returns a vector of all the files and directories in a specified
+directory. This is returned as an STL vector of STL strings.</p>
+
+<h3>Allowed Drive Letters in Cygwin Paths in file_system</h3>
+
+<p>As a rule, the Cygwin (a Unix emulation running under MS Windows) build of file_system uses Unix
+conventions for paths. However, the underlying Cygwin system can handle Windows drive letters, so I
+have added this capability to the file_system functions.</p>
+
+<h3>Made the Hash Class More Compatible With Map</h3>
+
+<p>The old hash::insert method returned the iterator to the inserted object. However, this is
+incompatible with map::insert which returns a bool/iterator pair. The interface to hash was always
+intended to be compatible with the STL map, so it now returns the same pair:</p>
+
+<pre class="cpp">
+std::pair&lt;iterator, bool&gt; hash::insert(const value_type&amp; value);
+</pre>
+
+<p>The map class has a map::count method which returns a count of the number of objects associated
+with a key. It returns 0 for not present and 1 for present - this is really useful in multimap.
+However, for compatibility I've added it to the hash class:</p>
+
+<pre class="cpp">
+size_type hash::count(const K&amp; key) const;
+</pre>
+
+<p>It is possible to remove all data from a map with the map::clear method. I've added an equivalent
+hash::clear:</p>
+
+<pre class="cpp">
+void hash::clear(void);
+</pre>
+
+<h3>Renamed Time Manupulation Functions in time.hpp</h3>
+
+<p>The old names all had the prefix "time_". This was a poor choice anyway and had the additional
+problem of causing name conflicts on some operating systems. In all cases I have renamed the
+functions with the prefix "localtime_". This is more consistent with the intent of the functions and
+the definition of the concept of localtime in Unix.</p>
+
+<h3>Fixed Bug in persistent.tpp</h3>
+
+<p>I had created the dump/restore_multimap/set functions by cutting and pasting from the
+dump/restore_map/set functions. I had forgotten to edit them to change the scope names of the
+iterators. This led to compilation errors. I have now fixed these bugs. Thanks to Elias Yanna for
+pointing this out.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="v2.0">Changes from Version 2.0 to 2.1</h2>
+
+<h3>Added reporting of INI files to cli_parser</h3>
+
+<p>The <code>cli_parser</code> now stores the set of INI file names used in its initialisation. This list is
+produced as part of the usage method's output, so that users can see which files they are using.</p>
+
+<p>The <code>cli_parser</code> usage method now looks like this:</p>
+
+<pre class="terminal">
+usage:
+	plibrary { arguments }
+arguments:
+	-[no]help               # this help!
+	-create &lt;name&gt;=&lt;path&gt;   # create a library called &lt;name&gt; in directory &lt;path&gt; and add to the list
+	-add &lt;path&gt;             # add the library at &lt;path&gt; to the library list
+	-remove &lt;name&gt;          # remove the library &lt;name&gt; from the library list
+	-delete &lt;name&gt;          # delete the library called &lt;name&gt; and its directory
+	-work &lt;name&gt;            # make &lt;name&gt; the current work library
+	-lock                   # lock the work library
+	-unlock                 # unlock the work library
+	-tidy                   # tidy (erase) all out-of-date units in work
+	-[no]verbose            # verbose listing (list units in each library)
+	-[no]version            # display product version
+values:
+	-version : from ../../phoenix/config/phoenix.ini
+	-help : from command line
+configuration files:
+	./phoenix.ini (not found)
+	../../../phoenix.ini (not found)
+	../../phoenix/config/phoenix.ini
+</pre>
+
+<p>Note the set of configuration files at the end.</p>
+
+<p>This change also added extra messages to the file <code>messages/stlplus_messages.txt</code>.</p>
+
+<h3>Added adjacent_arcs method to digraph</h3>
+
+<p>The <code>digraph</code> class had a method for getting the arc that connects to nodes - its called
+<code>adjacent_arc</code>. However, there may be more than one arc connecting two nodes, so I have added the
+plural form <code>adjacent_arcs</code> which gets the set of all arcs connecting two nodes.</p>
+
+<h3>More information in error_handler exceptions</h3>
+
+<p>I've added more text to the exceptions thrown by <code>error_handler</code> for better diagnostics. This text
+can be obtained by calling the <code>what</code> method of these exceptions which are derived from
+<code>std::exception</code>.</p>
+
+<h3>Added install path function to file_system</h3>
+
+<p>The directory containing the current program can be obtained by calling the <code>install_path</code>
+function. This function takes as its argument the <code>argv[0]</code> parameter from the <code>main</code> function.</p>
+
+<h3>Added test in library_manager for successful saving of the INI files</h3>
+
+<p>One of the options in the <code>library_manager</code> is to store library mappings in INI files managed by
+the <code>ini_manager</code>. Previously, the save method of the <code>ini_manager</code> could fail to store the library
+mappings (for example due to a read-only file) and the <code>library_manager</code> would not detect this. Now,
+the <code>library_manager</code> <code>save_mappings</code> method returns false if this fails.</p>
+
+<h3>Added portability fixes for Borland compiler to os_fixes</h3>
+
+<p>This header should be included as the first include in every source file to eliminate
+compiler-specific portabilty issues.</p>
+
+<p>I've disabled some of the more irritating warnings from the Borland compiler by adding pragmas to
+<code>os_fixes.hpp</code>.</p>
+
+<p>I've also mapped the Borland <code>__FUNC__</code> macro onto the more generic
+<code>__FUNCTION__</code> macro used by gcc and Visual Studio.</p>
+
+<h3>Tidied up exception throwing code in persistent</h3>
+
+<p>The way I was handling exceptions in the <code>persistent</code> functions for polymorphous types was simply
+clumsy. I've reworked it to be cleaner.</p>
+
+<h3>Added recognition of the Borland compiler version</h3>
+
+<p>The <code>stlplus_build</code> function in <code>stlplus.hpp</code> returns a string representing the build parameters (OS,
+compiler and compiler version). This now recognises the Borland compiler.</p>
+
+<h3>Class quadruple removed</h3>
+
+<p>Class <code>quadruple</code> is a continuation of the sequence <code>pair</code>/<code>triple</code>. However, I discovered that the name
+caused a conflict on Solaris. The name <code>quad</code> is also taken. For the moment I have simply removed the
+source files. I expect to reintroduce this class when I find a non-conflicting name.</p>
+
+<h3>Improved the display_bytes function</h3>
+
+<p>The <code>display_bytes</code> function in <code>string_utilities</code> displays a byte count in a user-friendly form (e.g
+2.1MB). I've reworked it to give more consistent precision across the range.</p>
+
+<h3>Tidied up TextIO</h3>
+
+<p>TextIO was a bit of a mess because of many additions over the years. I have done a major tidy up
+and as part of this have merged the textio_buffers.hpp and .cpp files into the main textio.hpp and
+.cpp files. This will only effect you if you had created new TextIO derivates yourself.</p>
+
+<h3>Added Test for Byte Order to os_fixes</h3>
+
+The new function <code>little_endian</code> has been added to os_fixes.hpp. This can be called to
+determine the byte ordering of a CPU. The issue is explained in the documentation for data
+persistence.</h3>
+
+<h3>Portability work</h3>
+
+<p>A number of changes have been made to make the library more portable. These are:</p>
+
+<ul>
+<li>Removed assumptions about the size of integer types to ease portability to 64-bit CPUs.</li>
+<li>Removed assumption that pointers can be cast to integers and vice-versa. This was used a lot in
+the persistence routines for both pointers and iterators.</li>
+<li>Used std::string::size_type instead of unsigned for string indexing. This was causing a number
+of bugs to show up on 64-bit CPUs.</li>
+<li>Rewrote the infinite-precision integer type (inf) to be more portable. This has changed the
+representation of inf in the data persistence format.</li>
+<li></li>
+</ul>
+
+<h3>Incremented the Data Persistence Version</h3>
+
+<p>The changes to inf to make it portable have changed its data persistence format. The persistence
+format version has been incremented to 2 as a result. Version 1 files will still be read correctly.
+New files will be written as version 2.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="v1.4">Changes from Version 1.4 to 2.0</h2>
+
+<h3>Move to SourceForge</h3>
+
+<p>The version was incremented from 1.4 to 2.0 to make this the official first version of the
+library on SourceForge.</p>
+
+<h3>Change of License</h3>
+
+<p>I decided that the GPL was too restrictive for this library. I have changed the license to the
+<a href="license.html">LGPL</a>.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="v1.3">Changes from Version 1.3 to 1.4</h2>
+
+<h3>Bug fix - removed assumption that char is signed</h3>
+
+<p>I had problems with native builds on Windows using gcc that forced me to
+use <code>unsigned char</code> as the default type for <code>char</code>. This in turn uncovered a
+subtle bug in <code>inf.cpp</code> and a common-mode bug in <code>string_utilities.cpp</code> where <code>char</code>
+was assumed to be <code>signed</code>. Fixed by using an intermediate <code>int</code> to avoid <code>char</code>
+completely.</p>
+
+<h3>Preparation for Open Source Publication</h3>
+
+<p>All source has been checked to ensure it has correct Author
+field and a License field has been added. The license has been added to the
+documentation in file <a href="license.html">license.html</a>. I have chosen
+the GPL as the most appropriate license for now although I may downgrade this
+to the Lesser GPL if the GPL proves too onerous to users.</p>
+
+<h3>16 January 2004 - Version 1.4 frozen</h3>
+
+<p>This version has been frozen as an official release 1.4. This is the last
+release hosted within ECS. The version number will be incremented to 2.0 which
+marks the start of the 
+<a href="http://sourceforge.net/projects/stlplus">SourceForge</a>
+hosted open-source version. As the changes above show, some of the preparation
+work for the open-source version are part of this version.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="v1.2">Changes from Version 1.2 to 1.3</h2>
+
+<h3>Error Handler Message Formats can now be in the Message File</h3>
+
+<p>In previous versions, the message formatting strings were hard-coded into
+the <code>error_handler</code> and could only be overridden from C++ source code. I have
+now added the ability to ovverride the format strings from within the message
+file itself.</p>
+
+<h3>You can now go up many levels of directory in one call</h3>
+
+<p>The <code>folder_up</code> function in <code>file_system.hpp</code> now takes an optional second
+argument specifying how many levels to go up. The default is 1 for
+compatibility with older versions.</p>
+
+<h3>Added new display functions for bytes and time</h3>
+
+<p>I have added two extra functions to <code>string_utilities.hpp</code></p>
+
+<ul>
+<li><code>display_bytes</code> displays a number representing a byte-count in user-readable
+form - e.g. 10kB rather than 10240.</li>
+<li><code>display_time</code> displays a number representing elapsed seconds in
+user-readable form - e.g. 1:00:00 rather than 3600</li>
+</ul>
+
+<p>This function is now used to display elapsed time in the CPU timer.</p>
+
+<h3>Persistent Iterators Added</h3>
+
+<p>I have added persistence functions for the iterators in <code>digraph</code> and <code>ntree</code>
+only. I have not added them to <code>hash</code> because it is bad practice to store
+iterators to hash table elements (they can be invalidated by rehashing at any
+time).</p>
+
+<p>I have not added persistence of iterators for STL types because there is
+insufficient access available to implement them.</p>
+
+<h3>Added new file system functions</h3>
+
+<p>I've added the following functions to <code>file_system.hpp</code>:</p>
+
+<dl>
+
+<dt><code>folder_set_current</code></dt>
+<dd>Allows the current working directory to be changed</dd>
+
+<dt><code>folder_elements</code></dt>
+<dd>splits a folder path into its string elements</dd>
+
+<dt><code>filespec_elements</code></dt>
+<dd>as above for a filespec</dd>
+
+</dl>
+
+<h3>Added sleep function</h3>
+
+<p>In <code>os_fixes.hpp</code> I have added the function <code>sleep(seconds)</code> for Windows. This is
+a standard system function on Unix, so this function makes it portable to Windows.</p>
+
+<h3>Fixed a bug in error handler</h3>
+
+<p>The problem was with context messages. The idea of context messages is
+that, if you are doing something recursive, an error can be meaningless unless
+it is given some context - such as the key parts of the call stack. So, the
+idea is that you push a context message into the <code>error_handler</code>'s context stack
+as you go down the recursion. Then, when an error occurs, the error message is
+supported by contextual messages that make it more meaningful.</p>
+
+<p>It turns out that most of the time, contextual messages aren't used. If no
+errors occur during the recursion, no messages get printed and so no context
+messages are used.</p>
+
+<p>The bug was that, if you used the context functions (<code>push_context</code>,
+<code>auto_push_context</code>), the contextual message was created at the time of the
+call. If the message was a positional message, this caused the source file
+(e.g. a VHDL source file) relating to the context to be loaded. Since most of
+the time the contextual message wasn't used, this was causing a significant
+and unnecessary overhead,</p>
+
+<p>The fix means that the contextual messages - and the supplemental messages
+- are generated as late as possible to avoid this overhead.</p>
+
+<h3>Fixed a conceptual error in error handler</h3>
+
+<p>The concept of an auto-context was a bit wrong in the original design of
+the error handler.</p>
+
+<p>The idea of an auto-context is that you push the context stack at the start
+of a block and an object stores the fact that you have done this. At the end
+of the block the object is destroyed and this destruction automatically pops
+the context stack. This means that it is easy to match push/pop pairs even in
+the presence of multiple exit points or even exceptions.</p>
+
+<p>In the original design, the object was a class which stored the state of
+the error handler prior to the push and restored it on destruction. So far so
+good. However, it had to be declared before use and then passed as a parameter
+to be filled in:</p>
+
+<pre class="cpp">
+error_handler_context context;
+auto_push_context(context, ...);
+</pre>
+
+<p>Not too bad, but clumsy. The real problem was that if a temporary copy of the object
+was made for any reason, it would be destroyed prematurely and cause the
+context to be popped prematurely.</p>
+
+<p>The solution is to rework the concept so that the object is pointed to by a
+<a href="smart_ptr.html">smart pointer</a>. Thus, the object is not destroyed
+until the last copy of the pointer is destroyed, thus eliminating the above
+problem.</p>
+
+<p>The data type of the context object is <code>error_context_body</code> and should never
+be used directly. The pointer type is called <code>error_context</code> and this is the
+type that should be used.</p>
+
+<p>This redesign means that assignements can be used - these weren't possible
+before because assignments create temporaries. Therefore the <code>auto_push_context</code>
+methods have been redesigned to return the context:</p>
+
+<pre class="cpp">
+error_context context = auto_push_context(...);
+</pre>
+
+<p>This is much better C++. Note that I have also simplified the name. Since
+you need to rework any code using auto-context then I thought this was an
+opportunity to make the type name shorter.</p>
+
+<h3>Reorganised error handler</h3>
+
+<p>In the process of fixing the two problems above I did a reorganisation of
+the error handler to hide more of the implementation from the user. Internal
+data types are now mostly hidden.</p>
+
+<p>I also renamed <code>error_handler_position</code> as <code>error_position</code> (but defined a
+pseudonym of <code>error_handler_position</code> for backwards compatibility). I renamed
+<code>error_handler_context</code> to be <code>error_context</code>. This does not have a pseudonym.
+Because of the fix above, the use of the type has changed. It seemed to me
+that any code using the type would need reworking anyway, so renaming the type
+was no big deal.</p>
+
+<h3>4 November 2003 - Version 1.3 frozen</h3>
+
+<p>This version has been frozen as an official release 1.3 and the working
+version incremented to 1.4.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="v1.1">Changes from Version 1.1 to 1.2</h2>
+
+<h3>Fixed #include "os_fixes.hpp" throughout</h3>
+
+<p>The intention is that every file should have <code>os_fixes.hpp</code> included as the
+very first include to ensure portability between compilers. This intention
+hadn't been maintained over the past few months. This fix ensures that every
+header in STLplus includes <code>os_fixes.hpp</code> first.</p>
+
+<h3>Added No-Copy Variant of smart_ptr</h3>
+
+<p>A third variant of a smart pointer called 
+<a href="smart_ptr.html"><code>smart_ptr_nocopy</code></a> has been added.
+This is for managing classes that cannot or must not be copied.</p>
+
+<p>I have also modified the <a href="library_manager.html"><code>library_manager</code></a>
+and the <a href="textio.html">TextIO</a> subsystem to use
+this class.</p>
+
+<h3>Added Convenient short-cut functions for Persistence</h3>
+
+<p>I have added short-cut functions to the 
+<a href="persistence.html">persistence</a> functions that act as wrappers to do the whole job
+of dumping or restoring a class in one function call. For example,
+<code>dump_to_file</code> will perform the whole process of creating a dump context with an
+output device of a file and then dumping a data structure to that file.</p>
+
+<p>These functions are templates so that they can adapt to the class being
+dumped.</p>
+
+<h3>Added Installer Functions for Persistence</h3>
+
+<p>When using <a href="persistence.html">persistence</a>
+of polymorphic types you have to register each polymorphic subclass
+with the dump or restore context. When writing software I tend to wrap up all
+the registrations into a function. So I have added a register_all method to
+the dump and restore context classes that takes such an "installer" function
+as its argument. This is just a simple shortcut that made the writing of the
+short-cut functions mentioned above possible.</p>
+
+<h3>Made one-argument constructors explicit</h3>
+
+<p>A one-parameter constructor is considered to be a type cast
+and may be called <i>implicitly</i> by the
+compiler. I have had problems where I used the wrong type in an expression (or
+even the wrong const-ness) and
+ended up with a temporary <code>library_manager</code> or <code>ini_manager</code> object being created
+because these classes have one-parameter constructors. This was definitely
+unwanted behaviour. The problem is that C++ compilers are over-enthusiastic
+about trying to find implicit casts like this.</p>
+
+<p>The solution is to make the constructors <code>explicit</code>. I have done
+this for the 
+<a href="library_manager.html"><code>library_manager</code></a> and 
+<a href="ini_manager.html"><code>ini_manager</code></a> so far. Note also the
+documentation on the infinite precision integer type 
+<a href="inf.html"><code>inf</code></a> which has explicit constructors throughout - this was
+done some time ago to avoid the same problem, at the cost of significant
+utility in using the package - unfortunately the compiler became over-fond of
+creating <code>inf</code>s where they were not wanted.</p>
+
+<h3>Solaris Support</h3>
+
+<p>A slight adjustment was required to the includes of system headers in order
+to build STLplus on the Solaris operating system. This has no effect
+whatsoever on the users of the library.</p>
+
+<p>Solaris is now a <a href="porting.html">supported port</a> for STLplus. It requires -DSOLARIS to be
+defined in the <a href="building.html">compilation</a> phase.</p>
+
+<p>You also need to link with the socket library (-lsocket with gcc). This is
+done for you if you're using my make system.</p>
+
+<h3>Added the Interface Concept</h3>
+
+<p>I have started to use the Java concept of 
+<a href="interfaces.html">interfaces</a> in the STLplus
+library.</p>
+
+<h3>Made the template containers compatible with Visual Studio version 7.1 (.NET 2003)</h3>
+
+<p>This version of Microsoft's compiler is stricter about the use of the
+<code>typename</code> keyword. Where a method parameter is a type defined
+within the template class, this version of VS requires the typename keyword to
+be used. To prevent problems with other compilers I've used the macro
+PARAMETER_TYPENAME to insert this only for VS7.1.</p>
+
+<h3>Created compiler-specific macros in os_fixes.hpp</h3>
+
+<p>I have added some macros to handle the different "fussiness" of different
+compilers over the use of the <code>typename</code> keyword. As mentioned
+above, Visual Studio 7.1 requires them in method parameters. Gnu's gcc version
+3 requires them in <code>typedef</code> declarations where the type being
+referenced is a template instance. See the <code>digraph</code> or
+<code>ntree</code> source code for examples.</p>
+
+<p>These differences have been centralised so that all incompatibilities
+between compilers are handled by declarations in os_fixes.hpp.</p>
+
+<h3>Complete Rework of Conversions from Numeric Types to their String Representations</h3>
+
+<p>This affects <code>string_utilities</code> and <code>inf</code>.</p>
+
+<p>A couple of bugs were found in to_string for numeric types. There was also
+a legacy problem with the interpretation of the alignment and padding
+parameters. I have reworked the code to eliminate the bug and whilst doing it
+I have rationalised the interface.</p>
+
+<p>I have also ensured that the reverse conversions to_int, to_uint etc. are
+compatible with the to_string conversions. This applies to all numeric types
+defined by C++ and also my inf type.</p>
+
+<p>The old interface was:</p>
+
+<pre class="cpp">
+std::string to_string(<i>type</i> value, unsigned radix, radix_display_t display,
+                      alignment_t alignment, unsigned width, char pad);
+</pre>
+
+<p>The problem is that the field width and alignment do not belong here. I
+redefined the width to mean the number of digits in the result and eliminated
+the alignment and padding parameters. The new interface is:</p>
+
+<pre class="cpp">
+std::string to_string(<i>type</i> value, unsigned radix, radix_display_t display, unsigned width)
+   throw(std::invalid_argument)
+</pre>
+
+<p>The function will throw the exception if you specify a radix outside the
+range 2-36 or if the display parameter is not a valid value.</p>
+
+<p>The reverse conversions can also throw an exception:</p>
+
+<pre class="cpp">
+<i>type</i> to_<i>type</i>(const std::string&amp;, unsigned radix = 0)
+   throw(std::invalid_argument);
+</pre>
+
+<p>The exception will be thrown if the string is not a valid integer
+format.</p>
+
+<p>I've also removed the ability to set alignment and padding parameters for
+integers in TextIO.</p>
+
+<h3>Reworked the min/max Problem</h3>
+
+<p>The STL defines template functions std::min and std::max. Microsoft defines
+macros min and max. Visual Studio didn't provide std::min and std::max prior
+to version 7. Now both templates and macros are defined. This can cause
+portability problems. There is an attempt to fix this in
+<code>os_fixes.hpp</code> but I have also defined template functions
+<code>minimum</code> and <code>maximum</code> that you can use to avoid this
+issue completely.</p>
+
+<h3>Minor Mods to TCP</h3>
+
+<p>Users (namely ACW and DJDM) have added two things to the TCP classes:</p>
+
+<ul>
+<li>A timeout when connecting a client to a server</li>
+<li>Methods for accessing the address and port values that a client is using</li>
+</ul>
+
+<p>There's also a bug-fix for Windows.</p>
+
+<h3>Added Quadruple</h3>
+
+<p>This is the next in the series:</p>
+
+<ul>
+<li>pair (STL)</li>
+<li>triple (STLplus)</li>
+<li>quadruple (STLplus)</li>
+</ul>
+
+<h3>Self-Checking Iterators</h3>
+
+<p>The iterators for the STLplus container classes
+<a href="digraph.html"><code>digraph</code></a>,
+<a href="hash.html"><code>hash</code></a> and 
+<a href="ntree.html"><code>ntree</code></a> now have consistency checking code to
+detect common iterator misuse. Many of the methods in these classes can now
+throw one of three exceptions - wrong_object, null_dereference and
+end_dereference. See the documentation on 
+<a href="exceptions.html#common">exceptions</a>
+for an explanation.</p>
+
+<h3>Extra File Operations</h3>
+
+<p>I have added the functions file_copy and file_move to
+<a href="file_system.html">file_system.hpp</a>. The file_copy function, as it
+says, copies one file to another. The file_move function tries to rename the
+old file to become the new file, but if that fails it copies the file and
+deletes the original.</p>
+
+<h3>Subprocesses and signals</h3>
+
+<p>The subprocess classes used to treat the case of the child being
+interrupted by a signal as an error. This messed up the error_text function
+because the status value was not a proper error number. It seems to me that
+this case is in fact an exit not an error - the error handling is supposed to
+be related to errors in the parent trying to manage the child, not errors in
+the child. so I now set the exit status to the number of the signal. This
+means that the subprocess appears to exit with non-zero status.</p>
+
+<p>You can now get the error number as a number, not just as a string.</p>
+
+<h3>6 June 2003 - Version 1.2 frozen</h3>
+
+<p>This version has been frozen as an official release 1.2 and the working
+version incremented to 1.3. The differences reported by CVS amounted to 10k
+lines of output!</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

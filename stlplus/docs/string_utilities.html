@@ -1,0 +1,760 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - string_utilities.hpp - String Handling and Formatting Functions</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>string_utilities - String Handling and Formatting Functions</h1>
+</div>
+
+<div id="documentNavigation">
+
+<ul>
+<li><a href="string_utilities_hpp.html">Browse Header string_utilities.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#radix">Integer Radix Handling</a></li>
+<li><a href="#format">Real Format Handling</a></li>
+<li><a href="#integer_to_string">Conversion from Integer to String</a></li>
+<li><a href="#string_to_integer">Conversion from String to Integer</a></li>
+<li><a href="#real_to_string">Conversion from Real to String</a></li>
+<li><a href="#string_to_real">Conversion from String to Real</a></li>
+<li><a href="#templates_to_string">Conversion of STL/STLplus Containers to String</a></li>
+<li><a href="#print">Printing Functions</a></li>
+<li><a href="#basic_print">Printing Basic Types</a></li>
+<li><a href="#template_print">Printing Template Types</a></li>
+<li><a href="#padding">Padding and Trimming Functions</a></li>
+<li><a href="#translate">Character Translating Function</a></li>
+<li><a href="#case">Case Changing Functions</a></li>
+<li><a href="#wildcard">Wildcard Matching</a></li>
+<li><a href="#split_join">Split and Join Functions</a></li>
+<li><a href="#special">Special Displays for Bytes and Seconds</a></li>
+</ul>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>This is a set of functions that perform string conversions and printing
+routines. There are functions here for converting integers to/from string
+representations as well as floating-point types to/from string
+representations. There are template functions that make it easy to capture a
+string representation of a data structure such as a vector by simply defining
+a string conversion function for the element. There are supporting functions
+for printing the same types - i.e. printing integer, floating point types and
+template print functions for data structures.</p>
+
+<p>In addition to these formatting routines, there are some common string
+operations such as wildcard matching and the Perl-like split and join
+functions.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="radix">Radix Handling</h2>
+
+<p>C is a bit limited in its ability to display different radix (base)
+numbers. Basically you can print in decimal (e.g. 1234), octal (e.g. 01234) or
+hexadecimal (e.g. 0x1234) only. Sometimes you need other radices - in
+particular, binary and base 13 (grin).</p>
+
+<p>To improve on this situation, the string formatting functions for integer
+types (but not for floating point types) support all
+radices from base 2 to base 36 using the character set [0-9a-z]. It offers three
+different formatting options for showing the radix:</p>
+
+<ul>
+<li>No radix display</li>
+<li>C-style radix display (base 8 and 16 only)</li>
+<li>Hash-style display for all bases</li>
+</ul>
+
+<p>Hash-style format starts with the base in decimal, a '#', then the
+number in the specified base. For example, 16#ff is 255 in hexadecimal. The
+advantage of this format is that it can be applied to any base. Thus 36#zz is a
+valid hash-style number. Its value is left as an exercise for the reader
+(translation: I'm too lazy to work it out).</p>
+
+<p>Hash-style format is a sign-magnitude format. A negative value has the sign
+after the # character: 16#-ff represents -255 in hexadecimal.</p>
+
+<p>Each integer formatting function takes as an argument an enumeration of type
+radix_display_t specifying which formatting style to use for the output. The
+type has the following values:</p>
+
+<dl>
+
+<dt>radix_none</dt>
+<dd>Just print the number with no radix indicated</dd>
+
+<dt>radix_hash_style</dt>
+<dd>none for decimal, hash style for all others</dd>
+
+<dt>radix_hash_style_all</dt>
+<dd>hash style for all radices including decimal</dd>
+
+<dt>radix_c_style</dt>
+<dd>C style for hex and octal, none for others</dd>
+
+<dt>radix_c_style_or_hash</dt>
+<dd>C style for hex and octal, none for decimal, hash style for others</dd>
+
+</dl>
+
+<p>Note that the only styles that are guaranteed to give a value that can be correctly converted back to an integer
+again are: radix_hash_style, radix_hash_style_all and radix_c_style_or_hash. The
+last of these is the recommended style for all printing since it is the most
+natural combination - decimal is printed as a number (e.g. 1234), binary, octal and hex
+are in familiar C-style (e.g. 0b0100100, 01234 or 0x1234) and all other bases are in hash
+style (e.g. 4#3210). Indeed, radix_c_style_or_hash is the default format for all
+the string formatting functions.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="format">Real Format Handling</h2>
+
+<p>When formatting real numbers as strings, there are three formats supported.
+These are controlled by the enumeration type real_format_t. It has the following
+values:</p>
+
+<dl>
+<dt>display_fixed</dt>
+<dd>This displays the real number as a fixed-point value - that is it has no
+exponent (Ennn) part, just the mantissa. This is equivalent to the C format "%f".</dd>
+
+<dt>display_floating</dt>
+<dd>This displays the number is a floating point value for any value - that is
+it always has an exponent part, even if it is zero. This is equivalent to the C
+format "%e".</dd>
+
+<dt>display_mixed</dt>
+<dd>This selects whichever of the above formats is most appropriate for the
+value. For small exponents, it will use fixed point format, whilst for large
+exponents (positive or negative) it will use the floating point format. This is
+equivalent to the C format "%g".</dd>
+</dl>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="integer_to_string">Conversion from Integer to String</h2>
+
+<p>There is a whole family of functions called to_string which take an integer
+type and format it into a std::string. The parameter profile of these functions
+is:</p>
+
+<pre class="cpp">
+std::string to_string(<i>type</i> i,
+                      unsigned radix = 10,
+                      radix_display_t display = radix_c_style_or_hash,
+                      unsigned width = 0)
+   throw(std::invalid_argument);
+</pre>
+
+<p>In this case, <i>type</i> is any integer type - namely bool, short, unsigned
+short, int, unsigned, long and unsigned long.</p>
+
+<p>The width parameter specifies the minimum number of digits to use to
+represent the value. The result may be larger than this if the value doesn't
+fit in the specified width. The default of 0 means use the minimum number of
+digits to represent the value. Any prefix that indicates the radix is in
+addition to this, so if you ask for, for example, zero in hexadecimal using C
+style with a width of 4, you will get 0x0000. Using hash style will give
+16#0000.</p>
+
+<p>The exception std::invalid_argument will be thrown if the radix is not in
+the range 2-36 or the display enumeration is illegal.</p>
+
+<p>The default values mean that the functions can be used with just a single
+parameter:</p>
+
+<pre class="cpp">
+string s = to_string(i);
+</pre>
+
+<p>In this case, the output will be in decimal with no formatting codes (since
+radix_c_style_or_hash prints decimal as just a simple number).</p>
+
+<p>There is one last form of to_string in this set that is worth noting:</p>
+
+<pre class="cpp">
+std::string to_string(const void*,
+                      unsigned radix = 16,
+                      radix_display_t display = radix_c_style_or_hash,
+                      unsigned width = 0)
+   throw(std::invalid_argument);
+</pre>
+
+<p>This prints out an address as a number (any address, since in C any pointer can be
+treated as a void*). The default radix is set to 16 because most people expect
+addresses to be in hex.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="string_to_integer">Conversion from String to Integer</h2>
+
+<p>These functions do the reverse conversion, taking a string as an argument and
+returning the integer value represented. They recognise the normal C-style
+formatting and the hash-style formatting so can read a string written in any
+base.</p>
+
+<p>The integer conversion functions are of the form:</p>
+
+<pre class="cpp">
+<i>type</i> to_<i>type</i>(const std::string&amp; value, unsigned radix = 0);
+   throw(std::invalid_argument);
+</pre>
+
+<p>where <i>type</i> is bool, short, unsigned short, int, unsigned int, long
+or unsigned long.</p>
+
+<p>A radix of 0 means work out the radix from the string. The default is then
+10. Any other radix will force the default to be that radix. Thus if you have a
+number which has been printed using radix_none but with a radix of 32, you can
+convert it back to integer by specifying a radix of 32. However, any number
+printed using the default radix_c_style_or_hash will be read correctly without
+specifying a conversion radix.</p>
+
+<p>The exception std::invalid_argument will be thrown if a radix is specified
+outside the range 2-36.</p>
+
+<p>And finally, there is the reverse conversion for pointers:</p>
+
+<pre class="cpp">
+void* to_void_star(const std::string&amp; value, unsigned radix = 0)
+   throw(std::invalid_argument);
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="real_to_string">Conversion from Real to String</h2>
+
+<p>There are two to_string functions which format the three C++ real types to a
+string representation. These are:</p>
+
+<pre class="cpp">
+std::string to_string(float f, 
+                      real_display_t display = display_mixed,
+                      unsigned width = 0,
+                      unsigned precision = 6);
+std::string to_string(double f, 
+                      real_display_t display = display_mixed,
+                      unsigned width = 0,
+                      unsigned precision = 6);
+</pre>
+
+<p>The default values are chosen to give reasonable displays for most
+applications. The default format is display_mixed (equivalent to "%g") with a
+precision of 6 decimal places and no field width - which gives a minimum field
+width. See <a href="dprintf.html">dprintf.hpp</a> for the meanings of the
+precision and field widtyh for floating point numbers..</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="string_to_real">Conversion from String to Real</h2>
+
+<p>Once again there are two conversions from string to real types, one for
+each C++ real type. These are:</p>
+
+<pre class="cpp">
+float to_float(const std::string&amp; value);
+double to_double(const std::string&amp; value);
+</pre>
+
+<p>These conversions will accept strings formatted in any of the formats which
+can be used by the real to_string functions, so there is symmetry here.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="templates_to_string">Conversion of STL/STLplus Containers to String</h2>
+
+<p>There is a set of functions which are also called xxx_to_string (where xxx is
+a type name) but which are
+templates. They give a convenient way of providing string formatting for the
+most-commonly uses STL and STL+ container classes. They rely on you writing a
+to_string function for the type contained within the container.</p>
+
+<p>Since the element type is unknown, a simpler parameter profile is used for
+these functions, missing all the formatting parameters. However, most data
+types do have other formatting parameters such as separators for multi-element
+types. Here's the set of functions:</p>
+
+<pre class="cpp">
+template &lt;typename T&gt;
+std::string pointer_to_string(const T* value, const std::string&amp; null_string, const std::string&amp; prefix, const std::string&amp; suffix);
+
+template&lt;size_t N&gt;
+std::string bitset_to_string(const std::bitset&lt;N&gt;&amp; data);
+
+template&lt;typename T&gt;
+std::string list_to_string(const std::list&lt;T&gt;&amp; values, std::string separator);
+
+template&lt;typename L, typename R&gt;
+std::string pair_to_string(const std::pair&lt;L,R&gt;&amp; values, std::string separator);
+
+template&lt;typename K, typename T, typename P&gt;
+std::string map_to_string(const std::map&lt;K,T,P&gt;&amp; values, const std::string&amp; pair_separator, const std::string&amp; separator);
+
+template&lt;typename K, typename T, typename P&gt;
+std::string multimap_to_string(const std::multimap&lt;K,T,P&gt;&amp; values, const std::string&amp; pair_separator, const std::string&amp; separator);
+
+template&lt;typename K, typename P&gt;
+std::string set_to_string(const std::set&lt;K,P&gt;&amp; values, const std::string&amp; separator);
+
+template&lt;typename K, typename P&gt;
+std::string multiset_to_string(const std::multiset&lt;K,P&gt;&amp; values, const std::string&amp; separator);
+
+template&lt;typename T&gt;
+std::string vector_to_string(const std::vector&lt;T&gt;&amp; values, std::string separator);
+</pre>
+
+<p>In addition to these functions, the STLplus containers define their own
+string conversion functions which are compatible with these.</p>
+
+<p>Note: the reason these are not just called to_string is that the MicroSoft
+VC++ compiler chokes on overloaded template functions.</p>
+
+<p>The vector, list, set and multiset functions simply call to_string on each element
+and build up a composite result with each element separated by the separator
+(which defaults to a comma).</p>
+
+<p>The map and multimap functions are similar, but each element is a pair,
+which is printed by calling the pair_to_string function. This in turn calls
+to_string on each of the elements of the pair.</p>
+
+<p>The pointer conversion routines print the type within the following format:
+&lt;prefix&gt;&lt;value&gt;&lt;suffix&gt;. Typically, prefix = "*(" and suffix = ")", so the
+value is printed like this: "*(value)". This is meant to read as "pointer to
+value". If the pointer is null, the null_string is printed instead, with no
+prefix or suffix.</p>
+
+<p>To use these functions, you need to write a to_string function for the
+element type of the template with one of the
+following profiles:</p>
+
+<pre class="cpp">
+std::string to_string(<i>type</i> value);
+std::string to_string(const <i>type</i>&amp; value);
+</pre>
+
+<p>Due to the use of default values, the integer formatting to_string functions
+are perfectly suited to this, so for example, a vector of int will print without
+writing a single line of extra code.</p>
+
+<pre class="cpp">
+vector&lt;int&gt; values = ...;
+...
+ferr &lt;&lt; "the values are: " &lt;&lt; vector_to_string(values,",") &lt;&lt; endl;
+</pre>
+
+<p>To print a template container which contains another template container,
+write a to_string function simply calling the xxx_to_string function. For
+example, to write a to_string function for a list&lt;vector&lt;string&gt;&gt;
+you go through the following sequence:</p>
+
+<p>First, there is already a to_string function for type string (with a pretty
+trivial implementation!), so you have nothing to do there. However, if the
+lowest level type did not already have a to_string function you would need to
+write one.<p>
+
+<p>Now write a to_string function for the vector&lt;string&gt; type:</p>
+
+<pre class="cpp">
+string to_string(const vector&lt;string&gt;&amp; values)
+{
+  return vector_to_string(values,":");
+}
+</pre>
+
+<p>Note that this will create a colon-separated list.</p>
+
+<p>Finally, it is possible to write the top-level to_string function for the
+list:</p>
+
+<pre class="cpp">
+string to_string(const list&lt;vector&lt;string&gt;&gt;&amp; values)
+{
+  return list_to_string(values,",");
+}
+</pre>
+
+<p>Note that this creates a comma-separated list. Thus, overall, the string will
+contain a comma-separated list of colon-separated strings.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="print">Printing Functions</h2>
+
+<p>In parallel with the set of string conversion routines, there is a set of
+print routines for the same set of types. The convention is to have a print
+function for printing in-line (i.e. the value is on one line) and to have an
+overloaded print function to print on a whole line, with indent before and
+newline after.</p>
+
+<p>Indentation is controlled by the following static functions:</p>
+
+<pre class="cpp">
+void set_indent_step(unsigned step);
+unsigned indent_step(void);
+otext&amp; print_indent(otext&amp; str, unsigned indent);
+</pre>
+
+<p>The default indent step is 2 characters, so that means that by increasing
+the indent value by one, you'll increase the indent by these two characters.
+This is useful for printing structure. For example, you might choose to print
+a vector by printing it's size and then an indented set of values:</p>
+
+<pre class="cpp">
+otext&amp; print(otext&amp; str, const vector&lt;string&gt;&amp; values, unsigned indent)
+{
+  print_indent(str, indent); str &lt;&lt; values.size() &lt;&lt; endl;
+  print_vector(str, values, indent+1);
+}
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="basic_print">Printing Basic Types</h2>
+
+<p>In fact, only the inline version of the print functions are provided for
+the basic low-level C types because it is unlikely that they will be printed
+on a line of their own:</p>
+
+<p>The integer print routines have the following profile:</p>
+
+<pre class="cpp">
+otext&amp; print(otext&amp; str, <i>type</i> value,
+             unsigned radix = 10, radix_display_t display = radix_c_style_or_hash, unsigned width = 0)
+   throw(std::invalid_argument);
+</pre>
+
+<p>In this case, <i>type</i> is any integer type - namely bool, short, unsigned
+short, int, unsigned, long and unsigned long.</p>
+
+<p>The extra parameters have the same meaning as for the to_string functions.</p>
+
+<p>Similarly, floating-point types are handled:</p>
+
+<pre class="cpp">
+otext&amp; print(otext&amp; str, <i>type</i> f, 
+             real_display_t display = display_mixed, unsigned width = 0, unsigned precision = 6)
+   throw(std::invalid_argument);
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="template_print">Printing Template Types</h2>
+
+<p>There are print routines for the template classes which are compatible with
+the to_string functions for templates. These print functions have the name
+print_<i>class</i> where <i>class</i> is the container class to print, e.g.
+vector. The set of print functions are:</p>
+
+<pre class="cpp">
+template &lt;typename T&gt;
+otext&amp; print_pointer(otext&amp; str, const T* value,
+                     const std::string&amp; null_string, const std::string&amp; prefix, const std::string&amp; suffix);
+template &lt;typename T&gt;
+otext&amp; print_pointer(otext&amp; str, const T* value, unsigned indent,
+                     const std::string&amp; null_string, const std::string&amp; prefix, const std::string&amp; suffix);
+
+template&lt;size_t N&gt;
+otext&amp; print_bitset(otext&amp; str, const std::bitset&lt;N&gt;&amp; value);
+template&lt;size_t N&gt;
+otext&amp; print_bitset(otext&amp; str, const std::bitset&lt;N&gt;&amp; value, unsigned indent);
+
+template&lt;typename T&gt; 
+otext&amp; print_list(otext&amp; str, const std::list&lt;T&gt;&amp; values, const std::string&amp; separator);
+template&lt;typename T&gt; 
+otext&amp; print_list(otext&amp; str, const std::list&lt;T&gt;&amp; values, unsigned indent);
+
+template&lt;typename L, typename R&gt;
+otext&amp; print_pair(otext&amp; str, const std::pair&lt;L,R&gt;&amp; values, const std::string&amp; separator);
+template&lt;typename L, typename R&gt;
+otext&amp; print_pair(otext&amp; str, const std::pair&lt;L,R&gt;&amp; values, const std::string&amp; separator, unsigned indent);
+
+template&lt;typename K, typename T, typename P&gt;
+otext&amp; print_map(otext&amp; str, const std::map&lt;K,T,P&gt;&amp; values, const std::string&amp; pair_separator, const std::string&amp; separator);
+template&lt;typename K, typename T, typename P&gt;
+otext&amp; print_map(otext&amp; str, const std::map&lt;K,T,P&gt;&amp; values, const std::string&amp; pair_separator, unsigned indent);
+
+template&lt;typename K, typename T, typename P&gt;
+otext&amp; print_multimap(otext&amp; str, const std::multimap&lt;K,T,P&gt;&amp; values, const std::string&amp; pair_separator, const std::string&amp; separator);
+template&lt;typename K, typename T, typename P&gt;
+otext&amp; print_multimap(otext&amp; str, const std::multimap&lt;K,T,P&gt;&amp; values, const std::string&amp; pair_separator, unsigned indent);
+
+template&lt;typename K, typename P&gt;
+otext&amp; print_set(otext&amp; str, const std::set&lt;K,P&gt;&amp; values, const std::string&amp; separator);
+template&lt;typename K, typename P&gt; 
+otext&amp; print_set(otext&amp; str, const std::set&lt;K,P&gt;&amp; values, unsigned indent);
+
+template&lt;typename K, typename P&gt; 
+otext&amp; print_multiset(otext&amp; str, const std::multiset&lt;K,P&gt;&amp; values, const std::string&amp; separator);
+template&lt;typename K, typename P&gt; 
+otext&amp; print_multiset(otext&amp; str, const std::multiset&lt;K,P&gt;&amp; values, unsigned indent);
+
+template&lt;typename T&gt; 
+otext&amp; print_vector(otext&amp; str, const std::vector&lt;T&gt;&amp; values, const std::string&amp; separator);
+template&lt;typename T&gt; 
+otext&amp; print_vector(otext&amp; str, const std::vector&lt;T&gt;&amp; values, unsigned indent);
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="padding">Padding and Trimming Function</h2>
+
+<pre class="cpp">
+std::string pad(const std::string&amp; str, alignment_t alignment, unsigned width, char padch);
+std::string trim_left(const std::string&amp; val);
+std::string trim_right(const std::string&amp; val);
+std::string trim(const std::string&amp; val);
+</pre>
+
+<p>The pad function is in fact the one used to perform padding of the integer
+formats - it allows a string to be aligned in a fixed-width field.</p>
+
+<p>This is controlled by an enumeration of type alignemnt_t which
+specifies how the string is to be aligned within the field. It has the following
+values:</p>
+
+<dl>
+<dt>align_left</dt>
+<dd>aligns the string to the left hand side of the field</dd>
+
+<dt>align_right</dt>
+<dd>aligns the string to the right hand side of the field</dd>
+
+<dt>align_centre</dt>
+<dd>aligns the string to the centre of the field</dd>
+</dl>
+
+<p>If the field is not wide enough, the string is <i>not</i> truncated, it will
+be simply printed in full but with no padding.</p>
+
+<p>The trim functions trim whitespace from the argument. The names are fairly
+self-explanatory - trim_left trims whitespace from the left of the string,
+trim_right from the right of the string and trim trims whitespace from both
+ends of the string. Whitespace is defined by the isspace function from
+&lt;ctype.h&gt;.
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="case">Case Changing Functions</h2>
+
+<pre class="cpp">
+std::string lowercase(const std::string&amp; val);
+std::string uppercase(const std::string&amp; val);
+</pre>
+
+<p>The lowercase and uppercase functions are pretty self evident. Note that they
+do not modify their arguments, but return a new string which has been
+case-converted.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="translate">Character Translation Function</h2>
+
+<pre class="cpp">
+std::string translate(const std::string&amp; input, const std::string&amp; from_set, const std::string&amp; to_set);
+</pre>
+
+<p>This function was inspired by the 'tr' function from Unix. It processes the
+input string to generate the return string by replacing any character in the
+from_set with the character in the same position in the to_set. In other
+words, if a character in the input string is found at index 17 of the
+from_set, the returned string will contain the character in index 17 of the
+to_set. If the to_set is smaller than the from_set, then the extra characters
+represent characters to delete - in other words they map onto nothing. If a
+character is not present in the from_set, it will be copied to the output
+unchanged.</p>
+
+<p>For example:</p>
+
+<pre class="cpp">
+string result = translate("fred123.txt", "abcdefghijklmnopqrstuvwxyz01234567890", "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+</pre>
+
+<p>This example will convert lowercase letters to uppercase letters. It will
+delete digits (the from_set is longer than the to_set) and copy anything else
+unchanged to the output. The result string will therefore be "FRED.TXT".</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="wildcard">Wildcard Matching</h2>
+
+<p>This function performs the kind of wildcard matching usually found in
+command-line tools for filename handling. Sometimes you need to do this kind of
+stuff yourself. Unfortunately, this kind of thing is not always provided by the
+operating system. For portability, then, this function should be used
+instead.</p>
+
+<p>the function looks like this:</p>
+
+<pre class="cpp">
+bool match_wildcard(const std::string&amp; wild, const std::string&amp; match);
+</pre>
+
+<p>The first argument is the wildcard expression and the second is the string to
+match against it. The function returns true (wow, surprise) if the match string
+does match the wild string.</p>
+
+<p>The wildcard expression can contain any of the following:</p>
+
+<dl>
+<dt>*</dt>
+<dd>Matches 1 or more characters</dd>
+
+<dt>?</dt>
+<dd>Matches any single character (exactly 1)</dd>
+
+<dt>[a-z]</dt>
+<dd>Matches exactly 1 character in the set 'a' through 'z'. A set can contain
+any characters. The '-' character is used to specify a range, such as a-z, A-Z
+or 0-9. Special characters are escaped with a backslash '\'. This
+includes the ']' character which obviously closes the set, the '-' character
+which gives a range and the '\' character
+itself.</dd>
+
+<dt>any other</dt>
+<dd>Matches itself only</dd>
+
+</dl>
+
+<p>Thus the wildcard expression "*.vhdl" matches any string ending in the
+sequence ".vhdl".</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="split_join">Split and Join Functions</h2>
+
+<p>There are two functions in the Perl language which are incredibly useful for
+string manipulation, and which I therefore wanted in C++. These are the split
+and join functions. Basically the split function converts a string into a
+vector of strings by splitting the string at every occurrence of a splitter
+string. For example, a PATH can be split into its elements by splitting with ":"
+on Unix or ";" on Windoze (see the <a
+href="subprocesses.html#paths">subprocesses</a> subsystem for a
+platform-independent interface for this, but yes it does use split internally).
+The reverse function is join, which converts a vector of strings into a single
+string by interleaving with a joiner string.</p>
+
+<p>The function interfaces are:</p>
+
+<pre class="cpp">
+std::vector&lt;std::string&gt; split (const std::string&amp; str, const std::string&amp; splitter = "\n");
+std::string join (const std::vector&lt;std::string&gt;&amp;, const std::string&amp; joiner = "\n", const std::string&amp; prefix = "", const std::string&amp; suffix = "");
+</pre>
+
+<p>Note that the split function considers the start and the end of the string to
+be split points. It searches from the current split point to the next split
+point and adds the intervening text to the vector. It follows that if the
+splitter appears at the beginning or end of the string, an empty string will be
+added to the vector. Similarly, if two instances of the splitter appear
+consecutively in the string, an empty string will be added to the vector. This
+is correct behaviour, not a bug!</p>
+
+<p>Note also that the join function allows you to add a prefix and a suffix to
+the resulting string, so for example a vector of values could be turned into a
+parenthesised, comma-separated string by a single call which sets the
+joiner=",", prefix="(" and suffix=")".</p>
+
+<p>Another neat use of these functions is in converting one separator into
+another by nesting the calls. For example, to convert a colon-separated string
+into a comma-separated string, simply split and then join:</p>
+
+<pre class="cpp">
+string value = "a:b:c:d:e";
+string result = join(split(value,":"),",");
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="special">Special Displays for Bytes and Seconds</h2>
+
+<p>There are two functions for displaying either a byte-count or an elapsed
+time in seconds in a human-readable form.</p>
+
+<pre class=cpp>
+std::string display_bytes(unsigned bytes);
+</pre>
+
+<p>This creates a string representation of the number of bytes, represented as
+a number in B, kB, MB or GB depending on the value. It is approximate in that
+the result is rounded to a sensible number of digits.</p>
+
+<pre class=cpp>
+std::string display_time(unsigned seconds);
+</pre>
+
+<p>This function displays the parameter in seconds as a string representation
+in weeks, days, hours, minutes, seconds. For example, "4d 3:02:01" means 4
+days, 3 hours, 2 minutes and 1 second.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

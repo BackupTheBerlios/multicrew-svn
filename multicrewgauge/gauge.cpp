@@ -205,11 +205,13 @@ struct Gauge::Data {
 	typedef SmartPtr<MousePacket> SmartMousePacket;
 	std::deque<SmartMousePacket> mouseEvents;
 	PMOUSERECT origMouseRect;
+	bool swallowMouse;
 
 	// metafile data
 	SmartPtr<GlobalMem> lastMetafile;
 	SmartPtr<GlobalMem> previousMetafile;
 	SmartPtr<Buffer> compressedMetafile;
+	int metafileElement;
 	volatile unsigned metafileCounter;
 	bool sendMetafileReset;
 	bool resetSent;
@@ -239,6 +241,7 @@ Gauge::Gauge( MulticrewGauge *mgauge, int id ) {
 	d->metafileCounter = 0;
 	d->sendMetafileReset = true;
 	d->resetSent = false;
+	d->swallowMouse = configBoolValue( "swallowmouse", false );
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -570,7 +573,10 @@ void GaugeRecorder::receive( SmartPtr<Packet> packet ) {
 
 BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 	EnterCriticalSection( &d->cs );
-	if( mouseRectNum>=0 && mouseRectNum<d->originalMouseCallbacks.size() && d->originalMouseCallbacks[mouseRectNum]!=0 ) {
+	if( !d->swallowMouse && 
+		mouseRectNum>=0 && 
+		mouseRectNum<d->originalMouseCallbacks.size() && 
+		d->originalMouseCallbacks[mouseRectNum]!=0 ) {
 		dout << "mouseCallback for " << d->name << std::endl;
 		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
 		cb( pix, flags );
@@ -584,10 +590,11 @@ BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flag
 /**************************************************************************/
 
 
-GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, int id ) 
+GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement ) 
 	: GaugeRecorder( mgauge, id ) {
 	startThread( 0 );
 	setPriority( THREAD_PRIORITY_BELOW_NORMAL );
+	Gauge::d->metafileElement = metafileElement;
 }
 
 
@@ -618,8 +625,10 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	case PANEL_SERVICE_PRE_DRAW: {
 		// record metafile for gauge output
 		EnterCriticalSection( &Gauge::d->cs );
-		if( Gauge::d->elements.size()>0 && Gauge::d->elements[0] && Gauge::d->lastMetafile.isNull() ) {
-			Element *element = Gauge::d->elements[0];
+		if( Gauge::d->elements.size()>Gauge::d->metafileElement && 
+			Gauge::d->elements[Gauge::d->metafileElement] && 
+			Gauge::d->lastMetafile.isNull() ) {
+			Element *element = Gauge::d->elements[Gauge::d->metafileElement];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
 		
 			// create memory stream
@@ -946,15 +955,17 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
 	// append mouse event to d->mouseEvents which is sent during the 
     // next sendProc call
 	EnterCriticalSection( &d->cs );
-	while( d->mouseEvents.size()>5 ) {
-		// don't let the queue get too full
-		d->mouseEvents.pop_front();
+	if( !d->swallowMouse ) {
+		while( d->mouseEvents.size()>5 ) {
+			// don't let the queue get too full
+			d->mouseEvents.pop_front();
+		}
+		MouseStruct s;
+		s.mouseRectNum = mouseRectNum;
+		memcpy( &s.pix, pix, sizeof(PIXPOINT) );
+		s.flags = flags;
+		d->mouseEvents.push_back( new MousePacket( s ) );
 	}
-	MouseStruct s;
-	s.mouseRectNum = mouseRectNum;
-	memcpy( &s.pix, pix, sizeof(PIXPOINT) );
-	s.flags = flags;
-	d->mouseEvents.push_back( new MousePacket( s ) );
 	LeaveCriticalSection( &d->cs );
 	
 	return TRUE;
@@ -964,8 +975,9 @@ BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags 
 /**************************************************************************/
 
 
-GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id ) 
+GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id, int metafileElement ) 
 	: GaugeViewer( mgauge, id ) {
+	d->metafileElement = metafileElement;
 }
 
 
@@ -983,12 +995,12 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 	case PANEL_SERVICE_PRE_DRAW: {
 		// display
 		EnterCriticalSection( &d->cs );
-		if( d->elements.size()>0 && 
-			d->elements[0] && 
+		if( d->elements.size()>d->metafileElement && 
+			d->elements[d->metafileElement] && 
 			!d->lastMetafile.isNull() ) {
 			dout << "draw metafile" << std::endl;
 
-			Element *element = d->elements[0];
+			Element *element = d->elements[d->metafileElement];
 			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
 			PPIXPOINT dim = &staticImage->image_data.final->dim;
 			

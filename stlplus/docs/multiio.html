@@ -1,0 +1,348 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - multiio.hpp - Multiple device derivative of textio</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>multiio - TextIO Derivative for multiple devices</h1>
+</div>
+
+<div id="documentNavigation">
+<ul>
+<li><a href="multiio_hpp.html">Browse Header multiio.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#outputs">Output Devices</a></li>
+<li><a href="#inputs">Input Devices</a></li>
+</ul>
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>The MultiIO package provides a set of TextIO devices that support multiple
+input and output streams.</p>
+
+<p>For example, suppose you want to create a log file
+that contains everything written to standard output. The solution would be to
+use a multiple output device connected to both standard output and a file
+device for the log file. Then, use the multiple output device for all
+output.</p>
+
+<p>The MultiIO output device is parallel - everything written to the device is
+replicated to all attached devices. The input device however is sequential -
+each attached device is read in turn.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="outputs">Output Devices</h2>
+
+<h3>Usage</h3>
+
+<p>Multiple output devices route text output to any number of attached output
+devices. The same text is sent to all of the attached devices. There is in
+principle no limit to the number of devices that can be attached in this way,
+although in practice it is hard to imagine more than two being used. The most
+obvious use for the multiple output device is to produce a log file that
+contains a copy the text printed to standard output.</p>
+
+<p>For example, consider the <a href="error_handler.hpp">Error Handler</a>
+component that can be used to produce text messages. It has the following
+interface:</p>
+
+<pre class="cpp">
+class error_handler
+{
+public:
+  ...
+  error_handler(otext&amp; device,unsigned limit = 0,bool show = true);
+  ...
+  bool information(const std::string&amp; id) throw(id_error,format_error);
+  ...
+  bool warning(const std::string&amp; id) throw(id_error,format_error);
+  ...
+  bool error(const std::string&amp; id) throw(id_error,format_error,limit_error);
+  ...
+};
+</pre>
+
+<p>The constructor takes as its argument an <tt>otext</tt> object - this is
+the superclass of all output devices and this means that any output device can
+be used. Normally, this might be constructed using the standard error (or output) as
+the output device:</p>
+
+<pre class="cpp">
+#include "error_handler.hpp"
+#include "fileio.hpp"
+...
+error_handler errors(ferr);
+</pre>
+
+<p>The <tt>ferr</tt> object is a pre-defined instance of an output file device (class
+<tt>oftext</tt>, which is a subclass of <tt>otext</tt>) attached to standard error.</p>
+
+<p>However, this approach doesn't create a log file. How can this be done? The
+error handler itself does not provide this functionality. Is the error handler
+disfunctional? Should I rewrite it to provide log-file support? Should I
+rewrite every other component to provide log-file support just in case I need
+it? This would be the traditional approach and its about as naff as a
+Microsoft product. The answer is so much simpler than this
+- create a multi-output device attached to both standard error and the log
+file. Then pass that multi-output device to the error handler as its output
+device. Here's the code:</p>
+
+<pre class="cpp">
+#include "error_handler.hpp"
+#include "fileio.hpp"
+#include "multiio.hpp"
+...
+oftext log("messages.log");
+omtext output(ferr,log);
+error_handler errors(output);
+</pre>
+
+<p>The first line (excluding the includes) creates an output file device
+called <tt>log</tt> which is connected to the file <tt>messages.log</tt>. A
+multi-output device of class <tt>omtext</tt> and called <tt>output</tt> is
+then created which is connected to two devices - <tt>ferr</tt> (connected to
+standard error) and <tt>log</tt>. This multi-output device is then passed to
+the error handler.</p>
+
+<p>The end result is that every line of text produced by the error handler will go
+both to standard error and to the log file.</p>
+
+<p>The elegance of this solution is that this logging feature has been added
+by simply changing a couple of lines of code. The rest of the program needs no
+changes and no other part of the program needs to know that output is being
+logged.</p>
+
+<h3>Interface</h3>
+
+<p>The interface to the multi-output device class <tt>omtext</tt> is:</p>
+
+<pre class="cpp">
+class omtext : public otext
+{
+public:
+  omtext(void);
+  omtext(const otext&amp;);
+  omtext(const otext&amp;, const otext&amp;);
+  void open(const otext&amp;);
+  void open(const otext&amp;, const otext&amp;);
+  unsigned add(const otext&amp;);
+
+  unsigned device_count(void) const;
+  otext&amp; device_get(unsigned);
+  const otext&amp; device_get(unsigned) const;
+};
+</pre>
+
+<p><b>Note:</b> this is a subclass of <tt>otext</tt> and so inherits all the
+functionality of its superclass.</p>
+
+<p>The atomic operations for setting up a multi-output device are the first
+constructor and the <tt>add</tt> method. The constructor sets up a
+multi-output device with no attached devices. The <tt>add</tt> method can then
+be called any number of times to attach devices. The example above could be
+rewritten to use only these atomic operations:</p>
+
+<pre class="cpp">
+#include "error_handler.hpp"
+#include "fileio.hpp"
+#include "multiio.hpp"
+...
+oftext log("messages.log");
+omtext output;
+output.add(ferr);
+output.add(log);
+error_handler errors(output);
+</pre>
+
+<p>The other functions are composite operations that provide convenient
+shortcuts. The two extra constructors create a multi-output device and add one
+or two attached devices respectively. The <tt>open</tt> methods close the
+device and recreate it with one or two attached devices respectively. Finally,
+the <tt>device_count</tt> and <tt>device_get</tt> methods provide access to
+the attached devices, should that ever prove necessary.</p>
+
+<p>Devices are numbered from <tt>0</tt> to <tt>device_count()-1</tt>, using
+the normal C++ conventions for arrays. When a device is added, its index
+number is returned from the <tt>add</tt> function. It can be accessed by
+calling <tt>device_get</tt> using that index number. Alternatively, all the
+devices can be accessed by using a <tt>for</tt> loop:</p>
+
+<pre class="cpp">
+for (unsigned i = 0; i &lt; output.device_count(); i++)
+{
+  otext&amp; device = output.device_get(i);
+  ...
+}
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="inputs">Input Devices</h2>
+
+<h3>Usage</h3>
+
+<p>Multiple-input devices are somewhat different to multiple-output devices.
+They are sequential rather than parallel. This means that each inpout device
+is read in turn until it indicates end-of-file. Then the next device is read
+and so on, until all devices have indicated end-of-file. Only then does the
+MultiIO input device indicate end-of-file. The effect is to concatenate all of
+the input devices attached to the multiple-input device.</p>
+
+<p>As this description suggests, the purpose of the multiple-input device is
+to concatenate different devices. This is not limited to file devices - it is
+possible to concatenate, say, a file with an internet connection. For example,
+a header file could be added before the start of a web page and a footer file
+could be added after the end of a web page. From the viewpoint of the program
+using the multiple-input device they would all appear concatenated as a single
+file.</p>
+
+<p>The main limitation of this approach is that all devices attached to the
+multiplt-input device must be opened before they are attached. This could be a
+problem if there is a limit on the number of opened devices. For example, most
+operating systems limit the number of files that can be opened at once and
+most web servers limit the number of connections that can be opened from a
+single client at once. Nevertheless, the multiple-input device can
+occasionally be useful.</p>
+
+<p>Here's an example of how to use a multiple-input device to concatenate the
+set of all files specified from the command line and print them on standard output:</p>
+
+<pre class="cpp">
+#include "fileio.hpp"
+#include "multiio.hpp"
+...
+int main (int argc, char* argv[])
+{
+  ...
+  // create the muli-input device
+  imtext input;
+  // add all the input files to it
+  for (unsigned i = 1; i &lt; argc; i++)
+  {
+    iftext file(argv[i])
+    input.add(file);
+  }
+  // pipe it all to the output
+  fout << input;
+  return 0;
+}
+</pre>
+
+<p>There is no error handling in this example - if a file doesn't exist, it
+will appear to be just a zero-length file and no errors will be reported. You
+might want to add some error reporting to test whether a file opened
+successfully:</p>
+
+<pre class="cpp">
+  for (unsigned i = 1; i &lt; argc; i++)
+  {
+    iftext file(argv[i])
+    if (file.error())
+    {
+       // report error
+       ...
+    }
+    else
+      input.add(file);
+  }
+</pre>
+
+<h3>Interface</h3>
+
+<p>The interface to the multi-input device class <tt>imtext</tt> is:</p>
+
+<pre class="cpp">
+class imtext : public itext
+{
+public:
+  imtext(void);
+  imtext(const itext&amp;);
+  imtext(const itext&amp;, const itext&amp;);
+  void open(const itext&amp;);
+  void open(const itext&amp;, const itext&amp;);
+  unsigned add(const itext&amp;);
+
+  unsigned device_count(void) const;
+  itext&amp; device_get(unsigned);
+  const itext&amp; device_get(unsigned) const;
+};
+</pre>
+
+<p><b>Note:</b> this is a subclass of <tt>itext</tt> and so inherits all the
+functionality of its superclass.</p>
+
+<p>This is very similar to the multi-output device, so the following is a
+cut'n'paste'n'edit of that description.</p>
+
+<p>The atomic operations for setting up a multi-input device are the first
+constructor and the <tt>add</tt> method. The constructor sets up a
+multi-input device with no attached devices. The <tt>add</tt> method can then
+be called any number of times to attach ainput devices. The example above is
+in fact written to use only these atomic operations</p>
+
+<p>The other functions are composite operations that provide convenient
+shortcuts. The two extra constructors create a multi-input device and add one
+or two attached devices respectively. The <tt>open</tt> methods close the
+device and recreate it with one or two attached devices respectively. Finally,
+the <tt>device_count</tt> and <tt>device_get</tt> methods provide access to
+the attached devices, should that ever prove necessary.</p>
+
+<p>Devices are numbered from <tt>0</tt> to <tt>device_count()-1</tt>, using
+the normal C++ conventions for arrays. When a device is added, its index
+number is returned from the <tt>add</tt> function. It can be accessed by
+calling <tt>device_get</tt> using that index number. Alternatively, all the
+devices can be accessed by using a <tt>for</tt> loop:</p>
+
+<pre class="cpp">
+for (unsigned i = 0; i &lt; input.device_count(); i++)
+{
+  itext&amp; device = input.device_get(i);
+  ...
+}
+</pre>
+
+</div>
+
+</div>
+
+</body>
+</html>

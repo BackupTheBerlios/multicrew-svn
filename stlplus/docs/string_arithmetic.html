@@ -1,0 +1,387 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - string_arithmetic.hpp - Arithmetic on Binary Strings</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>string_arithmetic - Arithmetic on Binary Strings</h1>
+</div>
+
+<div id="documentNavigation">
+
+<ul>
+<li><a href="string_arithmetic_hpp.html">Browse Header string_arithmetic.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#conventions">Conventions</a></li>
+
+<li><a href="#unsigned">Unsigned Operations</a>
+<ul>
+<li><a href="#unsigned_resize">Size Changers</a></li>
+<li><a href="#unsigned_comparison">Comparisons</a></li>
+<li><a href="#unsigned_arithmetic">Arithmetic</a></li>
+<li><a href="#unsigned_logic">Logic</a></li>
+<li><a href="#unsigned_shift">Shifts</a></li>
+<li><a href="#unsigned_conversions">Integer Conversions</a></li>
+</ul>
+</li>
+
+<li><a href="#signed">Signed Operations</a>
+<ul>
+<li><a href="#signed_resize">Size Changers</a></li>
+<li><a href="#signed_tests">Range Tests</a></li>
+<li><a href="#signed_comparison">Comparisons</a></li>
+<li><a href="#signed_arithmetic">Arithmetic</a></li>
+<li><a href="#signed_logic">Logic</a></li>
+<li><a href="#signed_shift">Shifts</a></li>
+<li><a href="#signed_conversions">Integer Conversions</a></li>
+</ul>
+</li>
+
+</ul>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>This is a family of functions that interpret the contents of a std::string
+as a binary number and perform arithmetic on it.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="conventions">Conventions</h2>
+
+<p>There are two interpretations of the binary string supported - signed and
+unsigned.</p>
+
+<p>The left-most bit is the most-significant bit.</p>
+
+<p>The left-most bit is index 0. This is because of the way that C++
+interprets string constants such as "0111". In this case, the character '0' is
+in index position 0, the '1's are in positions 1,2 and 3 respectively. In
+order to be able to write and interpret strings easily, this convention has
+been adopted even though it is contrary to the normal hardware convention
+where the right-most bit is index 0.</p>
+
+<p>You cannot mix types - to add a signed and an unsigned, you must convert
+one of the values to the type of the other. This is typically done by resizing
+the unsigned value one bit larger so that there is now a sign bit and then
+using the resulting string as a signed value.</p>
+
+<p>There are no new types used in this package - all arithmetic is performed
+on just std::string. Therefore, there cannot be any operators or operator
+overloading. Instead, descriptive function names are used to clarify what
+operation is being performed and what interpretation is being made of the
+string contents.</p>
+
+<p>Many functions have an argument that allows the result size to be
+specified. The default value is 0. This does not mean make a zero-sized
+result, it means make the result the minimum size required to represent the
+value. For example unsigned_add("00001","00001") will return "10" because this
+is the minimum size required to represent 2 as an unsigned number.</p>
+
+<p><b>Note:</b>At present there is no support for any character values in the
+string except 0 or 1. In particular, there's no support for X or Z values.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="unsigned">Unsigned Operations</h2>
+
+<p>In unsigned arithmetic, the characters of the string are interpretaed as a
+magnitude with no sign bit. Thus the string "1111" is interpreted as the value
+15.</p>
+
+<a name="unsigned_resize"><h3>Size Changers</h3></a>
+
+<pre class="cpp">
+std::string unsigned_resize(const std::string&amp; argument, unsigned size = 0);
+</pre>
+
+<p>Returns a new string that is the same as the input string but with leading
+bits either added or discarded to make it the requested size. If the value is
+too big for the target size, then the value will necessarily change. Otherwise
+it is value-preserving (translation: I add leading 0s because it is an
+unsigned number).</p>
+
+<a name="unsigned_comparison"><h3>Comparisons</h3></a>
+
+<pre class="cpp">
+bool unsigned_equality(const std::string&amp; left, const std::string&amp; right);
+bool unsigned_inequality(const std::string&amp; left, const std::string&amp; right);
+bool unsigned_less_than(const std::string&amp; left, const std::string&amp; right);
+bool unsigned_less_than_or_equal(const std::string&amp; left, const std::string&amp; right);
+bool unsigned_greater_than(const std::string&amp; left, const std::string&amp; right);
+bool unsigned_greater_than_or_equal(const std::string&amp; left, const std::string&amp; right);
+</pre>
+
+<p>These are numeric comparisons based on the unsigned interpretation of the
+value and independent of the string sizes. Thus, for example "000000000000001"
+is less than "10".</p>
+
+<a name="unsigned_arithmetic"><h3>Arithmetic</h3></a>
+
+<pre class="cpp">
+std::string unsigned_add(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_subtract(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_multiply(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_exponent(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_divide(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_modulus(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_remainder(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+</pre>
+
+<p>Not bad eh? A complete set of arithmetic operations are provided for
+unsigned strings. In all cases, the target size of 0 means return the minimum
+sized result necessary to represent the result value.</p>
+
+<p>Beware that subtraction of a large number from a small one does not give a
+negative result because this is unsigned arithmetic - instead it will
+underflow and give a positive result. There's no way of detecting this
+underflow apart from testing beforehand which value is the larger using the
+comparison functions above.</p>
+
+<p>The concept of modulus and remainder are taken from VHDL - one of the few
+things they got right. In fact for unsigned arithmetic they are the same, so
+I'll defer an explanation until the signed version...</p>
+
+<p>By the way, multiply is defined in terms of add and exponent is defined in
+terms of multiply, so don't expect miraculous performance.</p>
+
+<a name="unsigned_logic"><h3>Logic</h3></a>
+
+<pre class="cpp">
+std::string unsigned_not(const std::string&amp; argument, unsigned size = 0);
+std::string unsigned_and(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_nand(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_or(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_nor(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_xor(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+std::string unsigned_xnor(const std::string&amp; left, const std::string&amp; right, unsigned size = 0);
+</pre>
+
+<p>The only unary logic operator is the not operator. This resizes the result
+to the target size first, then does the not operation on it and returns the
+result without further resizing, even if there are now leading 0s. If the
+target size is 0, then the result is the same size as the input. Thus, for example
+unsigned_not("10",4) gives "1101" (it resizes first to "0010" and then inverts
+each bit).</p>
+
+<p>The binary logic operators are similar in that the arguments are
+resized to the target size before the logic operation and the result returned
+that size. If the target size is 0 then the target size is the same as the
+longest argument.</p>
+
+<a name="unsigned_shift"><h3>Shifts</h3></a>
+
+<pre class="cpp">
+std::string unsigned_shift_left(const std::string&amp; argument, unsigned shift, unsigned size = 0);
+std::string unsigned_shift_right(const std::string&amp; argument, unsigned shift, unsigned size = 0);
+</pre>
+
+<p>The shift operations perform arithmetic shifts, in this case of course
+unsigned. The left shift appends os to the string, whilst the right shift
+discards the lsbs. Finally, the result is resized to the target size - or the
+minimum size if the target size is 0.</p>
+
+<a name="unsigned_conversions"><h3>Integer Conversions</h3></a>
+
+<pre class="cpp">
+unsigned long unsigned_to_ulong(const std::string&amp; argument);
+std::string ulong_to_unsigned(unsigned long argument, unsigned size = 0);
+</pre>
+
+<p>Of course it is useful to be able to convert to/from C++ integer types and
+this is what these two functions do. I've used unsigned long as the integer
+type because this is the largest unsigned type supported by all compilers. One
+day all compilers will support the long long extension, but in the meantime
+conversions are limited to this 32-bit (usually) type.</p>
+
+<p>If you try to convert
+to the integer type using to_ulong and the value is too big to fit, it just
+wraps round silently. Put another way, leading bits are discarded and this may
+result in a changed value.</p>
+
+<p>The conversion from the integer type to a string returns a string of the
+requested size even if that changes the value. However, a target size of 0 as
+usual gives a result of the minimum size necessary to represent the result
+correctly.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="signed">Signed Operations</h2>
+
+<p>In signed arithmetic, the characters of the string are interpreted as a
+2's-complement representation. Thus the string "1111" is interpreted as the value
+-7.</p>
+
+<a name="signed_resize"><h3>Size Changers</h3></a>
+
+<pre class="cpp">
+std::string signed_resize(const std::string&amp; argument, signed size = 0);
+</pre>
+
+<p>Returns a new string that is the same as the input string but with leading
+sign bits either added or discarded to make it the requested size. If the value is
+too big for the target size, then the value will necessarily change. Otherwise
+it is value-preserving (translation: I sign extend because it is a
+signed number).</p>
+
+<a name="signed_tests"><h3>Range Tests</h3></a>
+
+<pre class="cpp">
+bool is_negative(const std::string&amp; argument);
+bool is_natural(const std::string&amp; argument);
+bool is_positive(const std::string&amp; argument);
+bool is_zero(const std::string&amp; argument);
+</pre>
+
+<p>These tests only exist for signed numbers because they have no meaning for
+unsigned numbers. The exception is the is_zero test which applies equally will
+to either number representation. A natural is the range 0..infinity, whilst
+positive excludes 0 to give the range 1..infinity. Negative is the range
+-1..-infinity.</p>
+
+<a name="signed_comparison"><h3>Comparisons</h3></a>
+
+<pre class="cpp">
+bool signed_equality(const std::string&amp; left, const std::string&amp; right);
+bool signed_inequality(const std::string&amp; left, const std::string&amp; right);
+bool signed_less_than(const std::string&amp; left, const std::string&amp; right);
+bool signed_less_than_or_equal(const std::string&amp; left, const std::string&amp; right);
+bool signed_greater_than(const std::string&amp; left, const std::string&amp; right);
+bool signed_greater_than_or_equal(const std::string&amp; left, const std::string&amp; right);
+</pre>
+
+<p>These are numeric comparisons based on the signed interpretation of the
+value and independent of the string sizes. Thus, for example "000000000000001"
+is less than "10".</p>
+
+<a name="signed_arithmetic"><h3>Arithmetic</h3></a>
+
+<pre class="cpp">
+std::string signed_add(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_subtract(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_multiply(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_exponent(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_divide(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_modulus(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_remainder(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+</pre>
+
+<p>In all cases, the target size of 0 means return the minimum
+sized result necessary to represent the result value.</p>
+
+<p>The concept of modulus and remainder are taken from VHDL - one of the few
+things they got right. Modulo arithmetic gives a result in the range
+0..(right-1), so for example anything modulo 8 is guaranteed to give a natural
+result in the range 0..7. Remainder is the remainder after division and can be
+either sign. For example, the remainder of -15/4 is -3 whereas the remainder
+of 15/4 is 3. Thus the remainder falls in the range -(right-1)..(right-1)
+
+<p>By the way, as with unsigned numbers, multiply is defined in terms of add
+and exponent is defined in terms of multiply, so don't expect miraculous
+performance.</p>
+
+<a name="signed_logic"><h3>Logic</h3></a>
+
+<pre class="cpp">
+std::string signed_not(const std::string&amp; argument, signed size = 0);
+std::string signed_and(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_nand(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_or(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_nor(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_xor(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+std::string signed_xnor(const std::string&amp; left, const std::string&amp; right, signed size = 0);
+</pre>
+
+<p>The only unary logic operator is the not operator. This resizes the result
+to the target size first, then does the not operation on it and returns the
+result without further resizing, even if there are now leading excess sign bits. If the
+target size is 0, then the result is the same size as the input. Thus, for example
+signed_not("10",4) gives "1101" (it resizes first to "0010" and then inverts
+each bit).</p>
+
+<p>The binary logic operators are similar in that the arguments are
+resized to the target size before the logic operation and the result returned
+that size. If the target size is 0 then the target size is the same as the
+longest argument.</p>
+
+<a name="signed_shift"><h3>Shifts</h3></a>
+
+<pre class="cpp">
+std::string signed_shift_left(const std::string&amp; argument, signed shift, signed size = 0);
+std::string signed_shift_right(const std::string&amp; argument, signed shift, signed size = 0);
+</pre>
+
+<p>The shift operations perform arithmetic shifts, in this case of course
+signed. The left shift appends 0s to the string, giving a longer result but
+not discarding any sign bits, whilst the right shift
+discards the lsbs. Finally, the result is resized to the target size - or the
+minimum size if the target size is 0.</p>
+
+<a name="signed_conversions"><h3>Integer Conversions</h3></a>
+
+<pre class="cpp">
+long signed_to_long(const std::string&amp; argument);
+std::string long_to_signed(long argument, unsigned size = 0);
+</pre>
+
+<p>Of course it is useful to be able to convert to/from C++ integer types and
+this is what these two functions do. I've used signed long as the integer
+type because this is the largest signed type supported by all compilers. One
+day all compilers will support the long long extension, but in the meantime
+conversions are limited to this 32-bit (usually) type.</p>
+
+<p>If you try to convert to the integer type using to_long and the value is
+too big to fit, it just wraps round silently. Put another way, leading bits
+are discarded and this may result in a changed value.</p>
+
+<p>The conversion from the integer type to a string returns a string of the
+requested size even if that changes the value. However, a target size of 0 as
+usual gives a result of the minimum size necessary to represent the result
+correctly.</p>
+
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,1931 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>STLplus Library - persistent.hpp - A Data Persistence Subsystem</title>
+<link rel="icon" href="stlplus.png" type="image/png">
+<meta name="Author" content="Andy Rushton">
+<meta name="Copyright" content="(c) Andy Rushton 2004">
+<meta name="License" content="BSD license, see license.html">
+<link rel="stylesheet" title="STLplus" type="text/css" href="stlplus.css">
+<link rel="stylesheet" title="STLplus" type="text/css" href="green.css">
+</head>
+<body>
+
+<div id="header">
+
+<div id="headerBanner">
+<p>
+The
+<span style="color:red">S</span><span style="color:blue">T</span><span style="color:green">L</span><span style="color:#cccc00">+</span>
+C++ library
+</p>
+</div>
+
+<div id="headerNavigation">
+<p>
+<a href="http://stlplus.sourceforge.net/">Home</a>
+<a href="index.html">Contents</a>
+</p>
+</div>
+
+</div>
+
+<div id="document">
+
+<div id="documentTitle">
+<h1>persistent - A Data Persistence Subsystem</h1>
+</div>
+
+<div id="documentNavigation">
+
+<ul>
+<li><a href="persistent_hpp.html">Browse Header persistent.hpp</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#endian">Byte Order - Endian-ness</a></li>
+<li><a href="#versions">Versions</a></li>
+<li><a href="#infrastructure">Infrastructure</a></li>
+<li><a href="#basics">Persistence of Basic Types</a></li>
+<li><a href="#enums">Persistence of Enumeration Types</a></li>
+<li><a href="#layers">Persistence of Multi-Level Types</a></li>
+<li><a href="#templates">Persistence of Templates</a></li>
+<li><a href="#iterators">Persistence of Iterators</a></li>
+<li><a href="#pointers">Persistence of Simple Pointers</a></li>
+<li><a href="#smart_ptr">Persistence of Smart Pointers</a></li>
+<li><a href="#interfaces">Persistence of Polymorphic Classes using Interfaces</a></li>
+<li><a href="#polymorphic">Persistence of Polymorphic Classes using Callbacks</a></li>
+<li><a href="#memory">Persistence of Memory</a></li>
+<li><a href="#shortcuts">Shortcut Functions</a></li>
+<li><a href="#includes">Include Files</a></li>
+<li><a href="#exclusions">Excluded Classes</a></li>
+<li><a href="#exceptions">Exceptions</a></li>
+<li><a href="#examples">Examples</a></li>
+</ul>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="introduction">Introduction</h2>
+
+<p>Persistence is the ability to dump a data structure to disk and then
+restore it again later either in the same run of the program, a later run of a
+program, or even in a different program. It is an easy way to save a program's
+state or to communicate information in a structural form between programs.</p>
+
+<p>In fact, persistence is not limited to disk dumps, since the same idea can
+be used to transfer information from one program to another down a pipe or
+even an Internet connection. In effect you can use persistence to communicate
+a data structure of any complexity between two programs even if they are
+running on different computers under different operating systems.</p>
+
+<p>At a more basic level, persistence does away with the need to design file
+formats. Instead, just design a data structure to carry the information
+required between the programs and then make that data structure persistent.
+The file format is designed for you by the persistence subsystem.</p>
+
+<p>The persistent format is a binary format so is extremely efficient both in
+data size and in CPU time required. For example, text formats tend to be
+dominated by the processing required to convert integer valued between their
+machine form (2's-complement binary) and the text form (sign-magnitude
+decimal). This problem doesn't occur with the persistence format which dumps
+and restores in the native binary form.</p>
+
+<p>The purpose of the data persistence subsystem is to provide a toolkit which
+makes it easy if not trivial to make a data structure persistent. However, it
+is not totally automatic - C++ is too flexible a language to be able to take
+any data structure and just dump it. This is why the approach has been to
+provide a toolkit out of which persistence routines can be written.</p>
+
+<p>The toolkit provides a set of functions for dumping and restoring a wide
+range of types. All the basic C types are made persistent, as are C++ types
+like <code>string</code> and <code>complex</code>. However, the real power of the
+persistence functions is that template functions are provided for making all
+of the STL and STLplus container classes persistent.</p>
+
+<p>The idea is that a container is made persistent by dumping its contents
+using a <code>dump</code> routine for the contained data type. For example, a
+<code>vector</code> of <code>string</code>s is dumped by dumping vector-specific
+information and then repeatedly calling the
+<code>dump</code> routine for <code>string</code>. The <code>restore</code> function
+restores the vector and then repeatedly calls the restore function for <code>string</code>
+to restore the <code>vector</code>'s contents.</p>
+
+<p>The same concept is applied to all the container classes. Therefore, to
+make a container persistent, all you have to do is supply <code>dump</code> and
+<code>restore</code> functions for the contained type. If the contained type is a
+basic C or C++ type, then these functions are already provided and the data
+structure is already persistent.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="endian">Byte Order - Endian-ness</h2>
+
+<p>A problem that can occur when communicating between machines is the
+problem of byte-order. Different machine architectures store data using two different byte orders.
+This is referred to as Big- and Little-Endian Byte Ordering.</p>
+
+<p>In both conventions, the address of an integer type points to the left end of the word but:</p>
+
+<dl>
+<dt>Big-Endian</dt>
+<dd>The most significant byte is on the left end of a word</dd>
+<dt>Little-Endian</dt>
+<dd>The least significant byte is on the left end of a word</dd>
+</dl>
+
+<p>Bytes are addressed left to right, so in big-endian order byte 0 is the
+msB, whereas in little-endian order byte 0 is the lsB. For example,
+Intel-based machines store data in little-endian byte order so byte 0 is
+the lsB. Sun Sparc architectures are big-endian, so byte 0 is the msB.</p>
+
+<p>The persistence functions solve the problem of inter-platform communication
+by always writing integers msB first so that the format is
+platform-independent.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="versions">Versions</h2>
+
+<p>The concept of file format versions was added for STLplus 1.0. The file
+format version of a dump is written to the dump file. When the file is
+restored, the version is the first thing read from the file. The idea is that,
+if the persistent dump format changes, then the format number changes. This
+will mean that it is possible to either support old file formats by branching
+on the format number read from the file, or at least detect them and raise an
+error if the old format is no longer supported. Also, if an old program tries
+to read a new format, it will fail but in a way that makes it easy to diagnose
+the problem.</p>
+
+<p>You do not need to know about these format numbers unless you are
+personally responsible for writing dump/restore routines and then only if you
+ever need to change the file format for a particular data type. For example,
+the introduction of format numbers coincided with a change in the way all
+integer types are dumped. The old integer format is not supported.</p>
+
+<p>The format version applies to the persistence file
+format, not the particular layout of your own data structures. If you want
+that level of fine-grain control, then give your own data structures format
+numbers as well.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="infrastructure">Infrastructure</h2>
+
+<p>The dump operation is controlled by an object of type <code>dump_context</code> which is
+defined in <a href="persistent_hpp.html">persistent.hpp</a>. This is
+initialised with an output device (any derivative of <a
+href="textio.html">otext</a>) and is then passed down through the hierarchy of
+<code>dump</code> routines. At the end of the dump, the output device can be checked to see
+if an output error occurred. Here's a typical example of how to dump a data
+structure:</p>
+
+<pre class="cpp">
+oftext output(filename);
+dump_context dumper(output);
+dump(dumper, data);
+</pre>
+
+<p>In this example, you can see how an output file is created (<code>oftext</code>
+is an output file device - see <a href="fileio.html">fileio</a>). Then the
+<code>dump_context</code> object is initialised with this output device. Then the
+<code>dump</code> function for the data structure is called. The output device
+should be closed, but this will be done by its destructor.</p>
+
+<p>Similarly, a restore operation is controlled by a <code>restore_context</code>
+object. This is initialised with an input device. Here's an example of how to
+restore a data structure:</p>
+
+<pre class="cpp">
+iftext input(filename);
+restore_context restorer(input);
+restore(restorer, data);
+</pre>
+
+<p>The TextIO device must be in binary mode for persistence to work correctly.
+The context object automatically places the TextIO device into binary mode
+when it is passed to the context's constructor, so you don't have to worry
+about that issue. Be careful however to ensure that binary mode is used if you
+transmit dumped data over networks - some programs (such as FTP) may try to
+convert data that looks like line endings to the 'correct' form for the
+operating system - corrupting the persistent data irretrievably.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="basics">Persistence of Basic Types</h2>
+
+<p>To start with, I'll demonstrate how to dump and restore a simple data type
+containing only simple C types. The following class will be used for the
+demonstration:</p>
+
+<pre class="cpp">
+class point
+{
+private:
+  int m_x;
+  int m_y;
+  int m_z;
+public:
+...
+}
+</pre>
+
+<p>The required parameter profile of the dump/restore functions is:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp;, const <i>type</i>&amp;);
+void restore(restore_context&amp;, <i>type</i>&amp;);
+</pre>
+
+<p>These functions should be declared as
+stand-alone functions and not methods. In this case this will be done by
+making them friends of the class, meaning they are not methods but can access
+the data members even though the members are declared as <code>private</code>.</p>
+
+<p>So, here is the <code>point</code> class with the persistence functions'
+declarations added:</p>
+
+<pre class="cpp">
+class point
+{
+private:
+  int m_x;
+  int m_y;
+  int m_z;
+public:
+...
+  friend void dump(dump_context&amp; context, const point&amp; pt);
+  friend void restore(restore_context&amp; context, point&amp; pt);
+}
+</pre>
+
+<p>The <code>dump</code> and <code>restore</code> functions are written using the
+existing <code>dump</code> and <code>restore</code> functions for <code>int</code>, the
+type used for the three dimensions of a point:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const point&amp; pt)
+{
+  dump(context,pt.m_x);
+  dump(context,pt.m_y);
+  dump(context,pt.m_z);
+}
+
+void restore(restore_context&amp; context, point&amp; pt)
+{
+  restore(context,pt.m_x);
+  restore(context,pt.m_y);
+  restore(context,pt.m_z);
+}
+</pre>
+
+<p>Note that
+neither the <code>dump</code> nor the <code>restore</code> actually do any file I/O
+themselves, it is all delegated to the pre-written functions provided in <a
+href="persistence_hpp.html">persistence.hpp</a> for type
+<code>int</code>.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="enums">Persistence of Enumeration Types</h2>
+
+<p>Enumeration types are essentially small integers. However, each type is
+considered to be a different type by the compiler - so therefore they are not
+actually be treated as simple integer types - you get a compilation error. The
+solution that I supply is a pair of template functions that adapt themselves
+to the type of the enum being made persistent. The functions are:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;
+void dump_enum(dump_context&amp; str, const T&amp; data) throw(persistent_dump_failed);
+template&lt;typename T&gt;
+void restore_enum(restore_context&amp; str, T&amp; data) throw(persistent_restore_failed);
+</pre>
+
+<p>Consider the following example. The enum defines a traffic light
+sequence:</p>
+
+<pre class="cpp">
+enum traffic_lights {red, red_amber, green, amber};
+</pre>
+
+<p>This can be used with <code>dump_enum</code> and <code>restore_enum</code> directly, but is is better style to write
+<code>dump</code> and <code>restore</code> functions that call the template
+functions, thus hiding the use of the template:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const traffic_lights&amp; lights)
+{
+  dump_enum(context, lights);
+}
+
+void restore(restore_context&amp; context, traffic_lights&amp; lights)
+{
+  restore_enum(context, lights);
+}
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="layers">Persistence of Multi-Level Types</h2>
+
+<p>A real data structure of course has many layers. The persistence functions
+are designed to be used in a layered way. The <code>dump</code>/<code>restore</code>
+functions written above can be used stand-alone to dump a single point, but
+they can also be used to dump a point stored as part of a different data
+structure. In this way, <code>dump</code> and <code>restore</code> routines can be
+built up a layer at a time.</p>
+
+<p>The example will represent an edge as two points:</p>
+
+<pre class="cpp">
+class edge
+{
+private:
+  point m_begin;
+  point m_end;
+public:
+...
+  friend void dump(dump_context&amp; context, const edge&amp; pt);
+  friend void restore(restore_context&amp; context, edge&amp; pt);
+};
+</pre>
+
+<p>Once again the <code>dump</code>/<code>restore</code> functions can be written in terms of the
+<code>dump</code>/<code>restore</code> functions for the data members:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const edge&amp; e)
+{
+  dump(context,e.m_begin);
+  dump(context,e.m_end);
+}
+
+void restore(restore_context&amp; context, edge&amp; e)
+{
+  restore(context,e.m_begin);
+  restore(context,e.m_end);
+}
+</pre>
+
+<p>In this case, to dump an <code>edge</code> means dumping two <code>point</code>s
+which uses the <code>dump</code> function for the <code>point</code> class written in
+the last section. This layering can be continued ad infinitum.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="templates">Persistence of Templates</h2>
+
+<p>The template classes provided by the STL and the template classes provided
+by STLplus have been made persistent using template
+<code>dump</code>/<code>restore</code> functions. Because of problems with overloading
+of template functions in Visual C++, the functions are actually called
+<code>dump_<i>class</i></code> and <code>restore_<i>class</i></code> where
+<i>class</i> is the name of the template class. For example, the persistence
+functions for the STL map are called <code>dump_map</code> and
+<code>restore_map</code>.</p>
+
+<p>The persistence functions for templates are themselves templates, so are
+automatically adapted to the type that the container holds. For example,
+<code>dump_vector</code> which is the dump routine for the STL <code>vector</code>,
+will adapt to the type being held in the <code>vector</code>. If the
+<code>vector</code> contains <code>int</code>, then the <code>dump_vector</code> function
+will dump <code>int</code>s by calling the <code>dump</code> function defined for
+<code>int</code>. If the <code>vector</code> contains <code>edge</code>s (defined in the
+last section) then the <code>dump_vector</code> function will dump <code>edge</code>s.
+The template function requires that there is a function called <code>dump</code>
+for the element type of the <code>vector</code>. If there isn't one already, you
+need to write one.</p>
+
+<p>To demonstrate, a <code>vector</code> of <code>edge</code>s will be used. In this
+case we need a <code>dump</code> function for a single <code>edge</code>. This has
+already been written in the last section. Therefore, the <code>dump</code>
+function for a <code>vector</code> of <code>edge</code>s is very simple to write, as
+is the <code>restore</code> function:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const vector&lt;edge&gt;&amp; e)
+{
+  dump_vector(context, e);
+}
+
+void restore(restore_context&amp; context, vector&lt;edge&gt;&amp; e)
+{
+  restore_vector(context, e);
+}
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="iterators">Persistence of Iterators</h2>
+
+<p>I have <b>not</b> been able to implement a general solution to the problem
+of persistent iterators for STL templates. However, I have added persistence
+to the iterators for the STLplus template classes ntree and digraph.</p>
+
+<p>The ntree class has three types of iterator - a simple iterator and the
+traversal iterators prefix_iterator and postfix_iterator. All of these have
+been made pwersistent by the addition of template dump and restore
+functions:</p>
+
+<pre class=cpp>
+// simple iterators
+template&lt;typename T, typename TRef, typename TPtr&gt;
+void dump_ntree_iterator(dump_context&amp;, const ntree_iterator&lt;T,TRef,TPtr&gt;&amp;)
+  throw(persistent_dump_failed);
+
+template&lt;typename T, typename TRef, typename TPtr&gt;
+void restore_ntree_iterator(restore_context&amp;, ntree_iterator&lt;T,TRef,TPtr&gt;&amp;)
+  throw(persistent_restore_failed);
+
+// prefix iterators
+template&lt;typename T, typename TRef, typename TPtr&gt;
+void dump_ntree_prefix_iterator(dump_context&amp;, const ntree_prefix_iterator&lt;T,TRef,TPtr&gt;&amp;)
+  throw(persistent_dump_failed);
+
+template&lt;typename T, typename TRef, typename TPtr&gt;
+void restore_ntree_prefix_iterator(restore_context&amp;, ntree_prefix_iterator&lt;T,TRef,TPtr&gt;&amp;)
+  throw(persistent_restore_failed);
+
+// postfix iterators
+template&lt;typename T, typename TRef, typename TPtr&gt;
+void dump_ntree_postfix_iterator(dump_context&amp;, const ntree_postfix_iterator&lt;T,TRef,TPtr&gt;&amp;)
+  throw(persistent_dump_failed);
+
+template&lt;typename T, typename TRef, typename TPtr&gt;
+void restore_ntree_postfix_iterator(restore_context&amp;, ntree_postfix_iterator&lt;T,TRef,TPtr&gt;&amp;)
+  throw(persistent_restore_failed);
+</pre>
+
+<p>As with other template classes, the convention is to write dump/restore
+functions for a specific template instantiation in terms of these template
+functions. For example, given a tree of strings, the following functions would
+be used to make the iterator persistent:</p>
+
+<pre class=cpp>
+void dump(dump_context&amp; context, const ntree&lt;string&gt;::iterator&amp; i)
+{
+  dump_ntree_iterator(context, i);
+}
+
+void restore(restore_context&amp; context, ntree&lt;string&gt;::iterator&amp; i)
+{
+  restore_ntree_iterator(context, i);
+}
+</pre>
+
+<p>There is a restriction: the ntree must be dumped before any iterators are
+dumped - if not, an exception will be thrown.</p>
+
+<p>Similarly, digraph node and arc iterators are made persistent by the
+following template functions:</p>
+
+<pre class=cpp>
+// node iterators
+template&lt;typename NT, typename AT, typename NRef, typename NPtr&gt;
+void dump_digraph_iterator(dump_context&amp; str, const digraph_iterator&lt;NT,AT,NRef,NPtr&gt;&amp; data)
+  throw(persistent_dump_failed);
+
+template&lt;typename NT, typename AT, typename NRef, typename NPtr&gt;
+void restore_digraph_iterator(restore_context&amp; str, digraph_iterator&lt;NT,AT,NRef,NPtr&gt;&amp; data)
+  throw(persistent_restore_failed);
+
+// arc iterators
+template&lt;typename NT, typename AT, typename NRef, typename NPtr&gt;
+void dump_digraph_arc_iterator(dump_context&amp; str, const digraph_arc_iterator&lt;NT,AT,NRef,NPtr&gt;&amp; data)
+  throw(persistent_dump_failed);
+
+template&lt;typename NT, typename AT, typename NRef, typename NPtr&gt;
+void restore_digraph_arc_iterator(restore_context&amp; str, digraph_arc_iterator&lt;NT,AT,NRef,NPtr&gt;&amp; data)
+  throw(persistent_restore_failed);
+</pre>
+
+<p>There same restriction applies: the digraph must be dumped before any iterators are
+dumped - if not, an exception will be thrown.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="pointers">Persistence of Simple Pointers</h2>
+
+<p>Pointers are a special problem for persistent data types because there may
+be more than one pointer to the same object in a data structure. If this was
+dumped in a naive way, there would be two identical copies of the object in
+the dump, rather than one object and two pointers to it. It would also be
+impossible to dump a structure with back pointers because the dump mechanism
+would get stuck in an infinite recursion. The key to dumping such a structure
+is to determine the primary structure and dump that. Then, in a second pass,
+dump secondary links such as back pointers and cross links.</p>
+
+<p>The <code>dump</code> function for a pointer will dump the contents of the
+pointer on the first visit to the object along with a unique magic key that
+identifies the object pointed to. The second time the object is visited (for
+example due to a back pointer), only the magic key is dumped. On restoration,
+on restoring the object itself, the object is added to a <code>map</code> along
+with its magic key. When the magic key is found again in the input stream, it
+is converted by the <code>map</code> into a pointer to the restored object.</p>
+
+<p>The importance of dumping the primary structure first should be clear from
+this - dumping the primary links first causes the data structures to be dumped
+in this pass since each object will be visited for the first time. When back
+pointers or cross pointers are dumped, all the objects they are pointing to
+have already been dumped so only magic keys get dumped.</p>
+
+<p>There is a template function pair
+<code>dump_pointer</code>/<code>restore_pointer</code> which implements this
+algorithm. It assumes that a pointer points to a single object (for example,
+an <code>int*</code> points to an <code>int</code>). Pointers to arrays of objects
+cannot be supported in this way and will need to be hand-implemented (you need
+to know the size of the array as well to be able to dump it). You should be
+using vectors anyway!</p>
+
+<p>The one exception is <code>char*</code> which is treated as a null
+terminated array and not a pointer to a single <code>char</code>. The
+<code>char*</code> persistence functions are not templates and so have the
+simple names <code>dump</code>/<code>restore</code>. Multiple pointers to the
+same <code>char</code> array will be dumped once and the same magic key method
+used as for pointers to other types.</p>
+
+<p>Thus, <code>dump_pointer</code> will dump a magic key to the file and then, if
+this is the first visit, it will call <code>dump</code> on the object being
+pointed to. You need to provide that <code>dump</code> function if it doesn't
+already exist. Similarly, the <code>restore</code> function restores the magic
+key, checks to see if it is a new key and if it is it restores the contents of
+the pointer. If it is an already-restored key, then it is simply mapped onto
+its target object.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="smart_ptr">Persistence of Smart Pointers</h2>
+
+<p>The STLplus <a href="smart_ptr.html">smart pointer classes</a> are a
+special case of template container classes in that they contain pointers to
+objects, whereas most template containers contain objects themselves.
+Therefore, persistence of smart pointers is implemented by calling the
+persistence functions for pointers.</p>
+
+<p>There are two interpretations of pointers though: a simple pointer to an
+object of a known type and a polymorphic pointer which has the type of a
+pointer to a superclass but which can in fact point to any subclass of the
+pointer type. These two interpretations are handled by two variants of the
+smart pointer classes: the <code>smart_ptr</code> variant is intended for use
+with simple pointers and so uses the persistence functions for simple pointers
+(see <a href="#pointers">Persistence of Pointers</a>), whereas the
+<code>smart_ptr_clone</code> variant, which is designed for pointing to
+polymorphic types, uses the persistence for polymorphic pointers (see <a
+href="#interfaces">Persistence of Polymorphic Classes using Interfaces</a>).</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="interfaces">Persistence of Polymorphic Classes using Interfaces</h2>
+
+<p>In C++ you can define a superclass and then derive subclasses from it (some
+people prefer the terminology base class for superclass and derived class for
+subclass). This set of classes based on a common superclass is referred to as
+a set of Polymorphic classes.</p>
+
+<p>Polymorphic classes are manipulated through a pointer to the superclass.
+The pointer can then point to any object of any subclass of the common
+superclass. Subclass-specific operations are provided through the use of
+virtual functions.</p>
+
+<p>If this is still making no sense, you need to read a book on C++ since the
+purpose of this document is to explain the STLplus, not to teach C++ basics.
+Otherwise, the rest of this section is on how to make Polymorphic classes
+persistent.</p>
+
+<p>Polymorphic classes represent a problem for persistence. So far all the
+persistence functions have used knowledge of the exact type of the object at
+compile time to select the correct overloaded dump or restore function.
+However, with polymorphism, only the superclass is known from the type of the
+pointer. The actual subclass being pointed to is unknown at compile time and
+must be determined at run time. This means that run-time type information must
+be used to determine the type. This is usually achieved by defining virtual
+methods.</p>
+
+<p>This is the solution used to make polymorphic types persistent - although
+there is an alternative implementation that uses callback functions instead
+which is described in the <a href="#polymorphic">next section</a>.</p>
+
+<p>The set of virtual functions used to make a class persistent is defined by an 
+<a href="interfaces.html">interface</a> called <code>persistent</code>. To
+make a polymorphic class persistent, the first stage is to derive the base
+class of your family of polymorphic classes from this interface.</p>
+
+<pre class="cpp">
+class base : public persistent
+</pre>
+
+<p>The <code>persistent</code> interface defines two abstract methods that you
+must provide for all subclasses to be made persistent:</p>
+
+<pre class="cpp">
+class persistent : public clonable
+{
+public:
+  virtual void dump(dump_context&amp;) const throw(persistent_dump_failed) = 0;
+  virtual void restore(restore_context&amp;)  throw(persistent_restore_failed) = 0;
+};
+</pre>
+
+<p>However, you can see that this in turn inherits the <code>clonable</code>
+interface which allows copying of polymorphic types:</p>
+
+<pre class="cpp">
+class clonable
+{
+public:
+  virtual clonable* clone(void) const = 0;
+};
+</pre>
+
+<p>This method is also required by the
+<a href="smart_ptr.html"><code>smart_ptr_clone</code></a> container which is also
+used to store polymorphic classes, so once you've made a class persistent,
+you've automatically made it suitable for use in this smart pointer.</p>
+
+<p>In order to demonstrate the way polymorphic classes are made persistent,
+consider the following noddy example:</p>
+
+<pre class="cpp">
+class base
+{
+  int m_value;
+public:
+  base(int value = 0) : m_value(value) {}
+  virtual ~base(void) {}
+
+  virtual int value (void) const {return m_value;}
+  virtual void set(int value = 0) {m_value = value;}
+};
+
+class derived : public base
+{
+  string m_image;
+public:
+  derived(int value = 0) : base(value), m_image(to_string(value)) {}
+  derived(string value = string()) : base(to_int(value)), m_image(value) {}
+  virtual ~derived(void) {}
+
+  virtual void set(int value = 0) {m_image = to_string(value); base::set(value);}
+};
+</pre>
+
+<p>In order to make these two classes persistent, the base class must inherit
+from the <code>persistent</code> interface and then both classes must have the
+three abstract methods <code>clone</code>, <code>dump</code> and
+<code>restore</code> added.</p>
+
+<p>Here's these classes with the additions:</p>
+
+<pre class="cpp">
+class base<b> : public persistent</b>
+{
+  int m_value;
+public:
+  base(int value = 0) : m_value(value) {}
+  virtual ~base(void) {}
+
+  virtual int value (void) const {return m_value;}
+  virtual void set(int value = 0) {m_value = value;}
+
+<b>  clonable* clone(void) const
+{
+return new base(*this);
+}
+void dump(dump_context&amp; context) const throw(persistent_dump_failed)
+{
+::dump(context,m_value);
+}
+void restore(restore_context&amp; context) throw(persistent_restore_failed)
+{
+::restore(context,m_value);
+}</b>
+};
+
+class derived : public base
+{
+  string m_image;
+public:
+  derived(int value = 0) : base(value), m_image(to_string(value)) {}
+  derived(string value) : base(to_int(value)), m_image(value) {}
+  virtual ~derived(void) {}
+
+  virtual void set(int value = 0) {m_image = to_string(value); base::set(value);}
+
+<b>  clonable* clone(void) const
+{
+return new derived(*this);
+}
+void dump(dump_context&amp; context) const throw(persistent_dump_failed)
+{
+base::dump(context);
+::dump(context,m_image);
+}
+void restore(restore_context&amp; context) throw(persistent_restore_failed)
+{
+base::restore(context);
+::restore(context,m_image);
+}</b>
+};
+</pre>
+
+<p>Note the use of a common trick here. The subclass <code>derived</code> dumps its
+superclass by simply calling the superclass's dump method (in this case,
+<code>base::dump</code>). This is in keeping with the general C++ convention that subclasses
+should not use knowledge of the internals of the superclass. This convention
+is easy to follow: call the <code>dump/restore</code> method of the immediate superclass
+of the subclass first, then <code>dump/restore</code> the subclass-specific data.</p>
+
+<p>The solution for persistence of Polymorphic classes requires that every derivative class be registered with the
+dump_context or restore_context before the dump or restore operation commences. Furthermore,
+where there are many polymorphic types being handled, the order
+of registration must be the same for the restore operation as it was for the dump
+operation.</p>
+
+<p>Consider first the dump operation. The <code>dump_context</code> class provides
+the following method for registration:</p>
+
+<pre class="cpp">
+  unsigned short dump_context::register_interface(const std::type_info&amp; info);
+</pre>
+
+<p>This is called once for each polymorphic type to be dumped. So, for the
+example above it is called twice:</p>
+
+<pre class="cpp">
+    dump_context context(output);
+
+    context.register_interface(typeid(base));
+    context.register_interface(typeid(derived));
+</pre>
+
+<p>The <code>typeid</code> operator is built-in to C++ and provides a means of
+getting the type name from a type or expression as a char*. This is mapped
+internally onto a magic key which is an integer value unique to that subclass.
+The return value of
+the <code>register_type</code> method is the magic key for that type and
+is used in the dump to differentiate between the different classes. There's no
+real reason for capturing this key except maybe for debugging the data
+stream. Keys are allocated in the order of registration of class types. This
+is why class types must be registered in the same order for both the dump and
+restore operations.</p>
+
+<p>For the restore operation it is necessary to register a sample object of the
+class. This is because the restore operation creates objects of the class by
+cloning the sample. The sample is stored in a
+<code>smart_ptr_clone</code>:</p>
+
+<pre class="cpp">
+typedef smart_ptr_clone&lt;persistent&gt; persistent_ptr;
+</pre>
+
+<p>The <code>restore_context</code>
+class provides the following registration function:</p>
+
+<pre class="cpp">
+  unsigned short restore_context::register_interface(const persistent_ptr&amp;);
+</pre>
+
+<p>The objects are registered in the same order as the types were registered
+into the dump context, because it is this ordering that provides the mapping
+from the unique key used in the dump to the correct sample object used in
+the restore. During the dump, the class <code>base</code> was registered first,
+then class <code>derived</code>. The sample objects are therefore registered in the
+same order for the restore:</p>
+
+<pre class="cpp">
+    restore_context context(input);
+
+    context.register_interface(base());
+    context.register_interface(derived());
+</pre>
+
+<p>An alternative way of registering these interfaces is to wrap their
+registration up in an installer function. This installer can then be used to
+install all classes in a single step.</p>
+
+<p>In fact, two installer functions are required - one for dumping and one for
+restoring. It is up to you to check that these installer functions install
+their callbacks in the same order. The type profiles for these installer
+functions are:</p>
+
+<pre class="cpp">
+void (*dump_context::installer)(dump_context&amp;);
+void (*restore_context::installer)(restore_context&amp;);
+</pre>
+
+<p>In other words, the installer type for a dump_context is a pointer to a
+function that takes a dump_context&amp; and returns void. Similarly the
+installer type for a restore_context is a pointer to a function that takes a
+restore_context&amp; and returns void. For the above example they might look
+like this:</p>
+
+<pre class="cpp">
+void make_base_persistent(dump_context&amp; context)
+{
+  context.register_interface(typeid(base));
+  context.register_interface(typeid(derived));
+}
+
+void make_base_persistent(restore_context&amp; context)
+{
+  context.register_interface(base());
+  context.register_interface(derived());
+}
+</pre>
+
+<p>The functions can be called whatever you like, but I prefer to give them
+the same name and use overload resolution to pick the right one according to
+the type profile. In use, after creating a dump or restore context, call the
+method register_all with the above installer as the argument. For example,
+using the earlier example again, rewritten to use an installer:</p>
+
+<pre class="cpp">
+    dump_context context(output);
+    context.register_all(make_base_persistent);
+</pre>
+
+<p>Now that the classes are registered, the actual dump and restore of a
+superclass pointer is handled by the following functions:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;void dump_interface(dump_context&amp; str, const T*&amp; data);
+template&lt;typename T&gt;void restore_interface(restore_context&amp; str, T*&amp; data);
+</pre>
+
+<p>For example, given the above example using classes <code>base</code> and
+<code>derived</code>, specific <code>dump</code> and <code>restore</code> functions can be
+written that simply call the above template functions:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const base*&amp; ptr)
+{
+  dump_interface(context,ptr);
+}
+
+void restore(restore_context&amp; context, base*&amp; ptr)
+{
+  restore_interface(context,ptr);
+}
+</pre>
+
+<p><b>Note</b>: since polymorphic types are handled in C++ via pointers, the
+same behaviour is implemented for multiple pointers to the same object as was
+implemented for simple pointers. When two pointers to the same object are
+dumped, they will be restored as pointers
+to the same object.</p>
+
+<p>Alternatively, a <a href="smart_ptr.html"><code>smart_ptr_clone</code></a>
+can be used. This class is specifically designed to point to a polymorphic
+type which uses the <code>clonable</code> interface. Furthermore, the
+persistence functions for <code>smart_ptr_clone</code> call the persistence
+functions for polymorphic types using the <code>clonable</code> interface. For
+example, say you have the following type declarations:</p>
+
+<pre class="cpp">
+typedef smart_ptr_clone&lt;base&gt; base_ptr;
+typedef vector&lt;base_ptr&gt; base_vector;
+</pre>
+
+<p>These types can be made persistent in the usual way, by creating layers of functions
+called <code>dump</code> and <code>restore</code> building up from the
+low-level contained type to the composite type by calling the template
+functions for <code>vector</code> and <code>smart_ptr_clone</code>.</p>
+
+<p>We already have persistence of <code>base*</code> handled by the callbacks installed
+above. To support <code>smart_ptr_clone&lt;base&gt;</code> which contains a
+<code>base*</code> is simply a case of writing a function that calls the
+template dump/restore for the smart pointer class:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const base_ptr&amp; ptr)
+{
+  dump_smart_ptr_clone(context,ptr);
+}
+
+void restore(restore_context&amp; context, base_ptr&amp; ptr)
+{
+  restore_smart_ptr_clone(context,ptr);
+}
+</pre>
+
+<p>The final stage is to make a vector of these persistent:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const base_vector&amp; vec)
+{
+  dump_vector(context,vec);
+}
+
+void restore(restore_context&amp; context, base_vector&amp; vec)
+{
+  restore_vector(context,vec);
+}
+</pre>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="polymorphic">Persistence of Polymorphic Classes using Callbacks</h2>
+
+<p>The <a href="#interfaces">previous section</a> described how polymorphic types could be made
+persistent in an object-oriented way through inheritance and virtual methods.
+However, it is not always possible to use this approach. For example, you
+might want to make a class persistent that you cannot change. Therefore an
+alternative solution is needed that uses a non-intrusive approach to
+persistence. In order to achieve this non-intrusive approach, I have provided
+the option to use <code>dump</code> and <code>restore</code> callbacks to
+perform the persistence functionality and <i>not</i>
+virtuals. The callbacks are associated with the subclass, which can be
+determined at run time. The callbacks are stored in the
+<code>dump_context</code> object during the dump and in the
+<code>restore_context</code> object during a <code>restore</code>.</p>
+
+<p>However, this is still not a complete solution. During restore, it is
+necessary to create an object of the right subclass before its restore
+callback can be called. There is no concept of a virtual constructor in C++,
+nor is there a means of creating an object of any type from, say, the name of
+the type. The solution uses <code>create</code> callbacks rather than sample objects. A
+create callback is a function that, when called, creates an object and
+returns a pointer to it. In order to make the method as general as possible,
+the create callback returns this pointer as a <code>void*</code>.</p>
+
+<p>Thus, the non-intrusive solution to persistence of polymorphic types
+requires no changes to existing classes - no extra
+virtual functions for example. However, the cost of this solution is that it does require three callback
+functions to be written for each subclass to be made persistent.</p>
+
+<p>In order to demonstrate the way polymorphic classes are made persistent,
+consider the following noddy example:</p>
+
+<pre class="cpp">
+class base
+{
+  int m_value;
+public:
+  base(int value = 0) : m_value(value) {}
+  virtual ~base(void) {}
+
+  virtual int value (void) const {return m_value;}
+  virtual void set(int value = 0) {m_value = value;}
+};
+
+class derived : public base
+{
+  string m_image;
+public:
+  derived(int value = 0) : base(value), m_image(to_string(value)) {}
+  derived(string value = string()) : base(to_int(value)), m_image(value) {}
+  virtual ~derived(void) {}
+
+  virtual void set(int value = 0) {m_image = to_string(value); base::set(value);}
+};
+</pre>
+
+<p>In order to make these two classes persistent, each one must have three
+callbacks added. These callbacks can be completely separate from the classes
+if it is not possible to change the class definitions, but
+typically it is easier to add the functions as friends of the class so that
+they have direct access to the data fields. The three functions are the
+create, dump and restore callbacks. The convention is to call them
+<code>create_<i>class</i></code>, <code>dump_<i>class</i></code> and
+<code>restore_<i>class</i></code>, where <code><i>class</i></code> is the name of the
+class that they act on.</p>
+
+<p>The parameter profiles of the three callbacks is:</p>
+
+<pre class="cpp">
+void dump_<i>class</i>(dump_context&amp; context, const void* data)
+void* create_<i>class</i>(void)
+void restore_<i>class</i>(restore_context&amp; context, void*&amp; data)
+</pre>
+
+<p>For this example, these functions are added to the classes as
+friends:</p>
+
+<pre class="cpp">
+class base
+{
+  ...
+  friend void dump_base(dump_context&amp; context, const void* data)
+    {
+      dump(context,((const base*)data)-&gt;m_value);
+    }
+  friend void* create_base(void)
+    {
+      return new base;
+    }
+  friend void restore_base(restore_context&amp; context, void*&amp; data)
+    {
+      restore(context,((base*)data)-&gt;m_value);
+    }
+};
+
+class derived
+{
+  ...
+  friend void dump_derived(dump_context&amp; context, const void* data)
+    {
+      dump_base(context,data);
+      const derived* derived_data = (const derived*)data;
+      dump(context,derived_data-&gt;m_image);
+    }
+  friend void* create_derived(void)
+    {
+      return new derived;
+    }
+  friend void restore_derived(restore_context&amp; context, void*&amp; data)
+    {
+      restore_base(context,data);
+      derived* derived_data = (derived*)data;
+      restore(context,derived_data-&gt;m_image);
+    }
+};
+</pre>
+
+<p>Note the use of a common trick here. The subclass <code>derived</code> dumps its
+superclass by simply calling the superclass's callback (in this case,
+<code>dump_base</code>). This is in keeping with the general C++ convention that subclasses
+should not use knowledge of the internals of the superclass. This convention
+is easy to follow: call the <code>dump/restore</code> callback of the immediate superclass
+of the subclass first, then <code>dump/restore</code> the subclass-specific data.</p>
+
+<p>The solution for persistence of Polymorphic classes requires that every polymorphic class be registered with the
+dump_context or restore_context before the dump or restore operation commences. Furthermore,
+where there are many polymorphic types being handled, the order
+of registration must be the same for the restore operation as it was for the dump
+operation.</p>
+
+<p>Consider first the dump operation. The <code>dump_context</code> class provides
+the following method for registration:</p>
+
+<pre class="cpp">
+  unsigned short dump_context::register_type(const std::type_info&amp; info, dump_callback);
+</pre>
+
+<p>This is called once for each polymorphic type to be dumped. So, for the
+example above it is called twice:</p>
+
+<pre class="cpp">
+    dump_context context(output);
+
+    context.register_type(typeid(base),dump_base);
+    context.register_type(typeid(derived),dump_derived);
+</pre>
+
+<p>The <code>typeid</code> operator is built-in to C++ and provides a means of
+getting the type name from a type or expression as a char*. This is mapped
+internally onto a magic key which is an integer value unique to that subclass.
+The return value of
+the <code>register_type</code> method is the magic key for that type and
+is used in the dump to differentiate between the different classes. There's no
+real reason for capturing this key except maybe for debugging the data
+stream. Keys are allocated in the order of registration of class types. This
+is why class types must be registered in the same order for both the dump and
+restore operations.</p>
+
+<p>For the restore operation it is necessary to register both a create callback
+and a restore callback with the restore context. The <code>restore_context</code>
+class provides the following registration function:</p>
+
+<pre class="cpp">
+  unsigned short restore_context::register_type(create_callback,restore_callback);
+</pre>
+
+<p>The callbacks are registered in the same order as the types were registered
+into the dump context, because it is this ordering that provides the mapping
+from the unique key used in the dump to the correct create callback used in
+the restore. During the dump, the class <code>base</code> was registered first,
+then class <code>derived</code>. The callbacks are therefore registered in the
+same order for the restore:</p>
+
+<pre class="cpp">
+    restore_context context(input);
+
+    context.register_type(create_base,restore_base);
+    context.register_type(create_derived,restore_derived);
+</pre>
+
+<p>An alternative way of registering these callbacks is to wrap their
+registration up in an installer function. This installer can then be used to
+install all callbacks in a single step.</p>
+
+<p>In fact, two installer functions are required - one for dumping and one for
+restoring. It is up to you to check that these installer functions install
+their callbacks in the same order. The type profiles for these installer
+functions are:</p>
+
+<pre class="cpp">
+void (*dump_context::installer)(dump_context&amp;);
+void (*restore_context::installer)(restore_context&amp;);
+</pre>
+
+<p>In other words, the installer type for a dump_context is a pointer to a
+function that takes a dump_context&amp; and returns void. Similarly the
+installer type for a restore_context is a pointer to a function that takes a
+restore_context&amp; and returns void. For the above example they might look
+like this:</p>
+
+<pre class="cpp">
+void make_base_persistent(dump_context&amp; context)
+{
+  context.register_type(typeid(base),dump_base);
+  context.register_type(typeid(derived),dump_derived);
+}
+void make_base_persistent(restore_context&amp; context)
+{
+  context.register_type(create_base,restore_base);
+  context.register_type(create_derived,restore_derived);
+}
+</pre>
+
+<p>The functions can be called whatever you like, but I prefer to give them
+the same name and use overload resolution to pick the right one according to
+the type profile. In use, after creating a dump or restore context, call the
+method register_all with the above installer as the argument. For example,
+using the earlier example again, rewritten to use an installer:</p>
+
+<pre class="cpp">
+    dump_context context(output);
+    context.register_all(make_base_persistent);
+</pre>
+
+<p>Now that the callbacks are registered, the actual dump and restore of a
+superclass pointer is handled by the following functions:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;void dump_polymorph(dump_context&amp; str, const T*&amp; data);
+template&lt;typename T&gt;void restore_polymorph(restore_context&amp; str, T*&amp; data);
+</pre>
+
+<p>For example, given the above example using classes <code>base</code> and
+<code>derived</code>, specific <code>dump</code> and <code>restore</code> functions can be
+written that simply call the above template functions:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const base*&amp; ptr)
+{
+  dump_polymorph(context,ptr);
+}
+
+void restore(restore_context&amp; context, base*&amp; ptr)
+{
+  restore_polymorph(context,ptr);
+}
+</pre>
+
+<p><b>Note</b>: since polymorphic types are handled in C++ via pointers, the
+same behaviour is implemented for multiple pointers to the same object as was
+implemented for simple pointers. When two pointers to the same object are
+dumped, they will be restored as pointers
+to the same object.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="memory">Persistence of Memory</h2>
+
+<p>So far I have talked about the persistence of data structures, which is
+abstract. Salvador Dali painted about Persistence of Memory, which is
+surreal. You choose which is more interesting.</p>
+
+<p class="figure">
+<img src="persistence_of_memory.jpg" width="455" height="312"><br>
+The Persistence of Memory<br>Salvador Dali<br>1931
+</p>
+
+<p>Of course, in software, memory doesn't persist for long:</p>
+
+<p class="figure">
+<img src="disintegration_of_memory.jpg"><br>
+The Disintegration of the Persistence of Memory<br>Salvador Dali<br>1952-4
+</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="shortcuts">Shortcut Functions</h2>
+
+<p>There is a set of template functions defined in the persistence.hpp header
+that encapsulate a common use of persistence. The functions assume that you
+have built up your family of dump and restore functions so that an entire data
+structure can be dumped by simply calling a function called dump at the top
+level. Similarly the data structure can be restored by simply calling restore
+at the top level. The shortcut functions also support the use of an installer
+function as described in the section on <a href="#polymorphic">Polymorphic
+types</a>. This reduces the process of dumping to common targets to a one-line
+function call.</p>
+
+<h3>File-Based Persistence</h3>
+
+<p>Probably the most useful shortcut functions are the pair
+<code>dump_to_file</code>/<code>restore_from_file</code>:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;
+void dump_to_file(const T&amp; source, const std::string&amp; filename, dump_context::installer installer)
+  throw(persistent_dump_failed,persistent_illegal_type);
+template&lt;typename T&gt;
+void restore_from_file(const std::string&amp; filename, T&amp; result, restore_context::installer installer)
+  throw(persistent_restore_failed,persistent_illegal_type);
+</pre>
+
+<p>To dump a data structure to a file, simply call <code>dump_to_file</code>
+with the first argument being the source data structure to be dumped, the
+second argument being the name of the file to dump to and the final argument
+being an installer function for registering any polymorphic types. The last
+argument can be null if there are no polymorphic types to register.</p>
+
+<p>Similarly, to restore the same data structure, simply call
+<code>restore_from_file</code> with the name of the file as the first argument
+(conceptually, the first argument is the source and the second the
+destination) and the data structure to be restored as the second. Again the
+third argument is an installer function for restoring polymorphic types and
+may be null.</p>
+
+<p>Here's an example that dumps and restores a vector of string to and from a
+file. First, I need to write a <code>dump</code>/<code>restore</code> pair of
+functions that make a vector of string persistent:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const vector&lt;string&gt;&amp; data)
+{
+  dump_vector(context, data);
+}
+
+void restore(restore_context&amp; context, vector&lt;string&gt;&amp; data)
+{
+  restore_vector(context, data);
+}
+</pre>
+
+<p>Now here's a trivial application that takes the command-line arguments
+represented by argv and puts them into a vector of strings, then dumps them to
+a file:</p>
+
+<pre class="cpp">
+int main (unsigned argc, char* argv[])
+{
+  if (argc == 1)
+    ferr &lt;&lt; "usage: " &lt;&lt; argv[0] &lt;&lt; " &lt;strings&gt;" &lt;&lt; endl;
+  else
+  {
+    vector&lt;string&gt; source;
+    for (unsigned i = 1; i &lt; argc; i++)
+      source.push_back(string(argv[i]));
+    dump_to_file(source, "strings.dat", 0);
+  }
+  return 0;
+}
+</pre>
+
+<p>Here's a complementary application that restores the file and prints the
+results to standard output:</p>
+
+<pre class="cpp">
+int main (unsigned argc, char* argv[])
+{
+  if (argc != 1)
+    ferr &lt;&lt; "usage: " &lt;&lt; argv[0] &lt;&lt; endl;
+  else
+  {
+    vector&lt;string&gt; copy;
+    restore_from_file("strings.dat", copy, 0);
+    fout &lt;&lt; "restored text: " << vector_to_string(copy, ",") &lt;&lt; endl;
+  }
+  return 0;
+}
+</pre>
+
+<h3>String-Based Persistence</h3>
+
+<p>Sometimes you want to create an in-memory dump of a data structure rather
+than dumping to a file. For example, this would be a starting point for a
+routine for transferring a data structure across the internet using data
+persistence as the mechanism. This is done by dumping to and restoring from a
+string:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;
+void dump_to_string(const T&amp; source, std::string&amp; result, dump_context::installer installer)
+  throw(persistent_dump_failed,persistent_illegal_type);
+template&lt;typename T&gt;
+void restore_from_string(const std::string&amp; source, T&amp; result, restore_context::installer installer)
+  throw(persistent_restore_failed,persistent_illegal_type);
+</pre>
+
+<p>This is very similar to the previous section's file-based persistence,
+except that the target of the dump is the string itself. Note that the std::string class
+is capable of storing binary data since it does not rely on null termination
+to work properly. A C char* could not be used in this way (but its obsolete
+anyway, so no worries mate).</p>
+
+<p>To dump a data structure to a string, simply call <code>dump_to_string</code>
+with the first argument being the source data structure to be dumped, the
+second argument being the string to dump to and the final argument
+being an installer function for registering any polymorphic types. The last
+argument can be null if there are no polymorphic types to register.</p>
+
+<p>Similarly, to restore the same data structure, simply call
+<code>restore_from_string</code> with the string containing the dumped data as the first argument
+and the data structure to be restored as the second. Again the
+third argument is an installer function for restoring polymorphic types and
+may be null.</p>
+
+<p>To illustrate this, I'll use the same example as above for file-based
+persistence. This example dumps and restores a vector of string to and from a
+string. Since I've already written the <code>dump</code>/<code>restore</code> pair of
+functions for the previous example, there's no need to do it again.</p>
+
+<p>Now here's a trivial application that takes the command-line arguments
+represented by argv and puts them into a vector of strings, then dumps them to
+a string, restores them from that string and finally compares them to confirm
+that the two data structures are identical:</p>
+
+<pre class="cpp">
+int main (unsigned argc, char* argv[])
+{
+  if (argc == 1)
+    ferr &lt;&lt; "usage: " &lt;&lt; argv[0] &lt;&lt; " &lt;strings&gt;" &lt;&lt; endl;
+  else
+  {
+    vector&lt;string&gt; source;
+    for (unsigned i = 1; i &lt; argc; i++)
+      source.push_back(string(argv[i]));
+    string binary;
+    dump_to_string(source, binary, 0);
+    vector&lt;string&gt; copy;
+    restore_from_string(binary, copy, 0);
+    if (source != copy)
+      ferr &lt;&lt; "ERROR - restored data is different" &lt;&lt; endl;
+    else
+      ferr &lt;&lt; "success - restored data is the same" &lt;&lt; endl;
+  }
+  return 0;
+}
+</pre>
+
+<h3>TextIO-Based Persistence</h3>
+
+<p>The above two short-cuts are in fact specialisations of the most general
+short-cut functions that dump to and restore from any TextIO device. This more
+general form is useful if you want to use other I/O devices than the most
+common ones of files and in-memory strings.</p>
+
+<p>The functions are:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;
+void dump_to_device(const T&amp; source, otext&amp; result, dump_context::installer installer)
+  throw(persistent_dump_failed,persistent_illegal_type);
+template&lt;typename T&gt;
+void restore_from_device(itext&amp; source, T&amp; result, restore_context::installer installer)
+  throw(persistent_restore_failed,persistent_illegal_type);
+</pre>
+
+<p>To dump a data structure to an output device, simply call <code>dump_to_device</code>
+with the first argument being the source data structure to be dumped, the
+second argument being the device to dump to and the final argument
+being an installer function for registering any polymorphic types. The last
+argument can be null if there are no polymorphic types to register.</p>
+
+<p>Similarly, to restore the same data structure, simply call
+<code>restore_from_device</code> with the device containing the dumped data as the first argument
+and the data structure to be restored as the second. Again the
+third argument is an installer function for restoring polymorphic types and
+may be null.</p>
+
+<p>To illustrate this, here's the bodies of the <code>dump_to_file</code> and
+<code>restore_from_file</code> functions described earlier to show how they
+have in fact been implemented as calls to these two general-purpose
+functions:</p>
+
+<pre class="cpp">
+template&lt;typename T&gt;
+void dump_to_file(const T&amp; source, const std::string&amp; filename, dump_context::installer installer)
+  throw(persistent_dump_failed,persistent_illegal_type)
+{
+  oftext output(filename);
+  dump_to_device(source, output, installer);
+}
+
+template&lt;typename T&gt;
+void restore_from_file(const std::string&amp; filename, T&amp; result, restore_context::installer installer)
+  throw(persistent_restore_failed,persistent_illegal_type)
+{
+  iftext input(filename);
+  restore_from_device(input, result, installer);
+}
+</pre>
+
+<p>So, <code>dump_to_file</code> is implemented by creating a file output device
+(class <code>oftext</code>) and then calling <code>dump_to_device</code>. You
+can implement your own <code>dump_to_xxx</code> and
+<code>restore_from_xxx</code> functions by simply implementing TextIO devices
+for input from and output to <code>xxx</code>.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="includes">Include Files</h2>
+
+<p>The persistence functions for basic C types and STL containers are defined
+in <code>persistence.hpp</code>. as are the infrastructure classes
+<code>dump_context</code>/<code>restore_context</code>. The STLplus container
+classes have the persistence functions built-in.</p>
+
+<p>The following table details which types have persistence, where the
+persistence functions are defined (i.e. which header to include) and the names
+of the functions. In this table, uppercase characters such as <code>T</code> are
+used to represent template argument types, so that <code>vector&lt;T&gt;</code>
+means any <code>vector</code>, with type <code>T</code> as its template parameter.</p>
+
+<center>
+<table border="1" cellpadding="3">
+<caption>Persistence Functions</caption>
+
+<tr><th align="left">Type</th><th align="left">Library</th><th align="left">Include</th><th align="left">Function Names</th></tr>
+
+<tr><td><code>char</code></td>                     <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>signed char</code></td>              <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>unsigned char</code></td>            <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>short</code></td>                    <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>unsigned short</code></td>           <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>int</code></td>                      <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>unsigned</code></td>                 <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>long</code></td>                     <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>unsigned long</code></td>            <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>inf</code></td>                      <td>STLplus</td><td><code>inf.hpp</code></td>               <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>enum{}</code></td>                   <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump_enum</code>/<code>restore_enum</code></td></tr>
+<tr><td><code>float</code></td>                    <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>double</code></td>                   <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>T* (simple)</code></td>              <td>C/C++</td>  <td><code>persistent.hpp</code></td>        <td><code>dump_pointer</code>/<code>restore_pointer</code></td></tr>
+<tr><td><code>T* (polymorphic)</code></td>         <td>C++</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_polymorph</code>/<code>restore_polymorph</code></td></tr>
+<tr><td><code>smart_ptr&lt;T&gt;</code></td>       <td>STLplus</td><td><code>smart_ptr.hpp</code></td>         <td><code>dump_smart_ptr</code>/<code>restore_smart_ptr</code></td></tr>
+<tr><td><code>smart_ptr_clone&lt;T&gt;</code></td> <td>STLplus</td><td><code>smart_ptr.hpp</code></td>         <td><code>dump_smart_ptr_clone</code>/<code>restore_smart_ptr_clone</code></td></tr>
+<tr><td><code>char*</code></td>                    <td>C</td>      <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>string</code></td>                   <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump</code>/<code>restore</code></td></tr>
+<tr><td><code>basic_string&lt;T&gt;</code></td>    <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_basic_string</code>/<code>restore_basic_string</code></td></tr>
+<tr><td><code>bitset&lt;N&gt;</code></td>          <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_bitset</code>/<code>restore_bitset</code></td></tr>
+<tr><td><code>complex&lt;T&gt;</code></td>         <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_complex</code>/<code>restore_complex</code></td></tr>
+<tr><td><code>deque&lt;T&gt;</code></td>           <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_deque</code>/<code>restore_deque</code></td></tr>
+<tr><td><code>list&lt;T&gt;</code></td>            <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_list</code>/<code>restore_list</code></td></tr>
+<tr><td><code>vector&lt;T&gt;</code></td>          <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_vector</code>/<code>restore_vector</code></td></tr>
+<tr><td><code>pair&lt;T1,T2&gt;</code></td>        <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_pair</code>/<code>restore_pair</code></td></tr>
+<tr><td><code>triple&lt;T1,T2,T3&gt;</code></td>   <td>STLplus</td><td><code>triple.hpp</code></td>            <td><code>dump_triple</code>/<code>restore_triple</code></td></tr>
+<tr><td><code>quadruple&lt;T1,T2,T3,T4&gt;</code></td><td>STLplus</td><td><code>quadruple.hpp</code></td>         <td><code>dump_quadruple</code>/<code>restore_quadruple</code></td></tr>
+<tr><td><code>hash&lt;K,T,H,E&gt;</code></td>      <td>STLplus</td><td><code>hash.hpp</code></td>              <td><code>dump_hash</code>/<code>restore_hash</code></td></tr>
+<tr><td><code>map&lt;K,T&gt;</code></td>           <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_map</code>/<code>restore_map</code></td></tr>
+<tr><td><code>multimap&lt;K,T&gt;</code></td>      <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_multimap</code>/<code>restore_multimap</code></td></tr>
+<tr><td><code>set&lt;T&gt;</code></td>             <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_set</code>/<code>restore_set</code></td></tr>
+<tr><td><code>multiset&lt;T&gt;</code></td>        <td>STL</td>    <td><code>persistent.hpp</code></td>        <td><code>dump_multiset</code>/<code>restore_multiset</code></td></tr>
+<tr><td><code>digraph&lt;N,A&gt;</code></td>       <td>STLplus</td><td><code>digraph.hpp</code></td>           <td><code>dump_digraph</code>/<code>restore_digraph</code></td></tr>
+<tr><td><code>matrix&lt;T&gt;</code></td>          <td>STLplus</td><td><code>matrix.hpp</code></td>            <td><code>dump_matrix</code>/<code>restore_matrix</code></td></tr>
+<tr><td><code>ntree&lt;T&gt;</code></td>           <td>STLplus</td><td><code>ntree.hpp</code></td>             <td><code>dump_ntree</code>/<code>restore_ntree</code></td></tr>
+
+</table>
+</center>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="exclusions">Excluded Classes</h2>
+
+<p>Note that I have <em>not</em> done the container <em>adaptors</em>
+<code>queue</code>, <code>priority_queue</code> and <code>stack</code> because
+their interfaces are too restricted to allow dump and restore routines to be
+written without burgling the data structure. This means that I will never do
+them because it is impossible!</p>
+
+<p>When designing a data structure to be made persistent, you need to bear
+this in mind and use containers such as <code>vector</code> and
+<code>list</code> rather than <code>queue</code> or <code>stack</code>.</p>
+
+<p>I also haven't implemented any STL iterators. The design of iterators makes
+it nearly impossible to do this without burgling the data structure, which
+wouldn't be portable.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="exceptions">Exceptions</h2>
+
+<p>The persistence subsystem uses exceptions to indicate errors, in-line with
+the STLplus <a href="exceptions.html">exceptions policy</a>.</p>
+
+<p>An exception is thrown since there is no conceivable recovery method that would
+allow the dump or restore to complete successfully.</p>
+
+<p>The convention is that a <code>dump</code> function throws the
+<code>persistent_dump_failed</code> exception and the <code>restore</code>
+function throws the <code>persistent_restore_failed</code> exception if an
+error is detected in the file format, but that it should keep going where
+possible.</p>
+
+<p>In addition, if you try to dump or restore a polymorphic type that hasn't
+had its callbacks registered in advance, the exception
+<code>persistent_illegal_type</code> will be thrown. The same exception is
+used for both dump and restore.</p>
+
+<p>The first two exceptions (<code>persistent_dump_failed</code> and
+<code>persistent_restore_failed</code>) are subclasses of std::runtime_error.
+The exception <code>persistent_illegal_type</code> is a subclass of
+std::logic_error to reflect the fact that this can only happen due to a
+programming error. All are subclasses of std::exception so can be caught by
+catching this superclass.</p>
+
+</div>
+
+<div id="documentSection">
+
+<h2 id="examples">Examples</h2>
+
+<h3>Single-Level Structures</h3>
+
+<p>This example shows how to make a <code>multimap</code> persistent. This is a
+one-layer data structure because the <code>multimap</code> only contains the basic
+types <code>int</code> and <code>string</code> (conceptually a
+<code>string</code> is an atomic type, even if its implementation just happens
+to be quite complicated - don't confuse implementation with concept).</p>
+
+<p>The example is based on a test program which is used to test the
+persistence functions. It creates a data structure, dumps it to a file,
+restores the file into another data structure and then confirms that the two
+structures are identical.</p>
+
+<p>The following definition is used to define two data structures that map an
+int onto a string:</p>
+
+<pre class="cpp">
+  multimap&lt;int,string&gt; data, restored;
+</pre>
+
+<p>The object called <code>data</code> will be used to store the data to be saved
+in a file, whilst the object called <code>restored</code> will be used to restore
+the data. It is then possible to compare the two to verify that they are the
+same.</p>
+
+<p>First, I fill the map with a random amount of random data, just to
+demonstrate the data persistence:</p>
+
+<pre class="cpp">
+#define MAX_SIZE 2877
+#define MAX_NUM 15254
+...
+  // seed the random number generator with a different value each run (this is a common trick)
+  srand(time(0));
+  // select the random map size to generate
+  const unsigned number = (unsigned)rand() % MAX_NUM;
+  for (unsigned i = 0; i &lt; number; i++)
+  {
+    // select a random key to add to the map
+    int key = rand();
+    // select random characters to add to the data string
+    const unsigned size = (unsigned)rand() % MAX_SIZE;
+    string value;
+    for  (unsigned j = 0; j &lt; size; j++)
+    {
+      char ch = (char)rand();
+      value += ch;
+    }
+    // finally, add the key/data pair to the multimap
+    data.insert(make_pair(key,value));
+  }
+</pre>
+
+<p>So, the <code>multimap</code> contains random integer keys mapped onto random length
+strings of random data.</p>
+
+<p>No functions need to be written to implement persistence of this data
+structure! The pre-defined persistence functions can do the whole job (see the
+table in the last section). The <code>dump_multimap</code> function dumps the map
+by calling <code>dump</code> on the key and data types. The key type is
+<code>int</code>, which already has a <code>dump</code> function defined. The data
+type is <code>string</code>, which also has a <code>dump</code> function defined.</p>
+
+<p>The first stage in saving this data structure to file is to create a
+<code>dump_context</code> which needs to be attached to a TextIO output device. In
+this case I'll choose to save the dump to file:</p>
+
+<pre class="cpp">
+  oftext out ("test_map.tmp");
+  dump_context dumper(out);
+</pre>
+
+<p>Now, the data structure can be dumped to this file:</p>
+
+<pre class="cpp">
+  dump_multimap(dumper,data);
+  out.close();
+</pre>
+
+<p>In this example, the output file is explicitly closed because I'm about to
+read it straight back in again. To read the file, a <code>restore_context</code>
+needs to be created:</p>
+
+<pre class="cpp">
+  iftext in ("test_map.tmp");
+  restore_context restorer(in);
+</pre>
+
+<p>Now the data structure can be restored, in this case to a different object:</p>
+
+<pre class="cpp">
+  restore_multimap(restorer,restored);
+</pre>
+
+<p>The rest of the program just compares the two data structures to confirm
+they are identical. I don't need to go into that here.</p>
+
+<p>In practice, it is clearer if you do in fact write a trivial pair of functions
+called <code>dump</code> and <code>restore</code> to hide the use of the
+template functions. This also means that you can always remember the name of
+the persistence functions for any type you have designed - because they are
+always called <code>dump</code> and <code>restore</code>. The functions
+are:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; context, const multimap&lt;int,string&gt;&amp; data)
+{
+  dump_multimap(context, data);
+}
+
+void restore(restore_context&amp; context, multimap&lt;int,string&gt;&amp; data)
+{
+  restore_multimap(context, data);
+}
+</pre>
+
+<h3>Multi-level Structures</h3>
+
+<p>This example will show how to make a data structure with more than one
+level of structure persistent.</p>
+
+<p>The example uses a <code>vector</code> of a user-defined class and makes it
+persistent. It shows how to add persistence functions to a user-defined class
+so that it can be used with the pre-defined <code>vector</code> persistence
+functions.</p>
+
+<p>The example requires the following set of includes. The reason for each
+include will be explained as the example unfolds:</p>
+
+<pre class="cpp">
+#include &lt;string&gt;
+#include &lt;vector&gt;
+#include "stlplus.hpp"
+using namespace std;
+</pre>
+
+<p>The user-defined data structure is a class for storing email addresses. The
+class without persistence functions is:</p>
+
+<pre class="cpp">
+class address
+{
+private:
+  string m_name;
+  string m_email;
+  int m_age;
+public:
+  address(void) : m_age(0) { }
+  address(const string&amp; name, const string&amp; email, int age) : m_name(name), m_email(email), m_age(age) {}
+
+  const string&amp; name(void) const {return m_name;}
+  const string&amp; email(void) const {return m_email;}
+  int age(void) const {return m_age;}
+};
+</pre>
+
+<p>To add persistence, it is only necessary to add a <code>dump</code> and
+<code>restore</code> function which use the pre-defined <code>dump</code> and
+<code>restore</code> for <code>string</code> and <code>int</code>. These are found in the
+header <code>persistent.hpp</code>. The functions are added to the class as friend functions so that
+they can access the private data fields directly:</p>
+
+<pre class="cpp">
+class address
+{
+  ...
+  friend void dump(dump_context&amp; str, const address&amp; data)
+    {
+      dump(str, data.m_name);
+      dump(str, data.m_email);
+      dump(str, data.m_age);
+    }
+
+  friend void restore(restore_context&amp; str, address&amp; data)
+    {
+      restore(str, data.m_name);
+      restore(str, data.m_email);
+      restore(str, data.m_age);
+    }
+};
+</pre>
+
+<p>The next stage is to define an address book, which is simply an unsorted
+<code>vector</code> of <code>address</code>es:</p>
+
+<pre class="cpp">
+typedef vector&lt;address&gt; address_book;
+</pre>
+
+<p>This type is already persistent - there is a pre-defined pair of template
+functions <code>dump_vector</code> and <code>restore_vector</code> defined in
+<code>persistent.hpp</code>. However, it is more consistent to provide
+overloaded non-template <code>dump</code> and <code>restore</code> functions for the
+<code>address_book</code> type:</p>
+
+<pre class="cpp">
+void dump(dump_context&amp; str, const address_book&amp; data)
+{
+  dump_vector(str, data);
+}
+
+void restore(restore_context&amp; str, address_book&amp; data)
+{
+  restore_vector(str, data);
+}
+</pre>
+
+<p>The following test program shows how an address book can be created and
+dumped, then restored to another <code>address_book</code> object:</p>
+
+<pre class="cpp">
+int main(unsigned argc, char* argv[])
+{
+  // create and populate an address book
+  address_book addresses;
+  addresses.push_back(address("Andy Rushton", "ajr1@ecs.soton.ac.uk", 40));
+  addresses.push_back(address("Andrew Brown", "adb@ecs.soton.ac.uk", 85));
+  addresses.push_back(address("Mark Zwolinski", "mz@ecs.soton.ac.uk", 21));
+
+  // dump the address book
+  oftext out ("test.tmp");
+  dump_context dumper(out);
+  dump(dumper,addresses);
+  out.close();
+
+  // restore the address book to a different object
+  address_book restored;
+  iftext in ("test.tmp");
+  restore_context restorer(in);
+  restore(restorer,restored);
+
+  return 0;
+}
+</pre>
+
+<p>In this case I'm using persistence to a file, so I've used the FileIO
+devices <code>oftext</code> and <code>iftext</code> defined in
+<code>fileio.hpp</code>.</p>
+
+<p>It would be useful to be able to print out the contents of the address book
+before and after the <code>dump</code>/<code>restore</code>. To do this I'll use the
+family of <code>print</code> functions defined in the various <code>utilities</code>
+headers. These follow the same conventions as the persistence functions -
+there is a <code>print</code> function for each basic type and then template
+<code>print_<i>class</i></code> functions for each template class. Like the
+<code>dump_<i>class</i></code> and <code>restore_<i>class</i></code> functions, these
+cannot be overloaded (VC++ cannot handle overloaded templates), so for example
+the print function for <code>vector</code> is called <code>print_vector</code>. It is
+declared in <code>string_utilities.hpp</code>. The <code>print</code> functions for
+basic types are also declared in <code>string_utilities.hpp</code>.</p>
+
+<p>The following functions are added to the address class to make it
+printable:</p>
+
+<pre class="cpp">
+class address
+{
+  ...
+  friend otext&amp; print(otext&amp; str, const address&amp; entry)
+    {
+      return str &lt;&lt; entry.m_name &lt;&lt; " &lt;" &lt;&lt; entry.m_email &lt;&lt; "&gt; aged " &lt;&lt; entry.m_age;
+    }
+
+  friend otext&amp; print(otext&amp; str, const address&amp; entry, unsigned indent)
+    {
+      print_indent(str, indent);
+      print(str, entry);
+      return str &lt;&lt; endl;
+    }
+};
+</pre>
+
+<p>The convention with <code>print</code> functions is to supply two functions:
+one which prints inline - i.e. without line breaks - and a second with an
+extra <code>indent</code> parameter which prints the object indented on a line of
+its own. The second is typically written so that it calls the first, as in
+this case.</p>
+
+<p>The <code>address_book</code> type is now printable by using the
+<code>print_vector</code> functions which simple call the <code>print</code> function
+for each element. However, as before, it is more consistent to provide a
+non-template function called just <code>print</code>:</p>
+
+<pre class="cpp">
+otext&amp; print(otext&amp; str, const address_book&amp; addresses, unsigned indent)
+{
+  return print_vector(str, addresses, indent);
+}
+</pre>
+
+<p>It is now possible to print the address book before and after the
+<code>dump</code>/<code>restore</code>:</p>
+
+<pre class="cpp">
+int main(unsigned argc, char* argv[])
+{
+  ...
+  ferr &lt;&lt; "addresses:" &lt;&lt; endl;
+  print(ferr, addresses, 1);
+
+  ferr &lt;&lt; "restored addresses:" &lt;&lt; endl;
+  print(ferr, restored, 1);
+
+  return 0;
+}
+</pre>
+
+<p>Since this is a test program, it would be better if the program tested the
+equality of the before and after address books. The STL defines vector
+equality (<code>operator==</code>) in terms of the equality of the elements, so it
+is only necessary to give the <code>address</code> class an equality operator and
+the problem is solved:</p>
+
+<pre class="cpp">
+class address
+{
+  ...
+  friend void operator == (const address&amp; left, const address&amp; right)
+    {
+      return (left.m_name == right.m_name) &amp;&amp; (left.m_email == right.m_email) &amp;&amp; (left.m_age == right.m_age);
+    }
+};
+</pre>
+
+<p>The test program can now have a test for success or failure added at the end:</p>
+
+<pre class="cpp">
+int main(unsigned argc, char* argv[])
+{
+  ...
+  // verify that the address books are the same
+  if (addresses != restored)
+  {
+    ferr &lt;&lt; "restored addresses are different - Boo" &lt;&lt; endl;
+    return 3;
+  }
+  ferr &lt;&lt; "restored addresses are the same - Hooray" &lt;&lt; endl;
+  return 0;
+}
+</pre>
+
+<p>The output of this program when run is:</p>
+
+<pre class="terminal">
+addresses:
+  Andy Rushton &lt;ajr1@ecs.soton.ac.uk&gt; aged 40
+  Andrew Brown &lt;adb@ecs.soton.ac.uk&gt; aged 85
+  Mark Zwolinski &lt;mz@ecs.soton.ac.uk&gt; aged 21
+restored addresses:
+  Andy Rushton &lt;ajr1@ecs.soton.ac.uk&gt; aged 40
+  Andrew Brown &lt;adb@ecs.soton.ac.uk&gt; aged 85
+  Mark Zwolinski &lt;mz@ecs.soton.ac.uk&gt; aged 21
+restored addresses are the same - Hooray
+</pre>
+
+</div>
+
+</div>
+
+</body>
+</html>
