@@ -83,7 +83,7 @@ void IconElement::detach() {
 }
 
 
-SmartPtr<Packet> IconElement::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> IconElement::createPacket( SharedBuffer &buffer ) {
 	return new IconPacket( buffer );
 }
 
@@ -135,7 +135,7 @@ FLOAT64 IconViewer::callback( PELEMENT_ICON pelement ) {
 }
 
 
-void IconViewer::receive( SmartPtr<Packet> packet ) {
+void IconViewer::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
 	d->oldValue = ip->data().value;
 }

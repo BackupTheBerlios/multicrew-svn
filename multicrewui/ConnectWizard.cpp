@@ -130,7 +130,7 @@ SmartPtr<Connection> ConnectWizard::RunWizard() {
 	// init connection object
 	bool ret = d->setup.init();
 	if( !ret ) {
-		derr << "Initialization of DirectPlay failed. Take a look at the log to find out why." << std::endl;
+		derr << "Initialization of network subsystem failed. Take a look at the log to find out why." << std::endl;
 		return 0;
 	}
 
@@ -185,8 +185,9 @@ void ConnectWizard::OnNextPage( wxWizardEvent& event ) {
 			// connect finally
 			d->con = d->setup.connect( d->hosts[selected] );
 			if( d->con.isNull() ) {
-				derr << "Connection failed. Look at the log messages to find out why." 
-					 << std::endl;
+				wxMessageBox( _T(d->setup.errorMessage().c_str()),
+							  _T("Connection error"),
+							  wxICON_ERROR | wxOK, this);
 				event.Veto();
 				return;
 			}

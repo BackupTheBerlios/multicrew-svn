@@ -132,11 +132,15 @@ void MulticrewUI::host() {
 	HostWizard dlg( d->mainWindow );
 	bool ret = dlg.RunWizard();
 	if( ret ) {
-		HostConnectionSetup setup;
+		HostConnectionSetup setup;	   
+		char password[256];
+		wcstombs( password, dlg.password().c_str(), 256 );
+		char name[256];
+		wcstombs( name, dlg.sessionName().c_str(), 256 );
 		SmartPtr<Connection> con( setup.host( dlg.port(), 
-											  dlg.sessionName(),
+											  name,
 											  dlg.passwordEnabled(), 
-											  dlg.password() ) );
+											  password ) );
 		if( con.isNull() )
 			derr << "Session creation failed. Take a look at the logs to find out why." << std::endl;
 		else {
@@ -148,8 +152,8 @@ void MulticrewUI::host() {
 				d->core->unprepare();
 				d->connection->disconnect();
 				d->connection = 0;
-				derr << "Session start failed. Take a look at the logs to find out why." 
-					 << std::endl;
+				//derr << "Session start failed. Take a look at the logs to find out why." 
+				//	 << std::endl;
 			} else
 				d->statusDlg->setConnected();
 		}

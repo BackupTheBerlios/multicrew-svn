@@ -51,18 +51,18 @@ struct MouseStruct {
 };
 
 
-typedef TypedPacket<char, Packet> GaugePacket;
-typedef TypedPacket<unsigned, Packet> ElementPacket;
+typedef TypedPacket<char, PacketBase> GaugePacket;
+typedef TypedPacket<unsigned, PacketBase> ElementPacket;
 typedef StructPacket<MouseStruct> MousePacket;
 
 
-class ElementPacketFactory : public TypedPacketFactory<unsigned,Packet> {
+class ElementPacketFactory : public TypedPacketFactory<unsigned,PacketBase> {
 public:
 	ElementPacketFactory( std::deque<Element *> &elements ) 
 		: _elements( elements ) {
 	}
 
-	virtual SmartPtr<Packet> createPacket( unsigned key, SharedBuffer &buffer ) {
+	virtual SmartPtr<PacketBase> createPacket( unsigned key, SharedBuffer &buffer ) {
 		if( key<_elements.size() )
 			return _elements[key]->createPacket( buffer );
 		else
@@ -74,13 +74,13 @@ private:
 };
 
 
-class GaugePacketFactory : public TypedPacketFactory<char,Packet> {
+class GaugePacketFactory : public TypedPacketFactory<char,PacketBase> {
 public:
 	GaugePacketFactory( ElementPacketFactory& elementFactory ) 
 		: _elementFactory( elementFactory ) {
 	}
 
-	virtual SmartPtr<Packet> createPacket( char key, SharedBuffer &buffer ) {
+	virtual SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer ) {
 		switch( key ) {
 		case mousePacket: return new MousePacket( buffer );
 		case elementPacket:	return new ElementPacket( buffer, &_elementFactory );
@@ -238,7 +238,7 @@ MulticrewGauge *Gauge::mgauge() {
 }
 
 
-void Gauge::send( unsigned element, SmartPtr<Packet> packet, 
+void Gauge::send( unsigned element, SmartPtr<PacketBase> packet, 
 				  bool safe, bool async ) {
 	d->mgauge->send( id(), 
 					 new GaugePacket( 
@@ -248,7 +248,7 @@ void Gauge::send( unsigned element, SmartPtr<Packet> packet,
 }
 
 
-void Gauge::receive( SmartPtr<Packet> packet ) {
+void Gauge::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
 	switch( gp->key() ) {
 	case elementPacket: 
@@ -273,7 +273,7 @@ void Gauge::receive( SmartPtr<Packet> packet ) {
 }
 
 
-SmartPtr<Packet> Gauge::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> Gauge::createPacket( SharedBuffer &buffer ) {
 	EnterCriticalSection( &d->cs );
 	SmartPtr<GaugePacket> gp = new GaugePacket( buffer, &d->packetFactory );
 	LeaveCriticalSection( &d->cs );
@@ -519,7 +519,7 @@ void GaugeRecorder::asyncCallback() {
 }
 
 
-void GaugeRecorder::receive( SmartPtr<Packet> packet ) {
+void GaugeRecorder::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
 	switch( gp->key() ) {
 	case mousePacket:

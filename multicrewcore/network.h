@@ -35,24 +35,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 class MulticrewModule;
-class ModulePacket : public ArrayPacket<Packet> {
+class ModulePacket : public ArrayPacket<PacketBase> {
  public:
 	ModulePacket() {
 	}
 
 	ModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) 
-		: ArrayPacket<Packet>(buffer) {
+		: ArrayPacket<PacketBase>(buffer) {
 		this->mod = mod;
 	}
 
  private:
 	SmartPtr<MulticrewModule> mod;
 	
-	virtual SmartPtr<Packet> createChild( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createChild( SharedBuffer &buffer );
 };
 
 
-typedef PacketFactory<Packet> ModulePacketFactory;
+typedef PacketFactory<PacketBase> ModulePacketFactory;
 
 
 class Connection : public Shared {
@@ -76,7 +76,8 @@ public:
 	HostConnectionSetup();
 	virtual ~HostConnectionSetup();
 
-	SmartPtr<Connection> host( int port, std::wstring sessionName, bool passwordEnabled, std::wstring password );
+	SmartPtr<Connection> host( int port, std::string sessionName, 
+							   bool passwordEnabled, std::string password );
 
 private:
 	struct Data;
@@ -96,7 +97,7 @@ public:
 	class FoundHost : public Shared {
 	public:
 		virtual int latency()=0;
-		virtual std::wstring description()=0;
+		virtual std::string description()=0;
 	};
 
 	Signal newSearch;
@@ -104,9 +105,10 @@ public:
 	Signal1<SmartFoundHost> hostFound;
 
 	SmartPtr<Connection> connect( SmartPtr<FoundHost> host );
+	std::string errorMessage();
 
 private:
-	void hostFoundCallback( struct _DPNMSG_ENUM_HOSTS_RESPONSE * );
+	void hostFoundCallback( struct Packet * );
 
 	struct Data;
 	Data *d;

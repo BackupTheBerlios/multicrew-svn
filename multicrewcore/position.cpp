@@ -54,7 +54,7 @@ PositionModule::~PositionModule() {
 }
 
 
-SmartPtr<Packet> PositionModule::createInnerModulePacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> PositionModule::createInnerModulePacket( SharedBuffer &buffer ) {
 	return new PositionPacket( buffer );
 }
 
@@ -131,7 +131,7 @@ PositionClientModule::~PositionClientModule() {
 }
 
 
-void PositionClientModule::handlePacket( SmartPtr<Packet> packet ) {
+void PositionClientModule::handlePacket( SmartPtr<PacketBase> packet ) {
 	SmartPtr<PositionPacket> pp = (PositionPacket*)&*packet;
 	//dout << "position packet received" << std::endl;
 

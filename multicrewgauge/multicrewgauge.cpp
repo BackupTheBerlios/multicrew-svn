@@ -38,10 +38,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WAITTIME 500
 
 
-typedef TypedPacket<unsigned, Packet> RoutedPacket;
+typedef TypedPacket<unsigned, PacketBase> RoutedPacket;
 
 
-class RoutedPacketFactory : public TypedPacketFactory<unsigned,Packet> {
+class RoutedPacketFactory : public TypedPacketFactory<unsigned,PacketBase> {
 public:
 	RoutedPacketFactory( std::deque<Gauge *> &gauges, 
 						 std::deque<SmartMetafileChannel> &metafileChannels ) 
@@ -49,7 +49,7 @@ public:
 		  _metafileChannels( metafileChannels ) {
 	}
 
-	virtual SmartPtr<Packet> createPacket( unsigned key, SharedBuffer &buffer ) {
+	virtual SmartPtr<PacketBase> createPacket( unsigned key, SharedBuffer &buffer ) {
 		// metafile or gauge packet?
 		if( key>=1000000 ) {
 			unsigned channel = key-1000000;
@@ -225,7 +225,7 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 }
 
 
-void MulticrewGauge::handlePacket( SmartPtr<Packet> packet ) {
+void MulticrewGauge::handlePacket( SmartPtr<PacketBase> packet ) {
 	SmartPtr<RoutedPacket> gp = (RoutedPacket*)&*packet;
 	lock();
 	
@@ -250,7 +250,7 @@ void MulticrewGauge::handlePacket( SmartPtr<Packet> packet ) {
 }
 
 
-void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe,
+void MulticrewGauge::send( unsigned gauge, SmartPtr<PacketBase> packet, bool safe,
 						   Connection::Priority prio, bool async ) {
 	if( async )
 		MulticrewModule::sendAsync( 
@@ -266,7 +266,7 @@ void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe,
 
 
 void MulticrewGauge::sendMetafilePacket( unsigned channel, 
-										 SmartPtr<Packet> packet, 
+										 SmartPtr<PacketBase> packet, 
 										 bool safe,
 										 Connection::Priority prio ) {
 	MulticrewModule::sendAsync( 
@@ -355,7 +355,7 @@ void MulticrewGauge::detached( Gauge *gauge ) {
 }
 
 
-SmartPtr<Packet> MulticrewGauge::createInnerModulePacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> MulticrewGauge::createInnerModulePacket( SharedBuffer &buffer ) {
 	lock();
 	SmartPtr<RoutedPacket> gp = new RoutedPacket( buffer, &d->packetFactory );
 	unlock();

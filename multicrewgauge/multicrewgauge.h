@@ -40,7 +40,7 @@ class Gauge;
 class MulticrewGauge;
 
 
-class Element : public PacketFactory<Packet> {
+class Element : public PacketFactory<PacketBase> {
 public:
 	Element( int id, Gauge &gauge );
 	virtual ~Element();
@@ -51,10 +51,10 @@ public:
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void sendProc() {};
-	virtual void receive( SmartPtr<Packet> packet ) {}
+	virtual void receive( SmartPtr<PacketBase> packet ) {}
 	virtual void detach();
 	
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer )=0;
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer )=0;
 
 private:
 	struct Data;
@@ -72,7 +72,7 @@ public:
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 	
 protected:
 	virtual FLOAT64 callback( PELEMENT_ICON pelement )=0;
@@ -100,7 +100,7 @@ public:
 	IconViewer( int id, Gauge &gauge );
 	virtual ~IconViewer();
 
-	virtual void receive( SmartPtr<Packet> packet );
+	virtual void receive( SmartPtr<PacketBase> packet );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_ICON pelement );
@@ -117,7 +117,7 @@ public:
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 	
 protected:
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement )=0;
@@ -145,7 +145,7 @@ public:
 	NeedleViewer( int id, Gauge &gauge );
 	virtual ~NeedleViewer();
 
-	virtual void receive( SmartPtr<Packet> packet );
+	virtual void receive( SmartPtr<PacketBase> packet );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
@@ -162,7 +162,7 @@ public:
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 	
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
 protected:
 	virtual FLOAT64 callback( PELEMENT_STRING pelement )=0;
@@ -190,7 +190,7 @@ public:
 	StringViewer( int id, Gauge &gauge );
 	virtual ~StringViewer();
 
-	virtual void receive( SmartPtr<Packet> );
+	virtual void receive( SmartPtr<PacketBase> );
 
 private:	
 	virtual FLOAT64 callback( PELEMENT_STRING pelement );
@@ -202,7 +202,7 @@ public:
 	StaticElement( int id, Gauge &gauge );
 	virtual ~StaticElement();
 
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer ) { return 0; }
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer ) { return 0; }
 
 protected:	
 	struct Data;
@@ -224,7 +224,7 @@ public:
 };
 
 
-class Gauge : public PacketFactory<Packet> {
+class Gauge : public PacketFactory<PacketBase> {
 public:
 	Gauge( MulticrewGauge *mgauge, int id );
 	virtual ~Gauge();
@@ -236,10 +236,10 @@ public:
 	MulticrewGauge *mgauge();
 	virtual void sendProc( bool fullSend );
 
-	void send( unsigned element, SmartPtr<Packet> packet, 
+	void send( unsigned element, SmartPtr<PacketBase> packet, 
 			   bool safe, bool async=false );
-	virtual void receive( SmartPtr<Packet> packet );
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual void receive( SmartPtr<PacketBase> packet );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
 	virtual void attach( PGAUGEHDR gaugeHeader );
 	virtual void detach();
@@ -266,7 +266,7 @@ class GaugeRecorder : public Gauge, public AsyncCallee {
 public:
 	GaugeRecorder( MulticrewGauge *mgauge, int id );
 	virtual ~GaugeRecorder();
-	virtual void receive( SmartPtr<Packet> packet );
+	virtual void receive( SmartPtr<PacketBase> packet );
 
  private:
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
@@ -316,11 +316,11 @@ class MulticrewGauge : public MulticrewModule {
 	virtual ~MulticrewGauge();
 	bool init();
 
-	void send( unsigned gauge, SmartPtr<Packet> packet, bool safe, 
+	void send( unsigned gauge, SmartPtr<PacketBase> packet, bool safe, 
 			   Connection::Priority prio=Connection::mediumPriority, 
 			   bool async=false );
 
-	void sendMetafilePacket( unsigned channel, SmartPtr<Packet> packet, bool safe, 
+	void sendMetafilePacket( unsigned channel, SmartPtr<PacketBase> packet, bool safe, 
 							 Connection::Priority prio=Connection::mediumPriority );
 
 	PGAUGE_CALLBACK installCallback();
@@ -331,13 +331,13 @@ class MulticrewGauge : public MulticrewModule {
  protected:
 	friend Gauge;
 	void detached( Gauge *gauge );
-	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );
 
 	bool configBoolValue( PGAUGEHDR pgauge, const std::string &key, bool def );
 	int configIntValue( PGAUGEHDR pgauge, const std::string &key, int def );
 
  protected:	
-	virtual void handlePacket( SmartPtr<Packet> packet );
+	virtual void handlePacket( SmartPtr<PacketBase> packet );
 	void installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
 	virtual void sendProc();
 

@@ -23,16 +23,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 
 #include <windows.h>
-#include <dplay8.h>
+#include <NetworkTypes.h>
+#include "PacketPriority.h"
 
 #include "network.h"
 
-extern const GUID gMulticrewGuid;
 
-
-class ConnectionImpl : public Connection {
+class ConnectionImpl : public Connection, 
+					   public Thread {
 public:
-	ConnectionImpl( IDirectPlay8Peer *peer );
+	ConnectionImpl();
 	virtual ~ConnectionImpl();
 
 	virtual void addModule( MulticrewModule *module );
@@ -44,18 +44,18 @@ public:
 	virtual void disconnect();
 	virtual bool start();
 
-	PFNDPNMESSAGEHANDLER callback();
-	DPNID clientGroup();
-	DPNID hostGroup();
-	DPNID thisPlayer();
-
 protected:
 	std::map<std::string,MulticrewModule*> modules;
 
-	DWORD throttleThreadProc( LPVOID param );
-	virtual HRESULT messageCallback( PVOID pvUserContext, DWORD dwMessageType, 
-									 PVOID pMessage );
-	IDirectPlay8Peer *peer();
+	virtual bool sendImpl( char *buf, unsigned len, 
+						   PacketPriority priority, 
+						   PacketReliability reliability, 
+						   char orderingChannel )=0;
+	virtual void disconnectImpl()=0;
+	virtual void processImpl()=0;
+	//virtual bool connectedImpl()=0;
+	virtual unsigned threadProc( void *param );
+	void processPacket( void *data, unsigned length );
 
 	struct Data;
 	friend Data;

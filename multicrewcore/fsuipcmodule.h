@@ -28,14 +28,14 @@ class FsuipcModule : public MulticrewModule {
 	FsuipcModule( bool hostMode );
 	virtual ~FsuipcModule();
 
-	virtual void handlePacket( SmartPtr<Packet> packet );
+	virtual void handlePacket( SmartPtr<PacketBase> packet );
 	virtual void sendProc();
 	virtual void sendFullState();
 
 	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
 	
  protected:
-	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer );	
+	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );	
 
  private:
 	struct Data;

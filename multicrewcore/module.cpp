@@ -27,17 +27,17 @@ enum {
 	fullSendPacket=0,
 	normalInnerModulePacket
 };
-typedef TypedPacket<char, Packet> TypedInnerModulePacket;
+typedef TypedPacket<char, PacketBase> TypedInnerModulePacket;
 typedef EmptyPacket FullSendPacket;
 
 
-class TypedInnerModulePacketFactory : public TypedPacketFactory<char,Packet> {
+class TypedInnerModulePacketFactory : public TypedPacketFactory<char,PacketBase> {
 public:
 	TypedInnerModulePacketFactory( MulticrewModule *mod ) {
 		this->mod = mod;
 	}
 
-	SmartPtr<Packet> createPacket( char key, SharedBuffer &buffer ) {
+	SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer ) {
 		switch( key ) {
 		case normalInnerModulePacket: return mod->createInnerModulePacket( buffer );
 		case fullSendPacket: return new FullSendPacket();
@@ -155,7 +155,7 @@ void MulticrewModule::lock() {
 	EnterCriticalSection( &d->sendCritSect );
 }
 
-void MulticrewModule::send( SmartPtr<Packet> packet, bool safe, Connection::Priority prio ) {
+void MulticrewModule::send( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
 		// append packet
 		d->packet->append( new TypedInnerModulePacket( 
@@ -170,7 +170,7 @@ void MulticrewModule::send( SmartPtr<Packet> packet, bool safe, Connection::Prio
 	}
 }
 
-bool MulticrewModule::sendAsync( SmartPtr<Packet> packet, bool safe, Connection::Priority prio ) {
+bool MulticrewModule::sendAsync( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
 		SmartPtr<ModulePacket> modPacket = new ModulePacket();
 		modPacket->append( new TypedInnerModulePacket(
@@ -248,7 +248,7 @@ void MulticrewModule::sendProc() {
 }
 
 
-SmartPtr<Packet> MulticrewModule::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> MulticrewModule::createPacket( SharedBuffer &buffer ) {
 	return new TypedInnerModulePacket( buffer, &d->innerModuleFactory );
 }
 

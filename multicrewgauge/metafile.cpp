@@ -140,7 +140,7 @@ MetafileCompressor::~MetafileCompressor() {
 }
 
 
-void MetafileCompressor::receive( SmartPtr<Packet> packet ) {
+void MetafileCompressor::receive( SmartPtr<PacketBase> packet ) {
 	dout << "channel " << channel()
 		 << " reset metafile received" << std::endl;
 	EnterCriticalSection( &d->cs );
@@ -352,7 +352,7 @@ void MetafileCompressor::boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {
 }
 
 
-SmartPtr<Packet> MetafileCompressor::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> MetafileCompressor::createPacket( SharedBuffer &buffer ) {
 	return new MetafileResetPacket();
 }
 
@@ -402,7 +402,7 @@ int MetafileDecompressor::counter() {
 	return d->metafileCounter;
 }
 
-void MetafileDecompressor::receive( SmartPtr<Packet> packet ) {
+void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*packet;
 	EnterCriticalSection( &d->cs );
 	
@@ -469,6 +469,6 @@ void MetafileDecompressor::receive( SmartPtr<Packet> packet ) {
 }
 
 
-SmartPtr<Packet> MetafileDecompressor::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> MetafileDecompressor::createPacket( SharedBuffer &buffer ) {
 	return new MetafilePacket( buffer );
 }

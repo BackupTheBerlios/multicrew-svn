@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define BUFFER_SIZE 256
 
-class StringPacket : public Packet {
+class StringPacket : public PacketBase {
 public:
 	StringPacket( std::string string ) {
 		this->string = string;
@@ -104,7 +104,7 @@ void StringElement::detach() {
 }
 
 
-SmartPtr<Packet> StringElement::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> StringElement::createPacket( SharedBuffer &buffer ) {
 	return new StringPacket( buffer );
 }
 
@@ -167,7 +167,7 @@ FLOAT64 StringViewer::callback( PELEMENT_STRING pelement ) {
 }
 
 
-void StringViewer::receive( SmartPtr<Packet> packet ) {
+void StringViewer::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<StringPacket> sp = (StringPacket*)&*packet;
 	EnterCriticalSection( &d->cs );
 	strncpy( d->value, sp->string.c_str(), BUFFER_SIZE );

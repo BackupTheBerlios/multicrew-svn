@@ -131,14 +131,14 @@ class DLLEXPORT SharedBuffer {
 };
 
 
-class Packet : public Shared {
+class PacketBase : public Shared {
  public:
 	virtual unsigned compiledSize()=0;
 	virtual void compile( void *buffer )=0;
 };
 
 
-class EmptyPacket : public Packet {
+class EmptyPacket : public PacketBase {
  public:
 	EmptyPacket() {}
 	virtual unsigned compiledSize() { return 0; }
@@ -147,7 +147,7 @@ class EmptyPacket : public Packet {
 
 
 template< class Prefix, class Wrappee >
-class DLLEXPORT WrappedPacket : public Packet {
+class DLLEXPORT WrappedPacket : public PacketBase {
  public:
 	WrappedPacket( const Prefix &prefix, SmartPtr<Wrappee> wrappee ) 
 		: buffer(sizeof(Prefix)+wrappee->compiledSize()) {
@@ -190,10 +190,10 @@ class DLLEXPORT WrappedPacket : public Packet {
 };
 
 
-template< class PacketBase >
-class DLLEXPORT ArrayPacket : public Packet {
+template< class P >
+class DLLEXPORT ArrayPacket : public PacketBase {
  public:
-	typedef SmartPtr<PacketBase> SmartPacketBase;
+	typedef SmartPtr<P> SmartP;
 
 	ArrayPacket() 
 		: buffer( 1 ) {
@@ -205,13 +205,13 @@ class DLLEXPORT ArrayPacket : public Packet {
 		compiled = true;
 	}
 
-	void append( SmartPtr<PacketBase> packet ) {
+	void append( SmartPtr<P> packet ) {
 		packets.push_back( packet );
 	}
 
 	virtual unsigned compiledSize() {
 		unsigned ret = 0;
-		std::deque<SmartPacketBase>::iterator it = packets.begin();
+		std::deque<SmartP>::iterator it = packets.begin();
 		while( it!=packets.end() ) {
 			ret += (*it)->compiledSize();
 			it++;
@@ -226,7 +226,7 @@ class DLLEXPORT ArrayPacket : public Packet {
 		unsigned pos = sizeof(unsigned);
 
 		// write items
-		std::deque<SmartPacketBase>::iterator it = packets.begin();
+		std::deque<SmartP>::iterator it = packets.begin();
 		while( it!=packets.end() ) {
 			*(unsigned*)(buf + pos) = (*it)->compiledSize();
 			pos += sizeof(unsigned);
@@ -237,7 +237,7 @@ class DLLEXPORT ArrayPacket : public Packet {
 		}
 	}
 
-	typedef std::deque<SmartPacketBase>::iterator iterator;
+	typedef std::deque<SmartP>::iterator iterator;
 	iterator begin() {
 		if( compiled ) decompile();
 		return packets.begin();
@@ -252,12 +252,12 @@ class DLLEXPORT ArrayPacket : public Packet {
 	}
 
  protected:
-	virtual SmartPtr<PacketBase> createChild( SharedBuffer &buffer )=0;
+	virtual SmartPtr<P> createChild( SharedBuffer &buffer )=0;
 	
  private:
 	bool compiled;
 	SharedBuffer buffer;
-	std::deque<SmartPacketBase> packets;
+	std::deque<SmartP> packets;
 
 	void decompile() {
 		// decompile the buffer
@@ -267,7 +267,7 @@ class DLLEXPORT ArrayPacket : public Packet {
 			unsigned packetSize = *(unsigned*)(buffer.data(pos));
 			pos += sizeof(unsigned);
 
-			SmartPacketBase packet = createChild( SharedBuffer(buffer,pos,packetSize) );
+			SmartP packet = createChild( SharedBuffer(buffer,pos,packetSize) );
 			pos += packetSize;
 			if( !packet.isNull() )
 				packets.push_back( packet );
@@ -290,36 +290,36 @@ struct DLLEXPORT TypePrefix {
 };
 
 
-template< class PacketBase >
+template< class P >
 class PacketFactory {
  public:
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer )=0;
+	virtual SmartPtr<P> createPacket( SharedBuffer &buffer )=0;
 };
 
 
-template< class Key, class PacketBase >
-class TypedPacketFactory : public PacketFactory<PacketBase> {
+template< class Key, class P >
+class TypedPacketFactory : public PacketFactory<P> {
  public:
-	virtual SmartPtr<PacketBase> createPacket( Key key, SharedBuffer &buffer )=0;
+	virtual SmartPtr<P> createPacket( Key key, SharedBuffer &buffer )=0;
 	
  private:
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer ) {
-		return createPacket( TypedPacket<Key,PacketBase>::prefix(buffer)->key,
+	virtual SmartPtr<P> createPacket( SharedBuffer &buffer ) {
+		return createPacket( TypedPacket<Key,P>::prefix(buffer)->key,
 							 SharedBuffer( buffer, sizeof(TypePrefix<Key>) ) );
 	}
 };
 
 
-template< class Key, class PacketBase >
-class DLLEXPORT PacketRegistryFactory : public TypedPacketFactory<Key, PacketBase>, public Shared {
+template< class Key, class P >
+class DLLEXPORT PacketRegistryFactory : public TypedPacketFactory<Key, P>, public Shared {
  public:
-	virtual SmartPtr<PacketBase> createPacket( Key key, SharedBuffer &buffer ) {
+	virtual SmartPtr<P> createPacket( Key key, SharedBuffer &buffer ) {
 		std::map<Key, FactoryFunction>::iterator it = factories.find( key );
 		if( it!=factories.end() ) return (it->second)( buffer );
 		return 0;
 	}
 
-	typedef SmartPtr<PacketBase> (*FactoryFunction)( SharedBuffer &buffer );
+	typedef SmartPtr<P> (*FactoryFunction)( SharedBuffer &buffer );
 
 	void registerKey( Key key, FactoryFunction factory ) {
 		factories[key] = factory;
@@ -330,17 +330,17 @@ class DLLEXPORT PacketRegistryFactory : public TypedPacketFactory<Key, PacketBas
 };
 
 
-template< class Key, class PacketBase >
-class DLLEXPORT TypedPacket : public WrappedPacket<TypePrefix<Key>, PacketBase> {
+template< class Key, class P >
+class DLLEXPORT TypedPacket : public WrappedPacket<TypePrefix<Key>, P> {
  public:
-	typedef TypedPacketFactory<Key, PacketBase> Factory;
+	typedef TypedPacketFactory<Key, P> Factory;
 	TypedPacket( SharedBuffer &buffer, Factory *factory )
-		: WrappedPacket<TypePrefix<Key>, PacketBase>( buffer ) {
+		: WrappedPacket<TypePrefix<Key>, P>( buffer ) {
 		this->factory = factory;
 	}
 
-	TypedPacket( Key key, SmartPtr<PacketBase> packet ) 
-		: WrappedPacket<TypePrefix<Key>, PacketBase>( TypePrefix<Key>(key), packet ) {
+	TypedPacket( Key key, SmartPtr<P> packet ) 
+		: WrappedPacket<TypePrefix<Key>, P>( TypePrefix<Key>(key), packet ) {
 	}
 
 	Key key() {
@@ -348,11 +348,11 @@ class DLLEXPORT TypedPacket : public WrappedPacket<TypePrefix<Key>, PacketBase> 
 	}
 
 	static key( SharedBuffer &buffer ) {
-		return WrappedPacket<TypePrefix<Key>,PacketBase>::prefix(buffer)->key;
+		return WrappedPacket<TypePrefix<Key>,P>::prefix(buffer)->key;
 	}
 
  protected:
-	virtual SmartPtr<PacketBase> createWrappee( SharedBuffer &buffer ) {
+	virtual SmartPtr<P> createWrappee( SharedBuffer &buffer ) {
 		return factory->createPacket( prefix()->key, buffer );
 	}
 	
@@ -361,7 +361,7 @@ class DLLEXPORT TypedPacket : public WrappedPacket<TypePrefix<Key>, PacketBase> 
 };
 
 
-class RawPacket : public Packet {
+class RawPacket : public PacketBase {
 public:
 	RawPacket( void *data, unsigned size ) 
 		: _buffer( data, size, true ) {
@@ -392,7 +392,7 @@ private:
 
 
 template< class T >
-class StructPacket : public Packet {
+class StructPacket : public PacketBase {
 public:
 	StructPacket( T &data ) {
 		memcpy( &_data, &data, sizeof(T) );

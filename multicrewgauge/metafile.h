@@ -69,12 +69,12 @@ private:
 };
 
 
-class MetafileChannel : public Shared, public PacketFactory<Packet> {
+class MetafileChannel : public Shared, public PacketFactory<PacketBase> {
  public:
 	MetafileChannel( int channel );
 	int channel();
 
-	virtual void receive( SmartPtr<Packet> packet )=0;
+	virtual void receive( SmartPtr<PacketBase> packet )=0;
 
  private:
 	struct Data;
@@ -91,11 +91,11 @@ class MetafileCompressor : public MetafileChannel, private Thread {
 	MetafileCompressor( MulticrewGauge *mgauge, int delay, int channel );
 	virtual ~MetafileCompressor();
 
-	virtual void receive( SmartPtr<Packet> packet );	
+	virtual void receive( SmartPtr<PacketBase> packet );	
 	bool open();
 	void close( SmartPtr<GlobalMem> metafile );
 
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
  protected:
 	int zd_compress1(const Bytef *ref, uLong rsize,
@@ -117,11 +117,11 @@ class MetafileDecompressor : public MetafileChannel {
 	MetafileDecompressor( MulticrewGauge *mgauge, int channel );
 	virtual ~MetafileDecompressor();
 
-	virtual void receive( SmartPtr<Packet> packet );
+	virtual void receive( SmartPtr<PacketBase> packet );
 	SmartPtr<GlobalMem> lastMetafile();
 	int counter();
 
-	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
  private:
 	struct Data;

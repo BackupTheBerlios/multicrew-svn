@@ -155,7 +155,7 @@ FsuipcModule::~FsuipcModule() {
 }
 
 
-SmartPtr<Packet> FsuipcModule::createInnerModulePacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> FsuipcModule::createInnerModulePacket( SharedBuffer &buffer ) {
 	return new FsuipcPacket( buffer );
 }
 
@@ -195,7 +195,7 @@ void FsuipcModule::sendProc() {
 }
 
 
-void FsuipcModule::handlePacket( SmartPtr<Packet> packet ) {
+void FsuipcModule::handlePacket( SmartPtr<PacketBase> packet ) {
 	SmartPtr<FsuipcPacket> pp = (FsuipcPacket*)&*packet;
 	
 	// write variables from the FS

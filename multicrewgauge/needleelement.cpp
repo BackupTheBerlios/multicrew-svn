@@ -81,7 +81,7 @@ void NeedleElement::detach() {
 }
 
 
-SmartPtr<Packet> NeedleElement::createPacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> NeedleElement::createPacket( SharedBuffer &buffer ) {
 	return new NeedlePacket( buffer );
 }
 
@@ -130,7 +130,7 @@ FLOAT64 NeedleViewer::callback( PELEMENT_NEEDLE pelement ) {
 }
 
 
-void NeedleViewer::receive( SmartPtr<Packet> packet ) {
+void NeedleViewer::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<NeedlePacket> ip = (NeedlePacket*)&*packet;
 	d->oldValue = ip->data().value;
 }

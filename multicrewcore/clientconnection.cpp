@@ -18,7 +18,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include <windows.h>
-#include <dplay8.h>
+
+#include <PacketEnumerations.h>
+#include <RakNetworkFactory.h>
+#include <RakClientInterface.h>
+#include <NetworkTypes.h>
+#include <Multiplayer.h>
 
 #include "streams.h"
 #include "log.h"
@@ -26,39 +31,152 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "callback.h"
 
 
-class ClientConnectionImpl  : public ConnectionImpl {
+class ClientConnectionImpl  : public ConnectionImpl,
+							  public Multiplayer<RakClientInterface> {
 public:
-	ClientConnectionImpl( IDirectPlay8Peer *peer );
+	ClientConnectionImpl( RakClientInterface* client );
 	virtual ~ClientConnectionImpl();
-	
-	Signal1<DPNMSG_ENUM_HOSTS_RESPONSE*> hostFound;
+
+	virtual bool sendImpl( char *buf, unsigned len, 
+						   PacketPriority priority, 
+						   PacketReliability reliability, 
+						   char orderingChannel );
+	virtual void disconnectImpl();
+	virtual void processImpl();
+
+	//Signal connectionAccepted;
+	Signal1<Packet*> hostFound;
+	RakClientInterface* client;
+	volatile bool disconnected;
+	volatile bool connected;
+	std::string errorMessage;
 
 protected:	
-	virtual HRESULT messageCallback( PVOID pvUserContext, DWORD dwMessageType, PVOID pMessage );
+	virtual void ProcessUnhandledPacket(Packet *packet, 
+										unsigned char packetIdentifier, 
+										RakClientInterface *interfaceType) {
+		processPacket( packet->data, packet->length );
+	}
+
+	virtual void ReceiveDisconnectionNotification(Packet *packet,RakClientInterface *interfaceType) {
+		disconnect();
+		derr << "Connection lost normally" << std::endl;
+	}
+
+	virtual void ReceiveRemoteDisconnectionNotification(Packet *packet,RakClientInterface *interfaceType) {
+		dlog << "Client " 
+			 << client->PlayerIDToDottedIP( packet->playerId )
+			 << " disconnected"
+			 << std::endl;
+	}
+
+	virtual void ReceiveRemoteConnectionLost(Packet *packet,RakClientInterface *interfaceType) {
+		dlog << "Client " 
+			 << client->PlayerIDToDottedIP( packet->playerId )
+			 << " kicked"
+			 << std::endl;	   
+	}
+	
+	virtual void ReceiveRemoteNewIncomingConnection(Packet *packet,RakClientInterface *interfaceType) {
+		dlog << "Client " 
+			 << client->PlayerIDToDottedIP( packet->playerId )
+			 << " connected"
+			 << std::endl;	   
+	}
+	
+	virtual void ReceiveRemoteExistingConnection(Packet *packet,RakClientInterface *interfaceType) {
+		dlog << "Other client " 
+			 << client->PlayerIDToDottedIP( packet->playerId ) 
+			 << " found"
+			 << std::endl;
+	}
+
+	virtual void ReceiveConnectionBanned(Packet *packet,RakClientInterface *interfaceType) {
+		dout << "Received: Banned from this server" << std::endl;
+		errorMessage = "Banned from this server";
+		client->Disconnect( 300 );
+		disconnected = true;
+	}
+
+	virtual void ReceiveRemotePortRefused(Packet *packet,RakClientInterface *interfaceType) {
+		dout << "Received: Remote port refused" << std::endl;
+		errorMessage = "Remote port refused";
+		client->Disconnect( 300 );
+		disconnected = true;
+	}
+
+	virtual void ReceiveNoFreeIncomingConnections(Packet *packet,RakClientInterface *interfaceType) {
+		dout << "Received: Sorry, the server is full" << std::endl;
+		errorMessage = "Sorry, the server is full";
+		client->Disconnect( 300 );
+		disconnected = true;
+	}
+
+	virtual void ReceiveInvalidPassword(Packet *packet,RakClientInterface *interfaceType) {
+		dout << "Received: Invalid password" << std::endl;
+		errorMessage = "Invalid password";
+		client->Disconnect( 300 );
+		disconnected = true;
+	}
+
+	virtual void ReceiveModifiedPacket(Packet *packet,RakClientInterface *interfaceType) {
+		disconnect();
+		dlog << "Packets modified. Cheater!" << std::endl;
+	}
+
+	virtual void ReceiveConnectionLost(Packet *packet,RakClientInterface *interfaceType) {
+		disconnect();
+		derr << "Connection lost" << std::endl;
+	}
+
+	virtual void ReceiveConnectionRequestAccepted(Packet *packet,RakClientInterface *interfaceType) {
+		dlog << "Connection accepted" << std::endl;
+		connected = true;
+	}
+
+	virtual void ReceivePong( Packet *packet, RakClientInterface *interfaceType) {
+		dout << "Pong" << std::endl;
+		hostFound.emit( packet );
+	}
+
 };
 
 
-ClientConnectionImpl::ClientConnectionImpl( IDirectPlay8Peer *peer )
-	: ConnectionImpl( peer ) {
+ClientConnectionImpl::ClientConnectionImpl( RakClientInterface* client ) {
+	this->client = client;
+	this->disconnected = false;
+	this->connected = false;
 }
 
 
 ClientConnectionImpl::~ClientConnectionImpl() {
+	if( client!=0 ) {
+		client->Disconnect( 300 );
+		RakNetworkFactory::DestroyRakClientInterface( client );	
+	}
 }
 
 
-HRESULT ClientConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageType, 
-										PVOID pMessage ) {
-	switch( dwMessageType ) {
-	case DPN_MSGID_ENUM_HOSTS_RESPONSE:
-		hostFound.emit( (DPNMSG_ENUM_HOSTS_RESPONSE*)pMessage );
-		break;
+bool ClientConnectionImpl::sendImpl( char *buf, unsigned len, 
+								   PacketPriority priority, 
+								   PacketReliability reliability, 
+								   char orderingChannel ) {
+	return client->Send( buf, len, priority, reliability, 
+						 orderingChannel );
+}
 
-	default:
-		return ConnectionImpl::messageCallback( pvUserContext, dwMessageType, pMessage );
-	};
 
-	return S_OK;
+void ClientConnectionImpl::disconnectImpl() {
+	if( connected ) {
+		client->Disconnect( 300 );		
+		connected = false;
+	}
+	disconnected = true;
+}
+
+
+void ClientConnectionImpl::processImpl() {
+	ProcessPackets( client );
 }
 
 
@@ -68,186 +186,60 @@ HRESULT ClientConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMess
 struct ClientConnectionSetup::Data {
 	Data( ClientConnectionSetup *setup ) 
 		: hostFoundSlot( 0, setup, ClientConnectionSetup::hostFoundCallback ) {
-		peer = 0;
-		deviceAddress = 0;
-		destAddress = 0;
-		runningSearch = 0;
+		runningSearch = false;
 	}
 
 	~Data() {
-		if( deviceAddress )
-			deviceAddress->Release();
-
-		if( destAddress )
-			destAddress->Release();
-
-		if( peer ) {
-			peer->Release();
-		}
 	}
 
-	IDirectPlay8Peer *peer;
-	IDirectPlay8Address* deviceAddress;
-	IDirectPlay8Address* destAddress;
-	DPNHANDLE runningSearch;
 	SmartPtr<ClientConnectionImpl> con;
-	Slot1<ClientConnectionSetup, DPNMSG_ENUM_HOSTS_RESPONSE*> hostFoundSlot;
+	Slot1<ClientConnectionSetup, Packet*> hostFoundSlot;
+	bool runningSearch;
+	std::string errorMessage;
 };
+
 
 ClientConnectionSetup::ClientConnectionSetup() {
 	d = new Data( this );
 }
 
 ClientConnectionSetup::~ClientConnectionSetup() {
-	if( d->runningSearch ) stopSearch();
-
-	
 	delete d;
 }
 
 bool ClientConnectionSetup::init() {
-	HRESULT hr;
-
-	// create directplay peer object
-	dlog << "Creating DirectPlay8Peer object" << std::endl;
-	hr = CoCreateInstance( 
-		CLSID_DirectPlay8Peer, NULL, 
-        CLSCTX_INPROC_SERVER,
-        IID_IDirectPlay8Peer, 
-        (LPVOID*) &d->peer );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
+	// create client
+	dlog << "Creating client object" << std::endl;
+	RakClientInterface *client = RakNetworkFactory::GetRakClientInterface();
+	if( client==0 ) {
+		dlog << "Failed." << std::endl;
 		return false;
 	}
 
 	// create connection object
-	ClientConnectionImpl *conImpl = new ClientConnectionImpl( d->peer );
+	ClientConnectionImpl *conImpl = new ClientConnectionImpl( client );
 	SmartPtr<ClientConnectionImpl> con( conImpl );
 	d->hostFoundSlot.connect( &conImpl->hostFound );
 
-	// initialize
-	dlog << "Initializing peer" << std::endl;
-	hr = d->peer->Initialize(NULL, conImpl->callback(), 0 );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-
-	// Create our IDirectPlay8Address Device Address
-	dlog << "Creating device address" << std::endl;
-	hr = CoCreateInstance( CLSID_DirectPlay8Address, NULL,
-                                       CLSCTX_INPROC_SERVER,
-                                       IID_IDirectPlay8Address,
-                                       (LPVOID*) &d->deviceAddress );
-    if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str()  << std::endl;
-        return false;
-    }
-    
-    // Set the SP for our Device Address
-	dlog << "Setting service provider to TCPIP" << std::endl;
-	hr = d->deviceAddress->SetSP(&CLSID_DP8SP_TCPIP );
-    if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-        return false;
-    }
-
-	// set player info
-	DPN_PLAYER_INFO playerInfo;
-    ZeroMemory( &playerInfo, sizeof(DPN_PLAYER_INFO) );
-	playerInfo.dwSize = sizeof(DPN_PLAYER_INFO);
-	playerInfo.dwInfoFlags = DPNINFO_NAME;
-	wchar_t name[16];
-	mbstowcs( name, "Client", 16 );
-	playerInfo.pwszName = name;
-	dlog << "Setting player information" << std::endl;
-	hr = d->peer->SetPeerInfo( 
-		&playerInfo,
-		NULL,
-		NULL,
-		DPNSETPEERINFO_SYNC );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-
 	// save for later use
 	d->con = conImpl;
-
+	d->con->start();
 	return true;
 }
 
 
 bool ClientConnectionSetup::startSearch( bool broadcast, std::string address, int port ) {
-	if( d->runningSearch ) stopSearch();
-	if( d->destAddress ) {
-		d->destAddress->Release();
-		d->destAddress = 0;
-	}
-
 	// set hostname and port
-	if( !broadcast ) {
-		// set destination address
-		dlog << "Creating destination address" << std::endl;
-		HRESULT hr = CoCreateInstance( CLSID_DirectPlay8Address, NULL,
-										CLSCTX_INPROC_SERVER,
-										IID_IDirectPlay8Address,
-										(LPVOID*) &d->destAddress );
-		if( FAILED(hr) ) {
-			dlog << "Failed with: " << fe(hr).c_str()  << std::endl;
-			return false;
-		}
-
-		// Set the SP for the destination Address
-		dlog << "Setting service provider to TCPIP for destination" << std::endl;
-		hr = d->destAddress->SetSP(&CLSID_DP8SP_TCPIP );
-		if( FAILED(hr) ) {
-			dlog << "Failed: " << fe(hr).c_str() << std::endl;
-			return false;
-		}
-
-		dlog << "Set address to " << address.c_str() << std::endl;
-		d->destAddress->AddComponent( DPNA_KEY_HOSTNAME,
-			address.c_str(), address.length()+1, DPNA_DATATYPE_STRING );
-		if( FAILED(hr) ) {
-			dlog << "Failed: " << fe(hr).c_str() << std::endl;
-			return false;
-		}
-
-		dlog << "Set port to " << port << std::endl;
-		d->destAddress->AddComponent( DPNA_KEY_PORT, 
-			&port, sizeof(DWORD), DPNA_DATATYPE_DWORD );
-		if( FAILED(hr) ) {
-			dlog << "Failed: " << fe(hr).c_str() << std::endl;
-			return false;
-		}
-	}
+	std::string dest;
+	if( broadcast )
+		dest = "255.255.255.255";
+	else
+		dest = address;
 
 	// search hosted games
-	DPN_APPLICATION_DESC appDesc;
-    ZeroMemory( &appDesc, sizeof(DPN_APPLICATION_DESC) );
-    appDesc.dwSize = sizeof(DPN_APPLICATION_DESC);
-    appDesc.guidApplication = gMulticrewGuid;
-	
 	dlog << "Search hosted games" << std::endl;
-	HRESULT hr = d->peer->EnumHosts(
-		&appDesc,
-		d->destAddress,
-		d->deviceAddress,
-		0,
-		0,
-		0,
-		INFINITE,
-		0,
-		0,
-		&d->runningSearch,
-		0 ); //DPNENUMHOSTS_OKTOQUERYFORADDRESSING );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-	dout << "EnumHost returned" << std::endl;
-
+	d->runningSearch = true;
+	d->con->client->PingServer( (char*)dest.c_str(), port, 0, true);
 	newSearch.emit();
 
 	return true;
@@ -255,86 +247,99 @@ bool ClientConnectionSetup::startSearch( bool broadcast, std::string address, in
 
 
 void ClientConnectionSetup::stopSearch() {
-	if( d->runningSearch ) {
-		d->peer->CancelAsyncOperation( d->runningSearch, DPNCANCEL_ENUM );
-		d->runningSearch = 0;
-	}
+	d->runningSearch = false;
 }
 
 
 class ClientConnectionSetup::FoundHostImpl : public ClientConnectionSetup::FoundHost {
 public:
-	FoundHostImpl( std::wstring desc, int latency, 
-		IDirectPlay8Address *hostAddress, IDirectPlay8Address *deviceAddress ) {
+	FoundHostImpl( std::string desc, int latency, PlayerID *player ) {
 		this->desc = desc;
 		this->latencyMS = latency;
-		this->hostAddress = hostAddress;
-		this->deviceAddress = deviceAddress;
-		hostAddress->AddRef();
-		deviceAddress->AddRef();
+		this->player = *player;
 	}
 
 	virtual ~FoundHostImpl() {
-		hostAddress->Release();
-		deviceAddress->Release();
 	}
 
-	std::wstring description() { return desc; }
+	std::string description() { return desc; }
 	int latency() { return latencyMS; }
 
 	int latencyMS;
-	std::wstring desc;
-	IDirectPlay8Address *hostAddress;
-	IDirectPlay8Address *deviceAddress;
+	std::string desc;
+	PlayerID player;
 };
 
 
-void ClientConnectionSetup::hostFoundCallback( _DPNMSG_ENUM_HOSTS_RESPONSE *resp ) {
-	if( resp!=0 ) {
+void ClientConnectionSetup::hostFoundCallback( Packet *packet ) {
+	if( packet!=0 && d->runningSearch ) {
 		// create description
-		std::wstring desc( resp->pApplicationDescription->pwszSessionName );
-		char msg[1024];
-		wcstombs( msg, desc.c_str(), 1024 );
-		dlog << "Host found: " << msg << std::endl;
-
+		std::string desc( d->con->client->PlayerIDToDottedIP( packet->playerId ) );
+		
 		// send signal
 		hostFound.emit( SmartPtr<FoundHost>(
 			new FoundHostImpl( 
 				desc, 
-				resp->dwRoundTripLatencyMS,
-				resp->pAddressSender,
-				resp->pAddressDevice )));
+				*(int*)(packet->data+1),
+				&packet->playerId )));
 	}
 }
 
 
 SmartPtr<Connection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) {
-	char desc[1024];
-	wcstombs( desc, host->description().c_str(), 1024 );
-
-	dlog << "Connect to \"" << desc << "\"" << std::endl;
-	// connect to host
 	FoundHostImpl *hostImpl = (FoundHostImpl*)(&*host);
-	DPN_APPLICATION_DESC appDesc;
-    ZeroMemory( &appDesc, sizeof(DPN_APPLICATION_DESC) );
-    appDesc.dwSize = sizeof(DPN_APPLICATION_DESC);
-    appDesc.guidApplication = gMulticrewGuid;
-	HRESULT hr = d->peer->Connect(
-		&appDesc,
-		hostImpl->hostAddress,
-		hostImpl->deviceAddress,
-		NULL,
-		NULL,
-		NULL,
+
+	dlog << "Connect to " << hostImpl->desc 
+		 << ":" << hostImpl->player.port
+		 << std::endl;
+
+	// setup connection state
+	d->errorMessage = "";
+	d->con->errorMessage = "";
+	d->con->connected = false;
+	d->con->disconnected = false;
+
+	// connect to host
+	std::string dest = d->con->client->PlayerIDToDottedIP( hostImpl->player );
+	bool ok = d->con->client->Connect(
+		(char*)dest.c_str(),
+		hostImpl->player.port,
 		0,
-		NULL,
-		NULL,
-		NULL,
-		DPNCONNECT_OKTOQUERYFORADDRESSING | DPNCONNECT_SYNC);
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
+		0,
+		1 );
+	if( !ok ) {
+		dlog << "Failed." << std::endl;
 		return 0;
 	}
 
-	return d->con;
+	// wait for answer
+	dout << "Waiting for answer" << std::endl;
+	int timeout = 3000;
+	while( !d->con->connected && !d->con->disconnected && timeout>0 ) {
+		dlog << "Connecting (" << timeout << "ms)" << std::endl;
+		Sleep( 100 );
+		timeout-=100;
+	}
+
+	if( d->con->connected ) {
+		dout << "Connected" << std::endl;
+		return d->con;
+	}
+
+	if( !d->con->disconnected )
+		d->errorMessage = "Connection timeout";
+	else
+		if( d->con->errorMessage.length()>0 )
+			d->errorMessage = d->con->errorMessage;
+		else
+			d->errorMessage = "Unknown connection error";
+	return 0;
+}
+
+
+std::string ClientConnectionSetup::errorMessage() {
+	if( d->errorMessage.length()>0 )
+		return d->errorMessage;
+	else
+		return "No error";
 }

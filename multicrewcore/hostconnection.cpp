@@ -18,7 +18,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include <windows.h>
-#include <dplay8.h>
+
+#include <PacketEnumerations.h>
+#include <RakNetworkFactory.h>
+#include <RakClientInterface.h>
+#include <RakServerInterface.h>
+#include <NetworkTypes.h>
+#include <Multiplayer.h>
 
 #include "streams.h"
 #include "log.h"
@@ -27,220 +33,150 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "callback.h"
 
 
-const GUID CLSID_NETWORKSIMULATOR_DP8SP_TCPIP = 
-{ 0x8d3f9e5e, 0xa3bd, 0x475b, 0x9e, 0x49, 0xb0, 0xe7, 0x71, 0x39, 0x14, 0x3c };
-
-
-class HostConnectionImpl : public ConnectionImpl {
+class HostConnectionImpl : public ConnectionImpl,
+						   public Multiplayer<RakServerInterface>
+{
 public:
-	HostConnectionImpl( IDirectPlay8Peer *peer );
+	HostConnectionImpl( RakServerInterface* server );
 	virtual ~HostConnectionImpl();
 
 protected:
-	virtual HRESULT messageCallback( PVOID pvUserContext, DWORD dwMessageType, PVOID pMessage );
+	virtual bool sendImpl( char *buf, unsigned len, 
+					  PacketPriority priority, 
+					  PacketReliability reliability, 
+					  char orderingChannel );
+	virtual void disconnectImpl(); 
+	virtual void processImpl();
+	virtual void ProcessUnhandledPacket(Packet *packet, 
+										unsigned char packetIdentifier, 
+										RakServerInterface *interfaceType);
+
+	virtual void ReceiveRemoteDisconnectionNotification(Packet *packet,RakServerInterface *interfaceType) {
+		dlog << "Client " 
+			 << client->PlayerIDToDottedIP( packet->playerId )
+			 << " disconnected"
+			 << std::endl;	   
+	}
+
+	virtual void ReceiveDisconnectionNotification(Packet *packet,RakServerInterface *interfaceType) {
+		dlog << "Disconnected" << std::endl;
+		//disconnect();
+	}
+
+	virtual void ReceiveNewIncomingConnection(Packet *packet,RakServerInterface *interfaceType) {
+		dlog << "Incoming connection from " 
+			 << client->PlayerIDToDottedIP( packet->playerId ) 
+			 << std::endl;
+	}
+	
+	virtual void ReceiveModifiedPacket(Packet *packet,RakServerInterface *interfaceType) {
+		dlog << "Modified packet. Cheater!" << std::endl;
+		disconnect();
+	}
+		
+	virtual void ReceiveConnectionLost(Packet *packet,RakServerInterface *interfaceType) {
+		dlog << "Connection lost" << std::endl;
+		//disconnect();
+	}
+
+private:
+	RakServerInterface *server;
+	RakClientInterface *client;
 };
 
 
-HostConnectionImpl::HostConnectionImpl( IDirectPlay8Peer *peer )
-	: ConnectionImpl( peer ) {
+HostConnectionImpl::HostConnectionImpl( RakServerInterface* server ) {
+	this->server = server;
+	this->client = RakNetworkFactory::GetRakClientInterface(); // just for the dotted string function
 }
 
 
 HostConnectionImpl::~HostConnectionImpl() {
+	if( server!=0 ) {
+		server->Disconnect( 300 );
+		RakNetworkFactory::DestroyRakServerInterface( server );	
+	}
+
+	RakNetworkFactory::DestroyRakClientInterface( client );	
 }
 
 
-HRESULT HostConnectionImpl::messageCallback( PVOID pvUserContext, DWORD dwMessageType, 
-											 PVOID pMessage ){
-//	dout << "HostConnectionImpl messageCallback" << std::endl;
-	return ConnectionImpl::messageCallback( pvUserContext, dwMessageType, pMessage );
+bool HostConnectionImpl::sendImpl( char *buf, unsigned len, 
+								   PacketPriority priority, 
+								   PacketReliability reliability, 
+								   char orderingChannel ) {
+	if( server->GetConnectedPlayers()>0 ) {
+		return server->Send( buf, len, priority, reliability, 
+							 orderingChannel,
+							 UNASSIGNED_PLAYER_ID, true );
+	} else
+		return true;
+}
+
+
+void HostConnectionImpl::disconnectImpl() {
+	server->Disconnect( 300 );
+}
+
+
+void HostConnectionImpl::processImpl() {
+	ProcessPackets( server );
+}
+
+
+void HostConnectionImpl::ProcessUnhandledPacket(Packet *packet, 
+												unsigned char packetIdentifier, 
+												RakServerInterface *interfaceType) {
+	processPacket( packet->data, packet->length );
 }
 
 
 /***********************************************************************/
 
 struct HostConnectionSetup::Data {
-	IDirectPlay8Peer *peer;
-	IDirectPlay8Address* deviceAddress;
+	RakServerInterface* server;
 };
 
 HostConnectionSetup::HostConnectionSetup() {
 	d = new Data;
-	d->peer = 0;
-	d->deviceAddress = 0;
+	d->server = 0;
 }
 
 HostConnectionSetup::~HostConnectionSetup() {
 	dout << "~HostConnectionSetup()" << std::endl;
-	if( d->deviceAddress )
-		d->deviceAddress->Release();
-
-	if( d->peer ) {
-		d->peer->Release();
-	}
+	if( d->server!=0 )
+		RakNetworkFactory::DestroyRakServerInterface( d->server );
 	delete d;
 }
 
 SmartPtr<Connection> HostConnectionSetup::host( int port, 
-												std::wstring sessionName, 
+												std::string sessionName, 
 												bool passwordEnabled, 
-												std::wstring password  ) {
-	HRESULT hr;
+												std::string password  ) {
+	// create server object
+	dlog << "Creating server object" << std::endl;
+	d->server = RakNetworkFactory::GetRakServerInterface();
+	if( d->server==0 ) {
+		dlog << "Failed." << std::endl;
+		return 0;
+	}
 
-	// create directplay peer object
-	dlog << "Creating DirectPlay8Peer object" << std::endl;
-	hr = CoCreateInstance( 
-		CLSID_DirectPlay8Peer, NULL, 
-        CLSCTX_INPROC_SERVER,
-        IID_IDirectPlay8Peer, 
-        (LPVOID*) &d->peer );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
+	// setup connection parameters
+	if( passwordEnabled ) d->server->SetPassword( (char*)password.c_str() );
+	//d->server->DisableSecurity();
+
+	// host the game
+	dlog << "Hosting session" << std::endl;
+	bool ok = d->server->Start( 8, 0, 1, port );
+	if( !ok ) {
+		dlog << "Failed" << std::endl;
 		return 0;
 	}
 
 	// create connection object
-	HostConnectionImpl *conImpl = new HostConnectionImpl( d->peer );
-	SmartPtr<Connection> con( conImpl );
-
-	// initialize
-	dlog << "Initializing peer" << std::endl;
-	hr = d->peer->Initialize(NULL, conImpl->callback(), 0 );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return 0;
-	}
-
-	// Create our IDirectPlay8Address Device Address
-	dlog << "Creating device address" << std::endl;
-	hr = CoCreateInstance( CLSID_DirectPlay8Address, NULL,
-                                       CLSCTX_INPROC_SERVER,
-                                       IID_IDirectPlay8Address,
-                                       (LPVOID*) &d->deviceAddress );
-    if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str()  << std::endl;
-        return 0;
-    }
-
-	dlog << "Set port to " << port << std::endl;
-	d->deviceAddress->AddComponent( DPNA_KEY_PORT, 
-		&port, sizeof(DWORD), DPNA_DATATYPE_DWORD );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return 0;
-    }
-    
-    // Set the SP for our Device Address
-	dlog << "Setting service provider to TCPIP" << std::endl;
-	bool useSim = RegistryConfig::config()->boolValue( "", "DirectPlaySimulator", false );
-	if( useSim ) {
-		hr = d->deviceAddress->SetSP( &CLSID_NETWORKSIMULATOR_DP8SP_TCPIP );
-		if( FAILED(hr) ) {
-			dlog << "Network simulator didn't work: " << fe(hr) << std::endl;
-			hr = d->deviceAddress->SetSP( &CLSID_DP8SP_TCPIP );
-		} else
-			dlog << "Using network simulator" << std::endl;
-	} else
-		hr = d->deviceAddress->SetSP( &CLSID_DP8SP_TCPIP );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return 0;
-	}
-
-	// set player info
-	DPN_PLAYER_INFO playerInfo;
-    ZeroMemory( &playerInfo, sizeof(DPN_PLAYER_INFO) );
-	playerInfo.dwSize = sizeof(DPN_PLAYER_INFO);
-	playerInfo.dwInfoFlags = DPNINFO_NAME;
-	wchar_t name[16];
-	mbstowcs( name, "Host", 16 );
-	playerInfo.pwszName = name;
-	dlog << "Setting player information" << std::endl;
-	hr = d->peer->SetPeerInfo( 
-		&playerInfo,
-		NULL,
-		NULL,
-		DPNSETPEERINFO_SYNC );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-
-	// host the game
-	DPN_APPLICATION_DESC appDesc;
-    ZeroMemory( &appDesc, sizeof(DPN_APPLICATION_DESC) );
-    appDesc.dwSize = sizeof(DPN_APPLICATION_DESC);
-    appDesc.guidApplication = gMulticrewGuid;
-	appDesc.pwszSessionName = (WCHAR*)sessionName.c_str();
-	if( passwordEnabled ) {
-		appDesc.pwszPassword = (WCHAR*)password.c_str();
-		appDesc.dwFlags |= DPNSESSION_REQUIREPASSWORD; 
-	}
-
-	dlog << "Hosting session" << std::endl;
-	hr = d->peer->Host( 
-		&appDesc,            // AppDesc
-		&d->deviceAddress, 1,  // Device Address
-        NULL, NULL,          // Reserved
-        0,                // Player Context
-        0 );                 // dwFlags
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-
-	// create host group
-	dlog << "Creating host group" << std::endl;
-	//wchar_t name[16];
-	mbstowcs( name, "Host", 16 );
-	DPN_GROUP_INFO groupInfo;
-	ZeroMemory( &groupInfo, sizeof(DPN_GROUP_INFO) );
-	groupInfo.dwSize = sizeof(DPN_GROUP_INFO);
-	groupInfo.dwInfoFlags = DPNINFO_NAME;
-	groupInfo.pwszName = name;
-	groupInfo.dwGroupFlags = DPNGROUP_AUTODESTRUCT;
-	hr = d->peer->CreateGroup(
-		&groupInfo,
-		NULL,
-		NULL,
-		0,
-		DPNCREATEGROUP_SYNC );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-
-	// create client group
-	dlog << "Creating client group" << std::endl;
-	mbstowcs( name, "Client", 16 );
-	ZeroMemory( &groupInfo, sizeof(DPN_GROUP_INFO) );
-	groupInfo.dwSize = sizeof(DPN_GROUP_INFO);
-	groupInfo.dwInfoFlags = DPNINFO_NAME;
-	groupInfo.pwszName = name;
-	groupInfo.dwGroupFlags = DPNGROUP_AUTODESTRUCT;
-	hr = d->peer->CreateGroup(
-		&groupInfo,
-		NULL,
-		NULL,
-		0,
-		DPNCREATEGROUP_SYNC );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
-
-	// join host group
-	dlog << "Joining host group" << std::endl;
-	hr = d->peer->AddPlayerToGroup(
-		conImpl->hostGroup(),
-		conImpl->thisPlayer(),
-		NULL,
-		NULL,
-		DPNADDPLAYERTOGROUP_SYNC );
-	if( FAILED(hr) ) {
-		dlog << "Failed: " << fe(hr).c_str() << std::endl;
-		return false;
-	}
+	SmartPtr<Connection> con( new HostConnectionImpl( d->server ) );
+	con->start();
+	d->server = 0;
 
 	return con;
 }

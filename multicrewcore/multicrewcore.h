@@ -47,7 +47,7 @@ public:
 	virtual void sendCompleted();
 	virtual void sendFailed();
 	virtual void receive( SmartPtr<ModulePacket> packet );
-	SmartPtr<Packet> createPacket( SharedBuffer &buffer );
+	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
 	SmartPtr<FileConfig> config();
 
@@ -57,14 +57,14 @@ public:
 protected:
 	friend class TypedInnerModulePacketFactory;
 
-	virtual void handlePacket( SmartPtr<Packet> packet )=0;
+	virtual void handlePacket( SmartPtr<PacketBase> packet )=0;
 	void lock();
-	void send( SmartPtr<Packet> packet, bool safe, Connection::Priority prio );
-	bool sendAsync( SmartPtr<Packet> packet, bool safe, Connection::Priority prio );
+	void send( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio );
+	bool sendAsync( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio );
 	void unlock();
 
 	virtual void sendProc();
-	virtual SmartPtr<Packet> createInnerModulePacket( SharedBuffer &buffer )=0;
+	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer )=0;
 	void disconnect();
 
 private:
