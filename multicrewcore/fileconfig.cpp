@@ -39,7 +39,7 @@ FileConfig::~FileConfig() {
 
 
 int FileConfig::intValue( const std::string &group, const std::string &key, int def ) {
-    conf_togroup( group.c_str(), d->config );
+    if( !conf_togroup( group.c_str(), d->config ) ) return def;
 
     char *kk;
     if ((kk = conf_getany(key.c_str(), d->config)))
@@ -51,7 +51,7 @@ int FileConfig::intValue( const std::string &group, const std::string &key, int 
 
 std::string FileConfig::stringValue( const std::string &group, const std::string &key, 
 									 const std::string &def ) {
-    conf_togroup( group.c_str(), d->config );
+    if( !conf_togroup( group.c_str(), d->config ) ) return def;
 	
     char *kk;
     if ((kk = conf_getany(key.c_str(), d->config)))
@@ -62,7 +62,7 @@ std::string FileConfig::stringValue( const std::string &group, const std::string
 
 
 bool FileConfig::boolValue( const std::string &group, const std::string &key, bool def ) {
-    conf_togroup( group.c_str(), d->config );
+    if( !conf_togroup( group.c_str(), d->config ) ) return def;
 	
     char *kk;
     if ((kk = conf_getany(key.c_str(), d->config))) {

@@ -70,7 +70,7 @@ void IconElement::attach( ELEMENT_HEADER *elementHeader ) {
 
 	if( d->iconHeader->update_cb!=NULL ) {
 		// install callback wrapper	
-		dout << "install updateCallback for " << d->iconHeader << std::endl;
+//		dout << "install updateCallback for " << d->iconHeader << std::endl;
 		d->iconHeader->update_cb = d->callbackAdapter.callback();
 	}
 }

@@ -135,14 +135,16 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 		// look for detached gauge which is to be reused
 		Gauge *gauge = getDetachedGauge( pgauge->gauge_name, pgauge->parameters );
 		if( gauge==0 ) {
+			bool metafile = config()->boolValue( pgauge->gauge_name, "metafile", false);
+			int element = config()->intValue( pgauge->gauge_name, "element", 0 );
 			if( pgauge->parameters )
-				dout << "Creating new for " << pgauge->gauge_name << ":" << pgauge->parameters << std::endl;
+				dout << "Creating new for " << pgauge->gauge_name << ":" << pgauge->parameters 
+					 << (metafile?" metafile ":"")					
+					 << std::endl;
 			else
 				dout << "Creating new for " << pgauge->gauge_name << std::endl;
 			
 			// create new gauge
-			bool metafile = config()->boolValue( pgauge->gauge_name, "metafile", false);
-			int element = config()->intValue( pgauge->gauge_name, "element", 0 );
 			if( isHostMode() )
 				if( metafile )
 					gauge = new GaugeMetafileRecorder( this, d->gauges.size(), element );
@@ -176,11 +178,17 @@ void MulticrewGauge::handlePacket( SmartPtr<Packet> packet ) {
 
 
 void MulticrewGauge::send( unsigned gauge, SmartPtr<Packet> packet, bool safe,
-						   Connection::Priority prio ) {
-	MulticrewModule::send( 
-		new RoutedGaugePacket(gauge, packet), 
-		safe,
-		prio );
+						   Connection::Priority prio, bool async ) {
+	if( async )
+		MulticrewModule::sendAsync( 
+			new RoutedGaugePacket(gauge, packet), 
+			safe,
+			prio );
+	else
+		MulticrewModule::send( 
+			new RoutedGaugePacket(gauge, packet), 
+			safe,
+			prio );
 }
 
 

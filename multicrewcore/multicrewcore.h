@@ -53,6 +53,7 @@ protected:
 	virtual void handlePacket( SmartPtr<Packet> packet )=0;
 	void lock();
 	void send( SmartPtr<Packet> packet, bool safe, Connection::Priority prio );
+	bool sendAsync( SmartPtr<Packet> packet, bool safe, Connection::Priority prio );
 	void unlock();
 
 	virtual void sendProc();

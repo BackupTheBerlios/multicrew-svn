@@ -378,7 +378,8 @@ bool ConnectionImpl::start() {
 
 
 bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe, 
-						   Priority prio, SmartPtr<MulticrewModule> sender ) {
+						   Priority prio, SmartPtr<MulticrewModule> sender,
+						   bool callback ) {
 	// connected?
 	if( d->peer==0 || d->disconnected ) {
 		if( !sender.isNull() ) sender->sendFailed();
@@ -405,7 +406,7 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 		&desc,
 		1,
 		0,
-		&*sender,
+		callback?(&*sender):0,
 		&asyncHandle,
 		((prio==highPriority)?DPNSEND_PRIORITY_HIGH:0) |
 		((prio==lowPriority)?DPNSEND_PRIORITY_LOW:0) |

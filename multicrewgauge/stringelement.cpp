@@ -92,7 +92,7 @@ void StringElement::attach( ELEMENT_HEADER *elementHeader ) {
 
 	if( d->stringHeader->update_cb!=NULL ) {
 		// install callback wrapper	
-		dout << "install updateCallback for " << d->stringHeader << std::endl;
+//		dout << "install updateCallback for " << d->stringHeader << std::endl;
 		d->stringHeader->update_cb = d->callbackAdapter.callback();
 	}
 }

@@ -18,7 +18,7 @@ prepare-gauge-stamp: prepare gauge TCAS2v7.dll
 gauge: gauge-stamp
 gauge-stamp: multicrewgauge\$(cfg)\multicrewgauge.dll
 	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(fs)\multicrew
-	echo > gauge-stampy
+	echo > gauge-stamp
 	
 ui: ui-stamp
 ui-stamp: multicrewui\$(cfg)\multicrewui.dll
@@ -37,7 +37,7 @@ prepare-stamp: multicrewprepare\$(cfg)\multicrewprepare.exe multicrewprepare\$(c
 	echo > prepare-stamp
 
 remote-gauge: remote-gauge-stamp
-remote-gauge-stamp: prepare-gauge
+remote-gauge-stamp: prepare-gauge gauge
 	copy $(fs)\gauges\multicrew*.gau $(remotefs)\gauges
 	echo > remote-gauge-stamp
 	

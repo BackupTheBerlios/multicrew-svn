@@ -39,7 +39,8 @@ public:
 	virtual void removeModule( MulticrewModule *module );
 
 	virtual bool send( SmartPtr<ModulePacket> packet, bool safe, 
-					   Priority prio, SmartPtr<MulticrewModule> sender );
+					   Priority prio, SmartPtr<MulticrewModule> sender,
+					   bool callback=true );
 	virtual void disconnect();
 	virtual bool start();
 

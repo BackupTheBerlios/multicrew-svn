@@ -101,8 +101,8 @@ FLOAT64 NeedleRecorder::callback( PELEMENT_NEEDLE pelement ) {
 	//dout << "> callback " << d->needleHeader << std::endl;
 	FLOAT64 ret = (*d->origCallback)( pelement );
 	if( ret!=d->oldValue ) {
-		dout << "Needle callback " << d->needleHeader << ":" << this 
-			 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
+		//dout << "Needle callback " << d->needleHeader << ":" << this 
+		//	 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
 		d->oldValue = ret;
 		d->changed = true;
 	}

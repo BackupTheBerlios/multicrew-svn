@@ -107,7 +107,7 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 		if( d->hostMode )
 			d->posModule = new PositionHostModule();
 		else
-		d->posModule = new PositionClientModule();
+			d->posModule = new PositionClientModule();
 
 		// FSUIPC module
 		d->fsuipcModule = new FsuipcModule( d->hostMode );
@@ -157,7 +157,7 @@ void MulticrewCore::unregisterModule( MulticrewModule *module ) {
 	std::map<std::string, MulticrewModule*>::iterator res = d->modules.find( module->moduleName().c_str() );
 	if( res!=d->modules.end() ) {
 		d->modules.erase( res );
-		if( d->modules.empty() ) {
+		if( d->modules.size()==2 ) { // pos+fsuipc=2
 			// destroy FSUIPC module
 			d->posModule = 0;
 			d->fsuipcModule = 0;

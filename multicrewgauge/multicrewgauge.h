@@ -235,7 +235,8 @@ public:
 	MulticrewGauge *mgauge();
 	virtual void sendProc();
 
-	void send( unsigned element, SmartPtr<Packet> packet, bool safe );
+	void send( unsigned element, SmartPtr<Packet> packet, 
+			   bool safe, bool async=false );
 	virtual void receive( SmartPtr<Packet> packet );
 	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 
@@ -250,6 +251,7 @@ public:
 	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {}
 
 	bool configBoolValue( const std::string &key, bool def );
+	int configIntValue( const std::string &key, int def );
 
 	struct Data;
 	friend Data;
@@ -263,8 +265,10 @@ public:
 	virtual ~GaugeRecorder();
 	virtual void receive( SmartPtr<Packet> packet );
 
-private:
+ protected:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
+	
+ private:
 	virtual Element *createElement( int id, PELEMENT_HEADER pelement );
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
 };
@@ -274,7 +278,6 @@ class GaugeMetafileRecorder : public GaugeRecorder, private Thread {
 public:
 	GaugeMetafileRecorder( MulticrewGauge *mgauge, int id, int metafileElement );
 	virtual ~GaugeMetafileRecorder();
-	virtual void sendProc();
 	virtual void receive( SmartPtr<Packet> packet );
 
 private:
@@ -320,7 +323,8 @@ class MulticrewGauge : public MulticrewModule {
 	bool init();
 
 	void send( unsigned gauge, SmartPtr<Packet> packet, bool safe, 
-			   Connection::Priority prio=Connection::mediumPriority );
+			   Connection::Priority prio=Connection::mediumPriority, 
+			   bool async=false );
 	PGAUGE_CALLBACK installCallback();
 	virtual SmartPtr<Packet> createPacket( SharedBuffer &buffer );
 	

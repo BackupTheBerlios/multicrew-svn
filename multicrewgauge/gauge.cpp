@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multicrewgauge.h"
 #include "../multicrewcore/streams.h"
 #include "../multicrewcore/callback.h"
+#include "../multicrewcore/log.h"
 
 extern "C" {
 #include "zdelta/zdlib.h"
@@ -210,13 +211,13 @@ struct Gauge::Data {
 	// metafile data
 	SmartPtr<GlobalMem> lastMetafile;
 	SmartPtr<GlobalMem> previousMetafile;
-	SmartPtr<Buffer> compressedMetafile;
 	int metafileElement;
 	volatile unsigned metafileCounter;
 	bool sendMetafileReset;
 	bool resetSent;
 	UINT_PTR boostTimer;
 	VoidCallbackAdapter4<Gauge, HWND,UINT,UINT_PTR,DWORD> boostTimerCallback;
+	int minimumMetafileSize;
 
 	// general gauge data
 	std::deque<Element *> elements;	
@@ -241,7 +242,7 @@ Gauge::Gauge( MulticrewGauge *mgauge, int id ) {
 	d->metafileCounter = 0;
 	d->sendMetafileReset = true;
 	d->resetSent = false;
-	d->swallowMouse = configBoolValue( "swallowmouse", false );
+	d->minimumMetafileSize = -1;
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -253,6 +254,7 @@ void Gauge::createElements() {
 		std::stack<ELEMENT_HEADER*> todo;
 		todo.push( d->gaugeHeader->elements_list[0] );
 		int id = 0;
+		bool verbose = 	configBoolValue( "verbose", false );
 		
 		while( !todo.empty() ) {
 			ELEMENT_HEADER *pelement = todo.top(); todo.pop();
@@ -260,8 +262,22 @@ void Gauge::createElements() {
 			EnterCriticalSection( &d->cs );
 
 			// element not yet created?
-			if( id>=d->elements.size() ) 
+			if( id>=d->elements.size() )
 				d->elements.push_back( createElement( id, pelement ) );
+
+			// verbose?
+			if( verbose ) {
+				std::string type = "unknown";
+				switch( pelement->element_type ) {
+				case ELEMENT_TYPE_ICON: type="icon"; break;
+				case ELEMENT_TYPE_NEEDLE: type="needle"; break;
+				case ELEMENT_TYPE_STRING: type="string"; break;
+				case ELEMENT_TYPE_STATIC_IMAGE: type="static"; break;
+				default: break;
+				}
+
+				dlog << "element " << id << " of type " << type << std::endl;
+			}
 
 			// attach element
 			if( d->elements[id] ) d->elements[id]->attach( pelement );
@@ -320,12 +336,13 @@ MulticrewGauge *Gauge::mgauge() {
 }
 
 
-void Gauge::send( unsigned element, SmartPtr<Packet> packet, bool safe ) {
+void Gauge::send( unsigned element, SmartPtr<Packet> packet, 
+				  bool safe, bool async ) {
 	d->mgauge->send( id(), 
 					 new GaugePacket( 
 						 elementPacket,
 						 new ElementPacket(element, packet)),
-					 safe );
+					 safe, Connection::mediumPriority, async );
 }
 
 
@@ -378,9 +395,9 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	if( d->originalGaugeCallback!=NULL ) 
 		(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
 
-	if( service_id>=12 ) {
-		dout << d->name << " " << service_id << std::endl;
-	}
+	//if( service_id>=12 ) {
+	//	dout << d->name << " " << service_id << std::endl;
+	//}
 
 	// if a pre kill is received the plane is either closed
 	// or the panel is resized. In the latter case all gauges will be
@@ -402,7 +419,10 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	d->gaugeHeader = gaugeHeader;
 	d->name = gaugeHeader->gauge_name;	
 	d->parameters = (gaugeHeader->parameters!=NULL)?gaugeHeader->parameters:"";
+	d->swallowMouse = configBoolValue( "swallowmouse", false );
+	if( d->swallowMouse ) dout << "will swallow mouse" << std::endl;
 
+	// hook elements
 	bool hookElements = configBoolValue( "hookelements", true );
 	if( hookElements ) createElements();
 	
@@ -431,7 +451,7 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 		}
 	}
 
-	dout << "gaugeHeader=" << gaugeHeader << std::endl;
+	//dout << "gaugeHeader=" << gaugeHeader << std::endl;
 
 	LeaveCriticalSection( &d->cs );
 }
@@ -442,6 +462,14 @@ bool Gauge::configBoolValue( const std::string &key, bool def ) {
 	Config *c = d->mgauge->config();
 	return c->boolValue( name()+"!"+parameter(), key,
 						 c->boolValue( name(), key, def ) );
+}
+
+
+int Gauge::configIntValue( const std::string &key, int def ) {
+	// first look in [name!parameter], then in [name], then def
+	Config *c = d->mgauge->config();
+	return c->intValue( name()+"!"+parameter(), key,
+						c->intValue( name(), key, def ) );
 }
 
 
@@ -663,7 +691,9 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 			HGLOBAL hmem;
 			GetHGlobalFromStream( stream, &hmem );
 			stream->Release();
-			if( GlobalSize(hmem)>500 ) {
+			if( Gauge::d->minimumMetafileSize<0 )
+				Gauge::d->minimumMetafileSize = configIntValue( "metafileminimum", 500 );
+			if( GlobalSize(hmem)>Gauge::d->minimumMetafileSize ) {
 				Gauge::d->lastMetafile = new GlobalMem(hmem);
 			} else
 				GlobalFree( hmem );
@@ -683,7 +713,7 @@ void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	}
 	
 	// call inherited callback
-	Gauge::callback( pgauge, service_id, extra_data );
+	GaugeRecorder::callback( pgauge, service_id, extra_data );
 }
 
 
@@ -703,31 +733,6 @@ void GaugeMetafileRecorder::receive( SmartPtr<Packet> packet ) {
 		GaugeRecorder::receive( packet );
 		break;
 	}
-}
-
-
-void GaugeMetafileRecorder::sendProc() {
-	Gauge::sendProc();
-
-	// send metafile
-	EnterCriticalSection( &Gauge::d->cs );
-	if( !Gauge::d->compressedMetafile.isNull() ) {
-		// send package
-		Gauge::d->mgauge->send( 
-			id(), 
-			new GaugePacket( 
-				metafilePacket,
-				new MetafilePacket( 
-					Gauge::d->metafileCounter,
-					SharedBuffer(Gauge::d->compressedMetafile) )),
-			true,
-			Connection::lowPriority );
-		
-		// packet sent
-		Gauge::d->compressedMetafile = 0;
-		Gauge::d->metafileCounter++;
-	}
-	LeaveCriticalSection( &Gauge::d->cs );
 }
 
 
@@ -810,9 +815,7 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 	while( true ) {
 		// new work available?
 		EnterCriticalSection( &Gauge::d->cs );
-		if( Gauge::d->compressedMetafile.isNull() && 
-			!Gauge::d->lastMetafile.isNull() ) {
-
+		if( !Gauge::d->lastMetafile.isNull() ) {
 			// install boost timer
 			Gauge::d->boostTimer = SetTimer( NULL, 
 											 NULL, 
@@ -857,7 +860,9 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 									(const Bytef*)last->lock(), last->size(),
 									(Bytef**)&delta, &deltaSize );
 			double end = MulticrewCore::multicrewCore()->time();
-			dout << "compress in " << (end-start)*1000 << "ms" << std::endl;
+			dout << name() << " compress in " << (end-start)*1000 << "ms"
+				 << " size=" << last->size()
+				 << " delta=" << deltaSize << std::endl;
 			EnterCriticalSection( &Gauge::d->cs );
 			setPriority( THREAD_PRIORITY_ABOVE_NORMAL );
 
@@ -868,9 +873,21 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 			
 			// compression successful?
 			if( ret==ZD_OK && counter==Gauge::d->metafileCounter ) {
-				// store compressed for sendProc
-				Gauge::d->compressedMetafile = new Buffer( delta, deltaSize, false );
-
+				// send metafile
+				Gauge::d->mgauge->send( 
+					id(), 
+					new GaugePacket( 
+						metafilePacket,
+						new MetafilePacket( 
+							Gauge::d->metafileCounter,
+							SharedBuffer(new Buffer( delta, deltaSize, false )))),
+					true, // safe
+					Connection::lowPriority,
+					true ); // async
+		
+				// packet sent
+				Gauge::d->metafileCounter++;
+			
 				// save last as reference for the next one
 				Gauge::d->previousMetafile = last;
 			} else {
@@ -882,6 +899,7 @@ unsigned GaugeMetafileRecorder::threadProc( void *param ) {
 			KillTimer( NULL, Gauge::d->boostTimer );
 			Gauge::d->boostTimer = 0;
 		}
+
 		LeaveCriticalSection( &Gauge::d->cs );		
 	
 		// exit thread?
