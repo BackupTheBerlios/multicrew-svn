@@ -75,9 +75,22 @@ MulticrewUI::MulticrewUI( HWND hwnd ) {
 
 
 MulticrewUI::~MulticrewUI() {
-	dout << "~MulticrewUI()" << std::endl;	
+	dout << "~MulticrewUI()" << std::endl;
+
+	// disconnect network connections
+	if( !d->hostConnection.isNull() ) {
+		d->hostConnection->disconnect();
+		d->hostConnection = 0;
+	}
+	if( !d->clientConnection.isNull() ) {
+		d->clientConnection->disconnect();
+		d->clientConnection = 0;
+	}
+
+	// destroy status dialog
 	d->statusDlg->Destroy();
 	
+	// disconnect from main window
 	d->mainWindow->SetHWND( 0 );
 	d->mainWindow->Destroy();
 	delete d;
