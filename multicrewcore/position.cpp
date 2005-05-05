@@ -140,7 +140,7 @@ void PositionClientModule::handlePacket( SmartPtr<PacketBase> packet ) {
 	double latency = now-pp->data().timestamp;
 	d->timediff += latency/10.0;
 	d->meanLatency = (d->meanLatency*9.0 + ((latency<0)?-latency:latency))/10.0;
-	dout << "timediff=" << d->timediff << " meanLat=" << d->meanLatency << " latency=" << latency << std::endl;
+	//dout << "timediff=" << d->timediff << " meanLat=" << d->meanLatency << " latency=" << latency << std::endl;
 	
 
 	// interpolate

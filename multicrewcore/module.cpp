@@ -155,7 +155,8 @@ void MulticrewModule::lock() {
 	EnterCriticalSection( &d->sendCritSect );
 }
 
-void MulticrewModule::send( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio ) {
+void MulticrewModule::send( SmartPtr<PacketBase> packet, bool safe, 
+							Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
 		// append packet
 		d->packet->append( new TypedInnerModulePacket( 
@@ -170,7 +171,8 @@ void MulticrewModule::send( SmartPtr<PacketBase> packet, bool safe, Connection::
 	}
 }
 
-bool MulticrewModule::sendAsync( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio ) {
+bool MulticrewModule::sendAsync( SmartPtr<PacketBase> packet, bool safe, 
+								 Connection::Priority prio, int channel ) {
 	if( !d->con.isNull() ) {
 		SmartPtr<ModulePacket> modPacket = new ModulePacket();
 		modPacket->append( new TypedInnerModulePacket(
@@ -181,7 +183,8 @@ bool MulticrewModule::sendAsync( SmartPtr<PacketBase> packet, bool safe, Connect
 			safe, 
 			prio, 
 			this,
-			true ); // async
+			true, // async
+			channel );
 	}
 
 	return false;

@@ -65,7 +65,7 @@ public:
 	virtual bool start()=0;
 	virtual bool send( SmartPtr<ModulePacket> packet, bool safe, 
 					   Priority prio, SmartPtr<MulticrewModule> sender,
-					   bool async=false )=0;
+					   bool async=false, int channel=0 )=0;
 	virtual void disconnect()=0;
 	Signal disconnected;
 };

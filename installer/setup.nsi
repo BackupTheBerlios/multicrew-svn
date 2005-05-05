@@ -53,10 +53,12 @@ var ICONS_GROUP
        !define BUILDDIR "Debug"
        !define WXDLL "wxmsw24d"
        !define CRTDLL "msvcrtd"
+       !define MSVCP60DLL "msvcp60d"
 !else
        !define BUILDDIR "Release"
        !define WXDLL "wxmsw24"
        !define CRTDLL "msvcrt"
+       !define MSVCP60DLL "msvcp60"
 !endif
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION} ${__DATE__}"
@@ -79,6 +81,7 @@ Section "!Multicrew" SEC01
   File "${WXDIR}\lib\${WXDLL}.dll"
   SetOutPath "$SYSDIR"
   File "${SYSTEMDIR}\${CRTDLL}.dll"
+  File "${SYSTEMDIR}\${MSVCP60DLL}.dll"
 
 ; Shortcuts
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application

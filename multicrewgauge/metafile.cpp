@@ -35,8 +35,8 @@ extern "C" {
 #define METAFILEDELAY 300
 
 
-struct MetafileStruct {
-	MetafileStruct( unsigned counter ) {
+struct MetafileDataStruct {
+	MetafileDataStruct( unsigned counter ) {
 		this->counter = counter;
 	}
 
@@ -44,15 +44,15 @@ struct MetafileStruct {
 };
 
 
-class MetafilePacket : public WrappedPacket<MetafileStruct, RawPacket> {
+class MetafileDataPacket : public WrappedPacket<MetafileDataStruct, RawPacket> {
 public:
-	MetafilePacket( unsigned counter, SharedBuffer &buffer )
-		: WrappedPacket<MetafileStruct, RawPacket>(
-			MetafileStruct( counter ), new RawPacket(buffer) ) {
+	MetafileDataPacket( unsigned counter, SharedBuffer &buffer )
+		: WrappedPacket<MetafileDataStruct, RawPacket>(
+			MetafileDataStruct( counter ), new RawPacket(buffer) ) {
 	}
 
-	MetafilePacket( SharedBuffer &buf ) 
-		: WrappedPacket<MetafileStruct, RawPacket>( buf ) {
+	MetafileDataPacket( SharedBuffer &buf ) 
+		: WrappedPacket<MetafileDataStruct, RawPacket>( buf ) {
 	}
 
 	unsigned counter() {
@@ -70,7 +70,30 @@ protected:
 };
 
 
+typedef TypedPacket<char,PacketBase> MetafilePacket;
 typedef EmptyPacket MetafileResetPacket;
+typedef EmptyPacket MetafileAckPacket;
+
+
+enum MetafileKey {
+	resetPacket,
+	ackPacket,
+	dataPacket,
+};
+
+
+class MetafileFactory : public TypedPacketFactory<char,PacketBase> {
+ public:
+	virtual SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer ) {
+		switch( key ) {
+		case resetPacket: return new MetafileResetPacket();
+		case ackPacket: return new MetafileAckPacket();
+		case dataPacket: return new MetafileDataPacket( buffer );
+		default: return 0;
+		}
+	}
+};
+
 
 
 /***************************************************************************/
@@ -111,6 +134,9 @@ struct MetafileCompressor::Data {
 	VoidCallbackAdapter4<MetafileCompressor, HWND,UINT,UINT_PTR,DWORD> boostTimerCallback;
 	int minimumMetafileSize;
 	int metafileDelay;
+
+	MetafileFactory factory;
+	int timeout; // if timeout==0 then compress else wait, used for throttling
 };
 
 
@@ -122,6 +148,7 @@ MetafileCompressor::MetafileCompressor( MulticrewGauge *mgauge, int delay,
 	d->metafileCounter = 0;
 	d->minimumMetafileSize = -1;
 	d->metafileDelay = delay;
+	d->timeout = 0;
 
 	InitializeCriticalSection( &d->cs );
 
@@ -141,12 +168,23 @@ MetafileCompressor::~MetafileCompressor() {
 
 
 void MetafileCompressor::receive( SmartPtr<PacketBase> packet ) {
-	dout << "channel " << channel()
-		 << " reset metafile received" << std::endl;
-	EnterCriticalSection( &d->cs );
-	d->metafileCounter = 0;
-	//d->previousMetafile = 0;
-	LeaveCriticalSection( &d->cs );	
+	SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*packet;
+	switch( mp->key() ) {
+	case resetPacket: 
+		dout << "channel " << channel()
+			 << " reset metafile received" << std::endl;
+		EnterCriticalSection( &d->cs );
+		d->metafileCounter = 0;
+		//d->previousMetafile = 0;
+		LeaveCriticalSection( &d->cs );
+		break;
+	case ackPacket:
+		EnterCriticalSection( &d->cs );
+		d->timeout = 0;
+		LeaveCriticalSection( &d->cs );
+		break;
+	default: break;
+	}
 }
 
 
@@ -249,7 +287,11 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 	while( true ) {
 		// new work available?
 		EnterCriticalSection( &d->cs );
-		if( !d->lastMetafile.isNull() ) {
+
+		// already time again?
+		if( d->timeout>0 )
+			d->timeout--;
+		else if( !d->lastMetafile.isNull() ) {
 			// install boost timer
 			d->boostTimer = SetTimer( NULL, 
 									  NULL, 
@@ -312,8 +354,10 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 				d->mgauge->sendMetafilePacket( 
 					channel(), 
 					new MetafilePacket( 
-						d->metafileCounter,
-						SharedBuffer(new Buffer( delta, deltaSize, false ))),
+						dataPacket,
+						new MetafileDataPacket(
+							d->metafileCounter,
+							SharedBuffer(new Buffer( delta, deltaSize, false )))),
 					true, // safe
 					Connection::lowPriority );
 				
@@ -331,6 +375,9 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 			// done -> kill boost timer
 			KillTimer( NULL, d->boostTimer );
 			d->boostTimer = 0;
+
+			// start timeout cycle
+			d->timeout = 10;
 		}
 		
 		LeaveCriticalSection( &d->cs );		
@@ -353,7 +400,7 @@ void MetafileCompressor::boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {
 
 
 SmartPtr<PacketBase> MetafileCompressor::createPacket( SharedBuffer &buffer ) {
-	return new MetafileResetPacket();
+	return new MetafilePacket( buffer, &d->factory );
 }
 
 
@@ -370,6 +417,8 @@ struct MetafileDecompressor::Data {
 
 	SmartPtr<GlobalMem> lastMetafile;
 	int metafileCounter;
+
+	MetafileFactory factory;
 };
 
 
@@ -404,24 +453,37 @@ int MetafileDecompressor::counter() {
 
 void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*packet;
+	SmartPtr<MetafileDataPacket> mdp = (MetafileDataPacket*)&*mp->wrappee();
+
 	EnterCriticalSection( &d->cs );
-	
 	dout << "channel " << channel()
-		 << " metafile packet with size " << mp->buffer().size() 
-		 << " counter=" << mp->counter() << std::endl;
+		 << " metafile packet with size " << mdp->buffer().size() 
+		 << " counter=" << mdp->counter() << std::endl;
 
 	// correct sequence?
-	if( d->metafileCounter!=mp->counter() ) {
+	if( d->metafileCounter!=mdp->counter() ) {
 		d->metafileCounter = 0;
 		d->mgauge->sendMetafilePacket(
 			channel(),
-			new MetafileResetPacket(),
+			new MetafilePacket(
+				resetPacket,
+				new MetafileResetPacket()),
 			true,
 			Connection::highPriority );			
 		
 		dout << "channel " << channel()
 			 << " invalid metafile sequence, reset" << std::endl;
 	} else {
+		// acknowledge
+		d->mgauge->sendMetafilePacket(
+			channel(),
+			new MetafilePacket(
+				ackPacket,
+				new MetafileAckPacket()),
+			true,
+			Connection::highPriority );			
+
+		// decompress
 		void *ref = 0;
 		unsigned refSize = 0;
 		SmartPtr<GlobalMem> previous;
@@ -444,8 +506,8 @@ void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 		unsigned long tarSize = 0;
 		if( zd_uncompress1( (const Bytef*)ref, refSize,
 							&tar, &tarSize,
-							(const Bytef*)mp->buffer().data(), 
-							mp->buffer().size() )==ZD_OK ) {				
+							(const Bytef*)mdp->buffer().data(), 
+							mdp->buffer().size() )==ZD_OK ) {				
 			if( previous.isNull() )
 				free( ref );
 			else
@@ -470,5 +532,5 @@ void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 
 
 SmartPtr<PacketBase> MetafileDecompressor::createPacket( SharedBuffer &buffer ) {
-	return new MetafilePacket( buffer );
+	return new MetafilePacket( buffer, &d->factory );
 }

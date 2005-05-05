@@ -176,7 +176,8 @@ void ClientConnectionImpl::disconnectImpl() {
 
 
 void ClientConnectionImpl::processImpl() {
-	ProcessPackets( client );
+	if( !disconnected )
+		ProcessPackets( client );
 }
 
 

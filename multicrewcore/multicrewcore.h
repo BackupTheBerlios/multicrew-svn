@@ -60,7 +60,7 @@ protected:
 	virtual void handlePacket( SmartPtr<PacketBase> packet )=0;
 	void lock();
 	void send( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio );
-	bool sendAsync( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio );
+	bool sendAsync( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio, int channel=1 );
 	void unlock();
 
 	virtual void sendProc();

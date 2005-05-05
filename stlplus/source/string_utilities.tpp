@@ -39,7 +39,7 @@ otext& print_pointer(otext& str, const T* value, unsigned indent,
 {
   print_indent(str, indent);
   print_pointer(str, value, null_string, prefix, suffix);
-  return str << endl;
+  return str << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

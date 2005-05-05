@@ -758,7 +758,7 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 			d->elements[d->metafileElement] && 
 			!lastMetafile.isNull() &&
 			d->metafileCounter!=decompressor->counter() ) {
-			dout << "draw metafile" << std::endl;
+			//dout << "draw metafile" << std::endl;
 
 			// don't show same again
 			d->metafileCounter =  decompressor->counter();

@@ -164,7 +164,7 @@ bool ConnectionImpl::start() {
 
 bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe, 
 						   Priority prio, SmartPtr<MulticrewModule> sender,
-						   bool async ) {
+						   bool async, int channel ) {
 	// connected?
 	if( d->disconnected ) {
 		if( !sender.isNull() ) sender->sendFailed();
@@ -190,9 +190,7 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 
 	// set reliability mode
 	PacketReliability reliability;
-	int channel = 0;
 	if( async ) {
-		channel = 1;
 		if( safe )
 			reliability = RELIABLE_ORDERED;
 		else

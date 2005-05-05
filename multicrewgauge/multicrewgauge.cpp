@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <string>
 #include <deque>
 #include <list>
+#include "../stlplus/source/string_utilities.hpp"
 
 #include "gauges.h"
 #include "multicrewgauge.h"
@@ -187,7 +188,9 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 				if( metafile>=0 ) {
 					// create enough compression channels
 					while( metafile>=d->metafileChannels.size() ) {
-						int delay = 300; //configIntValue( 300; //config()->intValue( "metafile", 
+						int delay = config()->intValue( "metafile", 
+														"delay"+to_string(d->metafileChannels.size()),
+														500 );
 						d->metafileChannels.push_back( 
 							new MetafileCompressor( this, delay,
 													d->metafileChannels.size() ));
@@ -256,7 +259,8 @@ void MulticrewGauge::send( unsigned gauge, SmartPtr<PacketBase> packet, bool saf
 		MulticrewModule::sendAsync( 
 			new RoutedPacket(gauge, packet), 
 			safe,
-			prio );
+			prio,
+			1 );
 	else
 		MulticrewModule::send( 
 			new RoutedPacket(gauge, packet), 
@@ -272,7 +276,8 @@ void MulticrewGauge::sendMetafilePacket( unsigned channel,
 	MulticrewModule::sendAsync( 
 		new RoutedPacket(1000000+channel, packet), 
 		safe,
-		prio );
+		prio,
+		channel+2 ); // 0 is used for synced packets, 1 is standard, 2 first metafile channel
 }
 
 
