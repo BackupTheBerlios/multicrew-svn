@@ -2,12 +2,13 @@
 #define _FSUIPC_H_
 
 // Supported Sims
-#define SIM_ANY		0
+#define SIM_ANY	0
 #define SIM_FS98	1
 #define SIM_FS2K	2
 #define SIM_CFS2	3
 #define SIM_CFS1	4
-#define SIM_FS2K2 	6
+#define SIM_FLY		5
+#define SIM_FS2K2	6
 #define SIM_FS2K4	7
 
 // Error numbers
@@ -41,11 +42,13 @@ extern DWORD FSUIPC_Lib_Version;
 										// HIWORD is 1000 x version, LOWORD is build letter, a = 1 etc.
 
 // Library routines
-extern BOOL __cdecl FSUIPC_Open(DWORD dwFSReq, DWORD *pdwResult);
-extern void __cdecl FSUIPC_Close(void);
-extern BOOL __cdecl FSUIPC_Read(DWORD dwOffset, DWORD dwSize, void *pDest, DWORD *pdwResult);
-extern BOOL __cdecl FSUIPC_Write(DWORD dwOffset, DWORD dwSize, void *pSrce, DWORD *pdwResult);
-extern BOOL __cdecl FSUIPC_Process(DWORD *pdwResult);
+extern BOOL FSUIPC_Open(DWORD dwFSReq, DWORD *pdwResult); // For use externally (IPCuser.lib)
+extern BOOL FSUIPC_Open2(DWORD dwFSReq, DWORD *pdwResult, BYTE *pMem, DWORD dwSize); // For use internally (ModuleUser.lib)
+extern void FSUIPC_Close(void);
+extern BOOL FSUIPC_Read(DWORD dwOffset, DWORD dwSize, void *pDest, DWORD *pdwResult);
+extern BOOL FSUIPC_ReadSpecial(DWORD dwOffset, DWORD dwSize, void *pDest, DWORD *pdwResult);
+extern BOOL FSUIPC_Write(DWORD dwOffset, DWORD dwSize, void *pSrce, DWORD *pdwResult);
+extern BOOL FSUIPC_Process(DWORD *pdwResult);
 
 #ifdef __cplusplus
 };
