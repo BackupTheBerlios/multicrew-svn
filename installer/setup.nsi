@@ -76,8 +76,6 @@ Section "!Multicrew" SEC01
   File "..\multicrewui\${BUILDDIR}\multicrewui.dll"
   SetOutPath "$INSTDIR\Multicrew\.."
   File "..\multicrewcore\${BUILDDIR}\multicrewcore.dll"
-  File "..\multicrewprepare\${BUILDDIR}\multicrewprepare.exe"
-  File "..\multicrewprepare\${BUILDDIR}\multicrewpanelprepare.exe"
   File "${WXDIR}\lib\${WXDLL}.dll"
   SetOutPath "$SYSDIR"
   File "${SYSTEMDIR}\${CRTDLL}.dll"
@@ -92,18 +90,12 @@ Section "PMDG 737NG 600/700 (with and without upgrade)" SEC02
   SetOverwrite ifnewer
   SetOutPath "$INSTDIR\Multicrew"
   File "multicrew\PMDG*.*"
-
-  SetOutPath "$INSTDIR\Multicrew\.."
-;  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-700\panel\Panel.CFG'
 SectionEnd
 
 Section "PMDG 737NG 800/900" SEC03
   SetOverwrite ifnewer
   SetOutPath "$INSTDIR\Multicrew"
   File "multicrew\PMDG*.*"
-
-  SetOutPath "$INSTDIR\Multicrew\.."
-;  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-900\panel\Panel.CFG'
 SectionEnd
 
 Section -AdditionalIcons
@@ -151,8 +143,6 @@ Section Uninstall
   Delete "$INSTDIR\..\multicrewcore.dll"
   Delete "$INSTDIR\gpl.txt"
   Delete "$INSTDIR\multicrewgauge.dll"
-  Delete "$INSTDIR\..\multicrewprepare.exe"
-  Delete "$INSTDIR\..\multicrewpanelprepare.exe"
   Delete "$INSTDIR\..\modules\multicrewui.dll"
 
   Delete "$SMPROGRAMS\$ICONS_GROUP\Uninstall.lnk"
