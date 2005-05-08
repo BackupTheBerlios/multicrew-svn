@@ -64,6 +64,7 @@ var ICONS_GROUP
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION} ${__DATE__}"
 OutFile "multicrew-snapshot-${__DATE__}.exe"
 InstallDir "c:\fs9"
+InstallDirRegKey HKLM "Software\Microsoft\Microsoft Games\Flight Simulator\9.0" "EXE Path"
 ShowInstDetails show
 ShowUnInstDetails show
 

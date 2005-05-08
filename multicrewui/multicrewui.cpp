@@ -91,7 +91,7 @@ MulticrewUI::MulticrewUI( HWND hwnd ) {
 	dout << "MulticrewUI finished" << std::endl;
 
 	dlog << "Loading multicrewgauge.dll" << std::endl;
-	d->hMulticrewGauge = LoadLibrary( "multicrewgauge.dll" );
+	d->hMulticrewGauge = LoadLibrary( "multicrew\\multicrewgauge.dll" );
 
 	startThread( 0 );
 }
