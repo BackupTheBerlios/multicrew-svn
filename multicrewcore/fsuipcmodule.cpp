@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WAITTIME 300
 
 
+/******************** packets *******************************/
 struct FsuipcStruct {
 	FsuipcStruct( WORD id, BYTE size ) {
 		this->id = id;
@@ -74,6 +75,7 @@ protected:
 };
 
 
+/*********************************************************************/
 class FsuipcWatch : public Shared {
 public:
 	FsuipcWatch( SmartPtr<Fsuipc> fsuipc, WORD id, BYTE size, Connection::Priority prio, bool safe ) {
@@ -130,6 +132,7 @@ private:
 };
 
 
+/*********************************************************************/
 struct FsuipcModule::Data {
 	typedef SmartPtr<FsuipcWatch> SmartFsuipcWatch;
 	std::deque<SmartFsuipcWatch> watches;
@@ -138,18 +141,14 @@ struct FsuipcModule::Data {
 };
 
 
-FsuipcModule::FsuipcModule( bool hostMode ) 
-	: MulticrewModule( "FSUIPC", hostMode, hostMode?WAITTIME:-1 ) {
+FsuipcModule::FsuipcModule() 
+	: MulticrewModule( "FSUIPC", WAITTIME ) {
 	d = new Data;
 	d->fsuipc = Fsuipc::fsuipc();
-
-	MulticrewCore::multicrewCore()->registerModule( this );
 }
 
 
 FsuipcModule::~FsuipcModule() {
-	MulticrewCore::multicrewCore()->unregisterModule( this );
-
 	d->watches.clear();
 	delete d;
 }
@@ -159,20 +158,18 @@ SmartPtr<PacketBase> FsuipcModule::createInnerModulePacket( SharedBuffer &buffer
 	return new FsuipcPacket( buffer );
 }
 
+
 void FsuipcModule::sendFullState() {
 	d->nextIsFullSend = true;
 }
 
 
 void FsuipcModule::sendProc() {
-	d->fsuipc->begin();
-
 	// let watches call read
+	d->fsuipc->begin();
 	for( int i=0; i<d->watches.size(); i++ ) {
 		d->watches[i]->update();
 	}
-
-	// process reads
 	bool ok = d->fsuipc->end();
 
 	// let watches process read results
@@ -191,7 +188,6 @@ void FsuipcModule::sendProc() {
 			}
 		}
 	}
-	
 }
 
 

@@ -69,26 +69,10 @@ private:
 };
 
 
-class MetafileChannel : public Shared, public PacketFactory<PacketBase> {
+class GaugeModule;
+class MetafileCompressor : public Shared, private Thread {
  public:
-	MetafileChannel( int channel );
-	int channel();
-
-	virtual void receive( SmartPtr<PacketBase> packet )=0;
-
- private:
-	struct Data;
-	friend Data;
-	Data *d;
-};
-
-typedef SmartPtr<MetafileChannel> SmartMetafileChannel;
-
-
-class MulticrewGauge;
-class MetafileCompressor : public MetafileChannel, private Thread {
- public:
-	MetafileCompressor( MulticrewGauge *mgauge, int delay, int channel );
+	MetafileCompressor( GaugeModule *mgauge, int delay, int channel );
 	virtual ~MetafileCompressor();
 
 	virtual void receive( SmartPtr<PacketBase> packet );	
@@ -112,9 +96,9 @@ class MetafileCompressor : public MetafileChannel, private Thread {
 };
 
 
-class MetafileDecompressor : public MetafileChannel {
+class MetafileDecompressor : public Shared {
  public:
-	MetafileDecompressor( MulticrewGauge *mgauge, int channel );
+	MetafileDecompressor( GaugeModule *mgauge, int channel );
 	virtual ~MetafileDecompressor();
 
 	virtual void receive( SmartPtr<PacketBase> packet );

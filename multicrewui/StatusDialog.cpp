@@ -30,21 +30,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 struct StatusDialog::Data {
 	Data( StatusDialog *dlg )
-		: core( MulticrewCore::multicrewCore() ),
-		  planeRegisteredSlot( &core->planeLoaded, dlg, StatusDialog::planeRegistered ),
-		  planeUnregisteredSlot( &core->planeUnloaded, dlg, StatusDialog::planeUnregistered ) {
-	}
+		: core( MulticrewCore::multicrewCore() ) {}
 
 	wxTextCtrl *logs;
 	wxStaticText *st4;
 	wxStaticText *st5;
-	wxCheckBox *planeConnected;
 	wxCheckBox *hostConnected;
 	wxStaticText *st9;
 
 	SmartPtr<MulticrewCore> core;
-	Slot<StatusDialog> planeRegisteredSlot;
-	Slot<StatusDialog> planeUnregisteredSlot;
 };
 
 StatusDialog::StatusDialog(wxWindow* parent,wxWindowID id,const wxString& title,const wxPoint& pos,const wxSize& size,long style,const wxString& name)
@@ -68,7 +62,6 @@ StatusDialog::~StatusDialog() {
 	delete d->logs;
 	delete d->st4;
 	delete d->st5;
-	delete d->planeConnected;
 	delete d->hostConnected;
 	delete d->st9;
 	delete d;
@@ -79,12 +72,8 @@ void StatusDialog::VwXinit() {
  d->logs=new wxTextCtrl(this,-1,wxT(""),wxPoint(10,85),wxSize(365,193),wxTE_MULTILINE | wxTE_READONLY | wxHSCROLL);
  d->st4=new wxStaticText(this,-1,wxT(""),wxPoint(10,65),wxSize(365,13),wxST_NO_AUTORESIZE);
    d->st4->SetLabel(wxT("Log output:"));
- d->st5=new wxStaticText(this,-1,wxT(""),wxPoint(40,15),wxSize(340,13),wxST_NO_AUTORESIZE);
-   d->st5->SetLabel(wxT("Multicrew plane connected"));
  d->st9=new wxStaticText(this,-1,wxT(""),wxPoint(40,40),wxSize(340,13),wxST_NO_AUTORESIZE);
    d->st9->SetLabel(wxT("Connected to host"));
- d->planeConnected=new wxCheckBox(this,-1,wxT(""),wxPoint(10,15),wxSize(13,13));
-   d->planeConnected->Enable(false);
  d->hostConnected=new wxCheckBox(this,-1,wxT(""),wxPoint(10,40),wxSize(13,13));
    d->hostConnected->Enable(false); 
  Refresh();
@@ -92,16 +81,6 @@ void StatusDialog::VwXinit() {
  
 BEGIN_EVENT_TABLE( StatusDialog,wxDialog)
 END_EVENT_TABLE()
-
-
-void StatusDialog::planeRegistered() {
-	d->planeConnected->SetValue( true );
-}
-
-
-void StatusDialog::planeUnregistered() {
-	d->planeConnected->SetValue( false );
-}
 
 
 void StatusDialog::log( std::string line ) {

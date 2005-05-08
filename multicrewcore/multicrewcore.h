@@ -31,32 +31,30 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "config.h"
 #include "thread.h"
 
-
+class MultisyncCore;
 class DLLEXPORT MulticrewModule : 
     public ModulePacketFactory,
 	public Shared, 
 	public Thread {
 public:
-	MulticrewModule( std::string moduleName, bool hostMode, unsigned minSendWait=-1 );
+	MulticrewModule( std::string moduleName, unsigned minSendWait=-1 );
 	virtual ~MulticrewModule();
 
 	std::string moduleName();
-	bool isHostMode();
-	bool registered();
+	SmartPtr<FileConfig> config();
 
+	/* network */
 	virtual void sendCompleted();
 	virtual void sendFailed();
 	virtual void receive( SmartPtr<ModulePacket> packet );
 	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
-
-	SmartPtr<FileConfig> config();
-
 	virtual void sendFullState()=0;
 	void requestFullState();
 	
 protected:
 	friend class TypedInnerModulePacketFactory;
 
+	/* network */
 	virtual void handlePacket( SmartPtr<PacketBase> packet )=0;
 	void lock();
 	void send( SmartPtr<PacketBase> packet, bool safe, Connection::Priority prio );
@@ -91,21 +89,26 @@ class DLLEXPORT MulticrewCore : public Shared {
 public:
 	static SmartPtr<MulticrewCore> multicrewCore();	
 
-	bool registerModule( MulticrewModule *module );
-	void unregisterModule( MulticrewModule *module );
+	/* mode handling */
+	enum Mode {
+		IdleMode,
+		HostMode,
+		ClientMode,
+	};
+	Mode mode();
+	void setMode( Mode newMode );
+	Signal1<Mode> modeChanged;
 
-	bool isPlaneLoaded();
-	bool isHostMode();
-	Signal planeLoaded;
-	Signal planeUnloaded;
-
+	/* connection handling */
 	void prepare( SmartPtr<Connection> con );
 	void unprepare();
 
+	/* general stuff */
 	void log( std::string line );
 	Signal1<const char *> logged;
 	double time();
 
+	/* asynchronous callbacks */
 	Signal initAsyncCallback;
 	void callbackAsync();
 
@@ -113,9 +116,15 @@ public:
 	friend AsyncCallee;
 	void triggerAsyncCallback( AsyncCallee *callee );
 
-private:
+ private:
+	friend MulticrewModule;
+	void registerModule( MulticrewModule *module );
+	void unregisterModule( MulticrewModule *module );   
+	
+ private:
 	MulticrewCore();
 	virtual ~MulticrewCore();
+	void start();
 
 	struct Data;
 	Data *d;

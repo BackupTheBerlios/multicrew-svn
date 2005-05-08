@@ -40,20 +40,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static MulticrewCore *multicrewCore = 0;
 
 SmartPtr<MulticrewCore> MulticrewCore::multicrewCore() {
-	if( ::multicrewCore==0 ) ::multicrewCore = new MulticrewCore();
+	if( ::multicrewCore==0 ) {
+		::multicrewCore = new MulticrewCore();
+		::multicrewCore->start();
+	}
+
 	// dout << "MulticrewCore::multicrewCore()" << std::endl;
 	return ::multicrewCore;
 }
 
 
 struct MulticrewCore::Data {	
-	bool hostMode;
+	/* mode handling */
+	Mode mode;
 
+	/* modules */
 	std::map<std::string, MulticrewModule*> modules;
 	SmartPtr<PositionModule> posModule;
 	SmartPtr<FsuipcModule> fsuipcModule;
+
+	/* network stuff */
 	std::set<AsyncCallee*> asyncCallees;
 
+	/* timing */
 	__int64 perfTimerFreq;
 	__int64 startTime;
 
@@ -63,14 +72,22 @@ struct MulticrewCore::Data {
 
 MulticrewCore::MulticrewCore() {
 	d = new Data;
+	d->mode = IdleMode;
 	CoInitializeEx( NULL, COINIT_MULTITHREADED );
 	dout << "MulticrewCore" << std::endl;
+	InitializeCriticalSection( &d->critSect );
 
+	/* initialize timing stuff */
 	if( !QueryPerformanceFrequency((LARGE_INTEGER*)&d->perfTimerFreq) )
 		dlog << "No performance timer available" << std::endl;
 	QueryPerformanceCounter( (LARGE_INTEGER*)&d->startTime );
+}
 
-	InitializeCriticalSection( &d->critSect );
+
+void MulticrewCore::start() {
+	/* create general modules */
+	d->posModule = new PositionModule();
+	d->fsuipcModule = new FsuipcModule();
 }
 
 
@@ -92,37 +109,11 @@ double MulticrewCore::time() {
 }
 
 
-bool MulticrewCore::registerModule( MulticrewModule *module ) {
+void MulticrewCore::registerModule( MulticrewModule *module ) {
 	dout << "module " << module->moduleName() << " registered" << std::endl;
-	if( d->modules.empty() ) {
-		// first module sets hostMode
-		d->hostMode = module->isHostMode();
-	} else {
-		// valid hostMode?
-		if( module->isHostMode()!=d->hostMode ) {
-			derr << "Host and client mode cannot be mixed which is the case for \"" 
-				 << module->moduleName().c_str() << "\"" << std::endl;
-			return false;
-		}
-	}
 
 	// register module
 	d->modules[module->moduleName().c_str()] = module;	
-
-	// first module?
-	if( d->modules.size()==1 ) {	
-		// position module (automatically registers to the modules list)
-		if( d->hostMode )
-			d->posModule = new PositionHostModule();
-		else
-			d->posModule = new PositionClientModule();
-
-		// FSUIPC module
-		d->fsuipcModule = new FsuipcModule( d->hostMode );
-
-		// emit signal
-		planeLoaded.emit();
-	}
 
 	// setup fsuipc watches
 	if( !d->fsuipcModule.isNull() ) {
@@ -153,8 +144,6 @@ bool MulticrewCore::registerModule( MulticrewModule *module ) {
 			d->fsuipcModule->watch( id, len, safe );
 		}
 	}
-
-	return true;
 }
 
 
@@ -165,26 +154,20 @@ void MulticrewCore::unregisterModule( MulticrewModule *module ) {
 	std::map<std::string, MulticrewModule*>::iterator res = d->modules.find( module->moduleName().c_str() );
 	if( res!=d->modules.end() ) {
 		d->modules.erase( res );
-		if( d->modules.size()==2 ) { // pos+fsuipc=2
-			// destroy FSUIPC module
-			d->posModule = 0;
-			d->fsuipcModule = 0;
-
-			// no modules registered anymore
-			dout << "unload" << std::endl;
-			planeUnloaded.emit();
-		}
 	}
 }
 
 
-bool MulticrewCore::isPlaneLoaded() {
-	return d->modules.size()>0;
+MulticrewCore::Mode MulticrewCore::mode() {
+	return d->mode;
 }
 
 
-bool MulticrewCore::isHostMode() {
-	return d->hostMode;
+void MulticrewCore::setMode( Mode newMode ) {
+	if( newMode!=d->mode ) {
+		d->mode = newMode;
+		modeChanged.emit( d->mode );
+	}
 }
 
 

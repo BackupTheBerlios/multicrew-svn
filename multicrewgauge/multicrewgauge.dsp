@@ -93,11 +93,19 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
+SOURCE=.\apihijack.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\elements.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=.\gauge.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\gaugemodule.cpp
 # End Source File
 # Begin Source File
 
@@ -110,10 +118,6 @@ SOURCE=.\main.cpp
 # Begin Source File
 
 SOURCE=.\metafile.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\multicrewgauge.cpp
 # End Source File
 # Begin Source File
 
@@ -131,6 +135,10 @@ SOURCE=.\stringelement.cpp
 # Begin Group "Header-Dateien"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
+# Begin Source File
+
+SOURCE=.\apihijack.h
+# End Source File
 # Begin Source File
 
 SOURCE=.\common.h

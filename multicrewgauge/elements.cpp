@@ -29,6 +29,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 struct Element::Data {
 	Gauge *gauge;	
 	ELEMENT_HEADER *elementHeader;
+	SmartPtr<MulticrewCore> core;
+
 	int id;
 };
 
@@ -37,6 +39,7 @@ Element::Element( int id, Gauge &gauge ) {
 	d->gauge = &gauge;
 	d->elementHeader = 0;
 	d->id = id;
+	d->core = MulticrewCore::multicrewCore();
 	//dout << "Element " << elementHeader << std::endl;	
 }
 
@@ -62,4 +65,8 @@ void Element::attach( ELEMENT_HEADER *elementHeader ) {
 
 void Element::detach() {
 	d->elementHeader = 0;
+}
+
+MulticrewCore *Element::core() {
+	return &*d->core;
 }

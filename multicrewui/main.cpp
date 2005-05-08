@@ -15,21 +15,14 @@
 #include <wx/wx.h>
 #include <windows.h>
 #include "multicrewui.h"
-#include "module.h"
+#include "../multicrewgauge/GAUGES.h"
 
-/*
- * FS linking
- */
-UI_DLLEXPORT MODULE_IMPORT ImportTable = {
-	{0x00000000, NULL},
-	{0x00000000, NULL}
-};
 
+/************************** gauge/module linkage ****************************/
 void FSAPI module_init(void) {}
 void FSAPI module_deinit(void) {}
 
-extern "C" UI_DLLEXPORT MODULE_LINKAGE Linkage;
-UI_DLLEXPORT MODULE_LINKAGE Linkage = {
+GAUGESLINKAGE Linkage = {
 	0x00000000,
 	module_init,
 	module_deinit,
@@ -39,10 +32,10 @@ UI_DLLEXPORT MODULE_LINKAGE Linkage = {
 	NULL
 };
 
-/*
- * Win32 window management
- */
+GAUGESIMPORT ImportTable;
 
+
+/*************************** Win32 window management *************************/
 class wxDLLApp : public wxApp {
 	bool OnInit() { return true; }
 };
@@ -112,6 +105,7 @@ LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			}
 			break;
 	}
+
 	// Call the original window procedure to handle all other messages
 	return CallWindowProc(oldWndProc, hwnd, uMsg, wParam, lParam);
 }
@@ -124,6 +118,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
 	switch (fdwReason) {
 		case DLL_PROCESS_ATTACH: {
+			dout << "DllMain MulticrewUI" << std::endl;
 			// setup wx
 			int argc = 0;
 			char **argv = new char*;
@@ -138,10 +133,13 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			hFSimWindow = FindWindow("FS98MAIN", NULL);
 
 			// setup ui
+			dout << "Creating MulticrewUI" << std::endl;
 			ui = new MulticrewUI( hFSimWindow );
+			dout << "Created MulticrewUI" << std::endl;
 
 			// hook FS window
-			oldWndProc = (WNDPROC)SetWindowLong(hFSimWindow, GWL_WNDPROC, (LONG)FSimWindowProc);					 
+			oldWndProc = (WNDPROC)SetWindowLong(hFSimWindow, GWL_WNDPROC, (LONG)FSimWindowProc);
+
 		} break;		
 		case DLL_PROCESS_DETACH:
 			delete ui;

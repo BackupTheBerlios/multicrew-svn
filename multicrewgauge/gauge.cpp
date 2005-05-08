@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using namespace Gdiplus;
 
 
+/********************************** packets *******************************/
 enum {
 	mousePacket = 0,
 	elementPacket,
@@ -94,8 +95,6 @@ private:
 
 
 /*********************************************************************/
-
-
 struct Gauge::Data {
 	Data( Gauge *gauge )
 		: callbackAdapter( gauge, Gauge::callback ),
@@ -108,6 +107,7 @@ struct Gauge::Data {
 	VoidCallbackAdapter3<Gauge, PGAUGEHDR, SINT32, UINT32> callbackAdapter;
 	ElementPacketFactory elementPacketFactory;
 	GaugePacketFactory packetFactory;
+	SmartPtr<MulticrewCore> core;
 
 	// mouse data
 	bool hookMouse;
@@ -119,18 +119,13 @@ struct Gauge::Data {
 	PMOUSERECT origMouseRect;
 	bool swallowMouse;
 
-	// metafile data
-	int minimumMetafileSize;
-	int metafileElement;
-	int metafileCounter;
-
 	// general gauge data
 	std::deque<Element *> elements;	
 	std::set<Element*> sendRequests;
 	std::string name;
 	std::string parameters;
 	int id;
-	MulticrewGauge *mgauge;
+	GaugeModule *mgauge;
 	CRITICAL_SECTION cs;
 
 	GdiplusStartupInput gdiplusStartupInput;
@@ -138,13 +133,14 @@ struct Gauge::Data {
 };
 
 
-Gauge::Gauge( MulticrewGauge *mgauge, int id ) {
+Gauge::Gauge( GaugeModule *mgauge, int id ) {
 	d = new Data( this );
 	d->mgauge = mgauge;
 	d->gaugeHeader = 0;
 	d->name = "";
 	d->parameters = "";
 	d->id = id;
+	d->core = MulticrewCore::multicrewCore();
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -233,7 +229,7 @@ int Gauge::id() {
 }
 
 
-MulticrewGauge *Gauge::mgauge() {
+GaugeModule *Gauge::mgauge() {
 	return d->mgauge;
 }
 
@@ -266,6 +262,7 @@ void Gauge::receive( SmartPtr<PacketBase> packet ) {
 		EnterCriticalSection( &d->cs );
 		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
 		LeaveCriticalSection( &d->cs );
+		handleMouseEvents();
 		break;
 	default:
 		break;
@@ -439,25 +436,14 @@ void Gauge::detach() {
 }
 
 
-/********************************************************************************************/
-
-
-GaugeRecorder::GaugeRecorder( MulticrewGauge *mgauge, int id ) 
-	: Gauge( mgauge, id ) {
-}
-
-
-GaugeRecorder::~GaugeRecorder() {
-}
-
-
-Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
+Element *Gauge::createElement( int id, PELEMENT_HEADER pelement ) {
 	Element *el = 0;
+
 	switch( pelement->element_type ) {
-	case ELEMENT_TYPE_ICON: el = new IconRecorder( id, *this ); break;
-	case ELEMENT_TYPE_NEEDLE: el = new NeedleRecorder( id, *this ); break;
-	case ELEMENT_TYPE_STRING: el = new StringRecorder( id, *this ); break;
-	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticRecorder( id, *this ); break;
+	case ELEMENT_TYPE_ICON: el = new IconElement( id, *this ); break;	
+	case ELEMENT_TYPE_NEEDLE: el = new NeedleElement( id, *this ); break;
+	case ELEMENT_TYPE_STRING: el = new StringElement( id, *this ); break;
+	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticElement( id, *this ); break;
 	default: break;
 	}
 
@@ -465,285 +451,169 @@ Element *GaugeRecorder::createElement( int id, PELEMENT_HEADER pelement ) {
 }
 
 
-void GaugeRecorder::asyncCallback() {
-	// handle mouse events which came in from the network
+BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
+	switch( d->core->mode() ) {
+	case MulticrewCore::IdleMode:
+		if( mouseRectNum<d->originalMouseCallbacks.size() && 
+			d->originalMouseCallbacks[mouseRectNum]!=0 )
+			return d->originalMouseCallbacks[mouseRectNum]( pix, flags );
+	case MulticrewCore::HostMode:
+	{
+		EnterCriticalSection( &d->cs );
+		if( !d->swallowMouse && 
+			mouseRectNum>=0 && 
+			mouseRectNum<d->originalMouseCallbacks.size() && 
+			d->originalMouseCallbacks[mouseRectNum]!=0 ) {
+			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
+			dout << "mouseCallback " << (void*)cb 
+				 << " for " << d->name
+				 << " rel=" << ((PMOUSECALLBACK)pix)->relative_point.x
+				 << ":" << ((PMOUSECALLBACK)pix)->relative_point.y
+				 << " screen=" << ((PMOUSECALLBACK)pix)->screen_point.x
+				 << ":" << ((PMOUSECALLBACK)pix)->screen_point.y
+				 << std::endl;
+			cb( pix, flags );
+		}
+		LeaveCriticalSection( &d->cs );
+		
+		return TRUE;
+	} break;
+	case MulticrewCore::ClientMode:
+	{
+		dout << "mouseCallback for " << d->name 
+			 << " num=" << mouseRectNum << std::endl;
+		
+		// append mouse event to d->mouseEvents which is sent during the 
+		// next sendProc call
+		EnterCriticalSection( &d->cs );
+		if( !d->swallowMouse ) {
+			// the pix is a MOUSECALLBACK structure in fact. Look into GAUGES.H.
+			// that's Microsoft's coding practise ;-)
+			PMOUSECALLBACK mc = (PMOUSECALLBACK)pix;
+			
+			// create MouseStruct data
+			MouseStruct ms;
+			ms.mouseRectNum = mouseRectNum;
+			ms.relX = mc->relative_point.x*1.0f/d->gaugeHeader->size.x;
+			ms.relY = mc->relative_point.y*1.0f/d->gaugeHeader->size.y;
+			ms.scrX = mc->screen_point.x*1.0f/d->gaugeHeader->size.x;
+			ms.scrY = mc->screen_point.y*1.0f/d->gaugeHeader->size.y;
+			ms.flags = flags;
+			
+			// send MouseStruct packet
+			d->mgauge->send( 
+				id(), 
+				new GaugePacket(
+					mousePacket,
+					new MousePacket(ms)), 
+				false, // safe
+				Connection::highPriority,
+				true ); // async		
+		}
+		LeaveCriticalSection( &d->cs );
+		
+		return FALSE;
+	} break;
+	}
+
+	return true;
+}
+
+
+void Gauge::handleMouseEvents() {
 	EnterCriticalSection( &d->cs );
-	for( std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
-		 it!=d->mouseEvents.end();
-		 it++ ) {
-		MouseStruct &ms = (*it)->data();
 
-		// emit mouse event
-		dout << "mouse packet for " << d->name
-			 << " for " << d->name
-			 << " rel=" << ms.relX
-			 << ":" << ms.relY
-			 << " screen=" << ms.scrX
-			 << ":" << ms.scrY
-			 << std::endl;
-
+	switch( d->core->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode:
+	{
+		// handle mouse events which came in from the network
+		for( std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
+			 it!=d->mouseEvents.end();
+			 it++ ) {
+			MouseStruct &ms = (*it)->data();
+			
+			// emit mouse event
+			dout << "mouse packet for " << d->name
+				 << " for " << d->name
+				 << " rel=" << ms.relX
+				 << ":" << ms.relY
+				 << " screen=" << ms.scrX
+				 << ":" << ms.scrY
+				 << std::endl;
+						
+			int num =  ms.mouseRectNum;
+			if( num>=0 && num<d->originalMouseCallbacks.size() ) {
+				PMOUSE_FUNCTION cb = d->originalMouseCallbacks[num];
+				PMOUSERECT rect = d->gaugeHeader->mouse_rect + num;
 				
-		int num =  ms.mouseRectNum;
-		if( num>=0 && num<d->originalMouseCallbacks.size() ) {
-			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[num];
-			PMOUSERECT rect = d->gaugeHeader->mouse_rect + num;
-			
-			// has callback?
-			if( cb!=0 ) {
-				// create MOUSECALLBACK structure
-				MOUSECALLBACK mc;
-				mc.relative_point.x = (int)(ms.relX * d->gaugeHeader->size.x);
-				mc.relative_point.y = (int)(ms.relY * d->gaugeHeader->size.y);
-				mc.screen_point.x = (int)(ms.scrX * d->gaugeHeader->size.x);
-				mc.screen_point.y = (int)(ms.scrY * d->gaugeHeader->size.y);
-				mc.user_data = (PVOID)d->gaugeHeader;
-				mc.mouse = rect;
-				mc.reserved = 0;
-
-				// call callback
-				dout << "Call mouse callback " << (void*)cb 
-					 << " for " << d->name << std::endl;
-				cb( (PPIXPOINT)&mc, ms.flags );
-			}
-			
-			// has eventid?
-			if( rect->event_id!=0 ) {
-				// trigger event					
-				dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
-				trigger_key_event( rect->event_id, 0 );				
+				// has callback?
+				if( cb!=0 ) {
+					// create MOUSECALLBACK structure
+					MOUSECALLBACK mc;
+					mc.relative_point.x = (int)(ms.relX * d->gaugeHeader->size.x);
+					mc.relative_point.y = (int)(ms.relY * d->gaugeHeader->size.y);
+					mc.screen_point.x = (int)(ms.scrX * d->gaugeHeader->size.x);
+					mc.screen_point.y = (int)(ms.scrY * d->gaugeHeader->size.y);
+					mc.user_data = (PVOID)d->gaugeHeader;
+					mc.mouse = rect;
+					mc.reserved = 0;
+					
+					// call callback
+					dout << "Call mouse callback " << (void*)cb 
+						 << " for " << d->name << std::endl;
+					cb( (PPIXPOINT)&mc, ms.flags );
+				}
+				
+				// has eventid?
+				if( rect->event_id!=0 ) {
+					// trigger event					
+					dout << "Trigger key event " << rect->event_id << " from " << d->name << std::endl;
+					trigger_key_event( rect->event_id, 0 );				
+				}
 			}
 		}
+	} break;
+	case MulticrewCore::ClientMode: break;
 	}
+
 	d->mouseEvents.clear();
 	LeaveCriticalSection( &d->cs );
 }
 
 
-void GaugeRecorder::receive( SmartPtr<PacketBase> packet ) {
-	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
-	switch( gp->key() ) {
-	case mousePacket:
-		EnterCriticalSection( &d->cs );
-
-		// store mouse event for latter usage
-		dout << "Received mouse packet for " << d->name << std::endl;
-		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
-
-		// tell core to initiate an async callback from the ui
-		triggerAsyncCallback();
-
-		LeaveCriticalSection( &d->cs );
-		break;
-
-	default:
-		Gauge::receive( packet );
-		break;
-	}
-}
-
-
-BOOL GaugeRecorder::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
-	EnterCriticalSection( &d->cs );
-	if( !d->swallowMouse && 
-		mouseRectNum>=0 && 
-		mouseRectNum<d->originalMouseCallbacks.size() && 
-		d->originalMouseCallbacks[mouseRectNum]!=0 ) {
-		PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
-		dout << "mouseCallback " << (void*)cb 
-			 << " for " << d->name
-			 << " rel=" << ((PMOUSECALLBACK)pix)->relative_point.x
-			 << ":" << ((PMOUSECALLBACK)pix)->relative_point.y
-			 << " screen=" << ((PMOUSECALLBACK)pix)->screen_point.x
-			 << ":" << ((PMOUSECALLBACK)pix)->screen_point.y
-			 << std::endl;
-		cb( pix, flags );
-	}
-	LeaveCriticalSection( &d->cs );
-	
-	return TRUE;
-}
-
-
 /**************************************************************************/
 
 
-GaugeMetafileRecorder::GaugeMetafileRecorder( MulticrewGauge *mgauge, 
-											  int id, 
-											  int metafileElement,
-											  SmartPtr<MetafileCompressor> compressor ) 
-	: GaugeRecorder( mgauge, id ) {
-	this->compressor = compressor;
-	Gauge::d->metafileElement = metafileElement;
-}
+struct MetafileGauge::Data {
+	int minimumMetafileSize;
+	int metafileElement;
+	int metafileCounter;	
+
+	SmartPtr<MetafileCompressor> compressor;
+	SmartPtr<MetafileDecompressor> decompressor;
+};
 
 
-GaugeMetafileRecorder::~GaugeMetafileRecorder() {
-}
-
-
-void GaugeMetafileRecorder::callback( PGAUGEHDR pgauge, SINT32 service_id, 
-									  UINT32 extra_data ) {
-	// do work of callback
-	switch (service_id) {
-	case PANEL_SERVICE_POST_INSTALL:
-		GdiplusStartup(&Gauge::d->gdiplusToken, &Gauge::d->gdiplusStartupInput, NULL);
-		break;
-		
-	case PANEL_SERVICE_PRE_DRAW: {
-		// record metafile for gauge output
-		EnterCriticalSection( &Gauge::d->cs );
-		if( Gauge::d->elements.size()>Gauge::d->metafileElement && 
-			Gauge::d->elements[Gauge::d->metafileElement] && 
-			compressor->open() ) {
-			Element *element = Gauge::d->elements[Gauge::d->metafileElement];
-			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
-		
-			// create memory stream
-			IStream *stream;
-			CreateStreamOnHGlobal( NULL, FALSE, &stream );
-		 	
-			// create metafile
-			RectF bounds( 0, 0, 
-						  staticImage->image_data.final->dim.x,
-						  staticImage->image_data.final->dim.y );
-			Metafile metafile( stream, staticImage->hdc, 
-							   bounds, MetafileFrameUnitPixel,
-							   EmfTypeEmfPlusOnly );
-			
-			// let gauge draw to metafile
-			HDC origHdc = staticImage->hdc;
-			Graphics *metaGraphics = new Graphics( &metafile );
-			metaGraphics->SetSmoothingMode( SmoothingModeAntiAlias );
-			staticImage->hdc = metaGraphics->GetHDC();				
-			(*Gauge::d->originalGaugeCallback)( Gauge::d->gaugeHeader, service_id, extra_data );
-			metaGraphics->ReleaseHDC( staticImage->hdc );
-			delete metaGraphics;
-			staticImage->hdc = origHdc;
-			origHdc = (HDC)0x204c5047;
-			
-			// display metafile
-			/*Graphics graphics( staticImage->hdc );
-			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
-			graphics.DrawImage( &metafile, 0, 0 );*/
-			
-			// save metafile for later sending
-			HGLOBAL hmem;
-			GetHGlobalFromStream( stream, &hmem );
-			stream->Release();
-			if( Gauge::d->minimumMetafileSize<0 )
-				Gauge::d->minimumMetafileSize = configIntValue( "metafileminimum", 500 );
-			if( GlobalSize(hmem)>Gauge::d->minimumMetafileSize ) {
-				compressor->close( new GlobalMem(hmem) );
-			} else {
-				compressor->close( 0 );
-				GlobalFree( hmem );
-			}
-				 
-			LeaveCriticalSection( &Gauge::d->cs );
-
-			// draw again for local display
-			(*Gauge::d->originalGaugeCallback)( Gauge::d->gaugeHeader, service_id, extra_data );
-
-			return;
-		}				
-		LeaveCriticalSection( &Gauge::d->cs );
-	} break;
-
-	case PANEL_SERVICE_DISCONNECT:
-		GdiplusShutdown(Gauge::d->gdiplusToken);
-		break;
-		
-	default:
-		break;
-	}
-	
-	// call inherited callback
-	Gauge::callback( pgauge, service_id, extra_data );
-}
-
-
-/**************************************************************************/
-
-
-GaugeViewer::GaugeViewer( MulticrewGauge *mgauge, int id ) 
+MetafileGauge::MetafileGauge( GaugeModule *mgauge, int id, int metafileElement,
+							  SmartPtr<MetafileCompressor> compressor,
+							  SmartPtr<MetafileDecompressor> decompressor ) 
 	: Gauge( mgauge, id ) {
+	md = new Data;
+	md->metafileElement = metafileElement;	
+	md->metafileCounter = -1;
+	md->compressor = compressor;
+	md->decompressor = decompressor;
 }
 
 
-GaugeViewer::~GaugeViewer() {
+MetafileGauge::~MetafileGauge() {
+	delete md;
 }
 
 
-Element *GaugeViewer::createElement( int id, PELEMENT_HEADER pelement ) {
-	Element *el = 0;
-
-	switch( pelement->element_type ) {
-	case ELEMENT_TYPE_ICON: el = new IconViewer( id, *this ); break;	
-	case ELEMENT_TYPE_NEEDLE: el = new NeedleViewer( id, *this ); break;
-	case ELEMENT_TYPE_STRING: el = new StringViewer( id, *this ); break;
-	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticViewer( id, *this ); break;
-	default: break;
-	}
-
-	return el;
-}
-
-
-BOOL GaugeViewer::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
-	dout << "mouseCallback for " << d->name 
-		 << " num=" << mouseRectNum << std::endl;
-
-	// append mouse event to d->mouseEvents which is sent during the 
-    // next sendProc call
-	EnterCriticalSection( &d->cs );
-	if( !d->swallowMouse ) {
-		// the pix is a MOUSECALLBACK structure in fact. Look into GAUGES.H.
-		// that's Microsoft's coding practise ;-)
-		PMOUSECALLBACK mc = (PMOUSECALLBACK)pix;
-
-		// create MouseStruct data
-		MouseStruct ms;
-		ms.mouseRectNum = mouseRectNum;
-		ms.relX = mc->relative_point.x*1.0f/d->gaugeHeader->size.x;
-		ms.relY = mc->relative_point.y*1.0f/d->gaugeHeader->size.y;
-		ms.scrX = mc->screen_point.x*1.0f/d->gaugeHeader->size.x;
-		ms.scrY = mc->screen_point.y*1.0f/d->gaugeHeader->size.y;
-		ms.flags = flags;
-
-		// send MouseStruct packet
-		d->mgauge->send( 
-			id(), 
-			new GaugePacket(
-				mousePacket,
-				new MousePacket(ms)), 
-			false, // safe
-			Connection::highPriority,
-			true ); // async		
-	}
-	LeaveCriticalSection( &d->cs );
-	
-	return FALSE;
-}
-
-
-/**************************************************************************/
-
-
-GaugeMetafileViewer::GaugeMetafileViewer( MulticrewGauge *mgauge, int id, 
-										  int metafileElement,
-										  SmartPtr<MetafileDecompressor> decompressor ) 
-	: GaugeViewer( mgauge, id ) {
-	d->metafileElement = metafileElement;	
-	d->metafileCounter = -1;
-	this->decompressor = decompressor;
-}
-
-
-GaugeMetafileViewer::~GaugeMetafileViewer() {
-}
-
-
-void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
+void MetafileGauge::callback( PGAUGEHDR pgauge, SINT32 service_id, 
+							  UINT32 extra_data ) {
 	// do work of callback
 	switch (service_id) {
 	case PANEL_SERVICE_POST_INSTALL:
@@ -751,41 +621,107 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 		break;
 		
 	case PANEL_SERVICE_PRE_DRAW: {
-		// display
-		EnterCriticalSection( &d->cs );
-		SmartPtr<GlobalMem> lastMetafile = decompressor->lastMetafile();
-		if( d->elements.size()>d->metafileElement && 
-			d->elements[d->metafileElement] && 
-			!lastMetafile.isNull() &&
-			d->metafileCounter!=decompressor->counter() ) {
-			//dout << "draw metafile" << std::endl;
-
-			// don't show same again
-			d->metafileCounter =  decompressor->counter();
-
-			// get element to draw onto
-			Element *element = d->elements[d->metafileElement];
-			PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
-			PPIXPOINT dim = &staticImage->image_data.final->dim;
-			
-			// create stream
-			IStream *stream;
-			CreateStreamOnHGlobal( lastMetafile->handle(), FALSE, &stream );			
-			Metafile metafile( stream );
-					
-			// display metafile		
-			Graphics graphics( staticImage->hdc );
-			Color black;
-			graphics.Clear( black );
-			graphics.SetSmoothingMode( SmoothingModeAntiAlias );
-			graphics.SetTextRenderingHint( TextRenderingHintAntiAlias );
-			graphics.DrawImage( &metafile, 0, 0,
-								dim->x, dim->y );			
-			stream->Release();
-			SET_OFF_SCREEN( staticImage );
+		switch( d->core->mode() ) {
+		case MulticrewCore::IdleMode: break;
+		case MulticrewCore::HostMode:
+		{
+			// record metafile for gauge output
+			EnterCriticalSection( &d->cs );
+			if( d->elements.size()>md->metafileElement && 
+				d->elements[md->metafileElement] && 
+				md->compressor->open() ) {
+				Element *element = d->elements[md->metafileElement];
+				PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
+				
+				// create memory stream
+				IStream *stream;
+				CreateStreamOnHGlobal( NULL, FALSE, &stream );
+				
+				// create metafile
+				RectF bounds( 0, 0, 
+							  staticImage->image_data.final->dim.x,
+							  staticImage->image_data.final->dim.y );
+				Metafile metafile( stream, staticImage->hdc, 
+								   bounds, MetafileFrameUnitPixel,
+								   EmfTypeEmfPlusOnly );
+				
+				// let gauge draw to metafile
+				HDC origHdc = staticImage->hdc;
+				Graphics *metaGraphics = new Graphics( &metafile );
+				metaGraphics->SetSmoothingMode( SmoothingModeAntiAlias );
+				staticImage->hdc = metaGraphics->GetHDC();				
+				(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
+				metaGraphics->ReleaseHDC( staticImage->hdc );
+				delete metaGraphics;
+				staticImage->hdc = origHdc;
+				origHdc = (HDC)0x204c5047;
+				
+				// display metafile
+				/*Graphics graphics( staticImage->hdc );
+				  graphics.SetSmoothingMode( SmoothingModeAntiAlias );
+				  graphics.DrawImage( &metafile, 0, 0 );*/
+				
+				// save metafile for later sending
+				HGLOBAL hmem;
+				GetHGlobalFromStream( stream, &hmem );
+				stream->Release();
+				if( md->minimumMetafileSize<0 )
+					md->minimumMetafileSize = configIntValue( "metafileminimum", 500 );
+				if( GlobalSize(hmem)>md->minimumMetafileSize ) {
+					md->compressor->close( new GlobalMem(hmem) );
+				} else {
+					md->compressor->close( 0 );
+					GlobalFree( hmem );
+				}
+				
+				LeaveCriticalSection( &d->cs );
+				
+				// draw again for local display
+				(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
+				
+				return;
+			}				
+			LeaveCriticalSection( &d->cs );
+		} break;
+		case MulticrewCore::ClientMode:
+		{
+            // display
+			EnterCriticalSection( &d->cs );
+			SmartPtr<GlobalMem> lastMetafile = md->decompressor->lastMetafile();
+			if( d->elements.size()>md->metafileElement && 
+				d->elements[md->metafileElement] && 
+				!lastMetafile.isNull() &&
+				md->metafileCounter!=md->decompressor->counter() ) {
+				//dout << "draw metafile" << std::endl;
+				
+				// don't show same again
+				md->metafileCounter =  md->decompressor->counter();
+				
+				// get element to draw onto
+				Element *element = d->elements[md->metafileElement];
+				PELEMENT_STATIC_IMAGE staticImage = (PELEMENT_STATIC_IMAGE)element->elementHeader();
+				PPIXPOINT dim = &staticImage->image_data.final->dim;
+				
+				// create stream
+				IStream *stream;
+				CreateStreamOnHGlobal( lastMetafile->handle(), FALSE, &stream );			
+				Metafile metafile( stream );
+				
+				// display metafile		
+				Graphics graphics( staticImage->hdc );
+				Color black;
+				graphics.Clear( black );
+				graphics.SetSmoothingMode( SmoothingModeAntiAlias );
+				graphics.SetTextRenderingHint( TextRenderingHintAntiAlias );
+				graphics.DrawImage( &metafile, 0, 0,
+									dim->x, dim->y );			
+				stream->Release();
+				SET_OFF_SCREEN( staticImage );
+			}
+			LeaveCriticalSection( &d->cs );
+			return;
+		} break;
 		}
-		LeaveCriticalSection( &d->cs );
-		return;
 	} break;
 
 	case PANEL_SERVICE_DISCONNECT:
@@ -795,6 +731,7 @@ void GaugeMetafileViewer::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 
 	default:
 		break;
 	}
-
-	GaugeViewer::callback( pgauge, service_id, extra_data );
+	
+	// call inherited callback
+	Gauge::callback( pgauge, service_id, extra_data );
 }

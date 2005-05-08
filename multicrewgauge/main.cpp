@@ -22,9 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <string>
 #include <deque>
+#include <map>
 
 #include "gauges.h"
 #include "multicrewgauge.h"
+#include "apihijack.h"
 #include "../multicrewcore/streams.h"
 #include "../multicrewcore/config.h"
 #include "../multicrewcore/log.h"
@@ -32,162 +34,241 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/multicrewcore.h"
 
 
-// prototypes
-void FSAPI	module_init(void);
-void FSAPI	module_deinit(void);
+GAUGESLINKAGE Linkage = {														
+	0x00000013,											
+	0,
+	0,
+	0,													
+	0,													
+	FS9LINK_VERSION, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+};
 
-// variables	
-GAUGESIMPORT ImportTable =
-{														
-	{ 0x0000000F, (PPANELS)NULL },						
-	{ 0x00000000, NULL }								
-};													
-															   
-GAUGESLINKAGE	Linkage =								
-	{														
-			0x00000013,											
-			module_init,										
-			module_deinit,										
-			0,													
-			0,													
-			FS9LINK_VERSION, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-							   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
-		};
-
-HMODULE gInstance = NULL;
-static HMODULE gGaugeLibrary = NULL;
-static GAUGESLINKAGE *gGaugeLinkage = NULL;
-static GAUGESIMPORT *gGaugeImportTable = NULL;
-static std::deque<PGAUGE_CALLBACK> gOldCallbacks;
-static SmartPtr<MulticrewGauge> mg;
+SmartPtr<MulticrewCore> core;
+GAUGESIMPORT ImportTable;
 
 
-//////////////////////////////////////////////
-// Code
-//////////////////////////////////////////////
+/*******************************************************************/
+class ModuleLoader : public Shared {
+public:
+	ModuleLoader( GAUGESLINKAGE *gaugeLinkage, std::string name );
+	virtual ~ModuleLoader();
 
-void FSAPI module_init( void ) {
-	// debug
-	dout << "gInstance=" << (int)gInstance << std::endl;
-	dout << Linkage.ModuleID << std::endl;	
+	GAUGESLINKAGE *linkage() {
+		return gaugeLinkage;
+	}
+
+	VoidCallbackAdapter<ModuleLoader> moduleInitCallback;
+	VoidCallbackAdapter<ModuleLoader> moduleDeinitCallback;
+
+private:
+	void module_init();
+	void module_deinit();
 	
-	// get gauge name that should be externalized 
-	// (if the dll is called "multicrewcfoobar.gau", the externalized 
-	// gauge is "foobar" in client mode, in the case of "multicrewhfoobar"
-	// the host mode is used.
-	TCHAR dllPathBuf[1024];
-	GetModuleFileName( gInstance, dllPathBuf, 1024 );
-	std::string dllPath( dllPathBuf );
-	size_t filenameStart = dllPath.rfind( "\\", dllPath.length() )+1;
-	std::string filename = dllPath.substr( filenameStart+10, dllPath.length()-filenameStart-10 );  // remove "...\multicrew"
-	std::string path = dllPath.substr( 0, filenameStart );
-	std::string prefix = dllPath.substr( filenameStart, 10 );
-	std::string gaugeModule = filename.substr( 0, filename.length()-4 ); // remove ".gau"
-	dout << "prefix=" << prefix << std::endl;
+	GAUGESLINKAGE *gaugeLinkage;
+	SmartPtr<GaugeModule> mg;
+	void (__stdcall *oldModuleInit)();
+	void (__stdcall *oldModuleDeinit)();
+	std::deque<PGAUGE_CALLBACK> oldCallbacks;
+	std::string name;
+};
 
-	// choose host or client mode
-	if( prefix[9]=='h' )
-		mg = new MulticrewGauge( true, gaugeModule );
-	else
-		mg = new MulticrewGauge( false, gaugeModule );
-	bool ret = mg->init();
-	if( !ret ) {
-		dout << "Skip rest of initialization of \"" << prefix+filename << "\"" << std::endl;
-		return;
-	}
 
-	dlog << "Wrapping gauge library \"" << gaugeModule << "\" in " << 
-		(prefix[9]=='h'?"host mode":"client mode")
-		<< std::endl;
-	
-	// load externalized gauge
-	std::string gaugePathName( path + gaugeModule + ".gau" );
-	gGaugeLibrary = LoadLibrary( gaugePathName.c_str() );
-	if( gGaugeLibrary==NULL ) {
-		derr << "Can't load gauge \"" << gaugePathName << "\"" << std::endl;
-		return;
-	}
-
-	// get linkage
-	gGaugeLinkage = (GAUGESLINKAGE*)GetProcAddress( gGaugeLibrary, "Linkage" );
-	if( gGaugeLinkage==NULL ) {
-		derr << "Can't get Linkage for \"" << path << "\"" << std::endl;
-		return;
-	}
-
-	// setup gauge ImportTable
-	gGaugeImportTable = (GAUGESIMPORT*)GetProcAddress( gGaugeLibrary, "ImportTable" );
-	if( gGaugeImportTable==NULL ) {
-		derr << "Can't get ImportTable for \"" << path << "\"" << std::endl;
-		return;
-	}
-	memcpy( gGaugeImportTable, &ImportTable, sizeof(GAUGESIMPORT) );
-	//gGaugeImportTable->PANELSentry.fnptr->
-
-	// call module init
-	dlog << "Init gauge module \"" << gaugeModule << "\"" << std::endl; 
-	if( gGaugeLinkage->ModuleInit!=NULL ) (*gGaugeLinkage->ModuleInit)();
-
-	// setup multicrew Linkage
-	for( int i=0; gGaugeLinkage->gauge_header_ptr[i]!=0 && i<255; i++ ) {
-		dout << "Wrapping gauge \"" << gGaugeLinkage->gauge_header_ptr[i]->gauge_name << "\"" << std::endl;
-		Linkage.gauge_header_ptr[i] = gGaugeLinkage->gauge_header_ptr[i];	
-
-		// save callback
-		gOldCallbacks.push_back( gGaugeLinkage->gauge_header_ptr[i]->gauge_callback );
-
-		// install creation callback		
-		gGaugeLinkage->gauge_header_ptr[i]->user_area[9] = (FLOAT64)(int)(gGaugeLinkage->gauge_header_ptr[i]->gauge_callback);
-		gGaugeLinkage->gauge_header_ptr[i]->gauge_callback = mg->installCallback();		
-	}
-
-	// update ImportTable if changed
-	memcpy( gGaugeImportTable, &ImportTable, sizeof(GAUGESIMPORT) );
-	//gGaugeImportTable->
-
-	dlog << "Multicrew plane loaded" << std::endl;
+ModuleLoader::ModuleLoader( GAUGESLINKAGE *gaugeLinkage, std::string name ) 
+ : moduleInitCallback( this, ModuleLoader::module_init ),
+   moduleDeinitCallback( this, ModuleLoader::module_deinit ),
+   gaugeLinkage( gaugeLinkage ),
+   name( name )
+{
+	// setup linkage
+	oldModuleInit = gaugeLinkage->ModuleInit;
+	oldModuleDeinit = gaugeLinkage->ModuleDeinit;
+	gaugeLinkage->ModuleInit = moduleInitCallback.callback();
+	gaugeLinkage->ModuleDeinit = moduleDeinitCallback.callback();
 }
 
-void FSAPI module_deinit(void) {
-	// restore old callbacks, might be needed in deinit
+
+ModuleLoader::~ModuleLoader() {
+	gaugeLinkage->ModuleInit = oldModuleInit;
+	gaugeLinkage->ModuleDeinit = oldModuleDeinit;
+	delete mg;
+}
+
+
+void ModuleLoader::module_init() {
+	dout << "module_init " << name <<std::endl; 
+
+	// create gauge module
+	mg = new GaugeModule( name );
+
+	// call module init
+	if( oldModuleInit!=NULL ) (*oldModuleInit)();
+
+	// setup multicrew Linkage
+	for( int i=0; gaugeLinkage->gauge_header_ptr[i]!=0 && i<255; i++ ) {
+
+		if( gaugeLinkage->gauge_header_ptr[i]->gauge_callback==mg->installCallback() ) {
+			dout << "Skipping " << gaugeLinkage->gauge_header_ptr[i]->gauge_name
+				 << std::endl;
+			oldCallbacks.push_back( (PGAUGE_CALLBACK)(int)gaugeLinkage->gauge_header_ptr[i]->user_area[9] );
+        } else {
+			dout << "Wrapping gauge " << gaugeLinkage->gauge_header_ptr[i]->gauge_name
+				 << " at " << gaugeLinkage->gauge_header_ptr[i] 
+				 << " callback " << gaugeLinkage->gauge_header_ptr[i]->gauge_callback
+				 << " by " << (void*)mg->installCallback() << std::endl;
+
+			// save callback
+			oldCallbacks.push_back( gaugeLinkage->gauge_header_ptr[i]->gauge_callback );
+
+			// install creation callback		
+			gaugeLinkage->gauge_header_ptr[i]->user_area[9] = (FLOAT64)(int)(gaugeLinkage->gauge_header_ptr[i]->gauge_callback);
+			gaugeLinkage->gauge_header_ptr[i]->gauge_callback = mg->installCallback();
+		}
+	}
+}
+
+
+void ModuleLoader::module_deinit() {
+	dout << "module_deinit " << name <<std::endl; 
 	mg = 0;
 
-	for( unsigned i=0; i<gOldCallbacks.size(); i++ ) {
-		gGaugeLinkage->gauge_header_ptr[i]->gauge_callback = gOldCallbacks[i];
+	// restore old callbacks, might be needed in deinit
+	for( unsigned i=0; i<oldCallbacks.size(); i++ ) {
+		gaugeLinkage->gauge_header_ptr[i]->gauge_callback = oldCallbacks[i];
+	}
+	oldCallbacks.clear();
+	
+	if( oldModuleDeinit!=NULL ) (*oldModuleDeinit)();
+}
+
+
+/************************ Registry *********************************/
+CRITICAL_SECTION cs;
+std::map<HMODULE,ModuleLoader*> gLoaders;
+
+
+/******************** Hooking LoadLibraryA *************************/
+__declspec(dllexport) HMODULE WINAPI MyLoadLibraryA( IN LPCSTR lpLibFileName );
+typedef __declspec(dllexport) HMODULE WINAPI LoadLibraryType( IN LPCSTR lpLibFileName );
+__declspec(dllexport) FARPROC WINAPI MyGetProcAddress( IN HMODULE hModule, IN LPCSTR lpProcName );
+typedef __declspec(dllexport) FARPROC WINAPI GetProcAddressType( IN HMODULE hModule, IN LPCSTR lpProcName );
+__declspec(dllexport) BOOL WINAPI MyFreeLibrary( IN HMODULE hModule );
+typedef __declspec(dllexport) BOOL WINAPI FreeLibraryType( IN HMODULE hModule );
+
+
+SDLLHook Kernel32Hook = 
+{
+    "KERNEL32.DLL",
+    false, NULL,    // Default hook disabled, NULL function pointer.
+    {
+        { "LoadLibraryA", MyLoadLibraryA },
+		{ "FreeLibrary", MyFreeLibrary },
+        { NULL, NULL }
+    }
+};
+
+
+HMODULE WINAPI MyLoadLibraryA( IN LPCSTR lpLibFileName ) {
+	HMODULE ret = ((LoadLibraryType*)Kernel32Hook.Functions[0].OrigFn)(lpLibFileName);
+	dout << "LoadLibraryA(\""
+		 << lpLibFileName
+		 << "\")=" 
+		 << ret 
+		 << std::endl;
+	if( ret!=0 ) {
+		EnterCriticalSection( &cs );
+		std::string path( lpLibFileName );
+		int nameLeft = path.rfind( "\\", -1 )+1;
+		int nameRight = path.rfind( ".", path.length() );
+		int lastDirLeft = path.substr( 0, nameLeft-1 ).rfind( "\\", -1 )+1;
+		std::string lastDir = path.substr( lastDirLeft, nameLeft-lastDirLeft );
+		OutputDebugString( "last dir " );
+		OutputDebugString( lastDir.c_str() );
+		OutputDebugString( "\n" );
+		if( stricmp( lastDir.c_str(), "GAUGES\\" )==0 ) {
+			// look for ModuleLoader
+			std::map<HMODULE,ModuleLoader*>::iterator it = gLoaders.find(ret);
+			if( it!=gLoaders.end() ) {
+				// increase ref counter
+				it->second->ref();
+			} else {
+				// get linkage of gauge module			
+				GAUGESLINKAGE *gaugeLinkage = 
+					(GAUGESLINKAGE *)GetProcAddress( ret, "Linkage" );
+				
+				if( gaugeLinkage!=0 ) {
+					// get name of module
+					std::string name = path.substr( nameLeft, nameRight-nameLeft );
+					dlog << "Wrapping " << name << std::endl;
+					
+					// create loader object
+					gLoaders[ret] = new ModuleLoader( gaugeLinkage, name );
+					gLoaders[ret]->ref();
+					OutputDebugString( "ModuleLoader created\n" );
+				}
+			}
+		}
+		LeaveCriticalSection( &cs );
 	}
 
-	dout << "ModuleDeinit" << std::endl;
-	if( gGaugeLinkage!=NULL ) {
-		if( gGaugeLinkage->ModuleDeinit!=NULL ) (*gGaugeLinkage->ModuleDeinit)();
-		gGaugeLinkage = NULL;
-	}
+	return ret;
+}
 
-	dout << "FreeLibrary" << std::endl;
-	if( gGaugeLibrary!=NULL ) {
-		FreeLibrary( gGaugeLibrary );
-		gGaugeLibrary = NULL;
+
+BOOL WINAPI MyFreeLibrary( IN HMODULE hModule ) {
+	dout << "FreeLibrary(\""
+		 << hModule
+		 << "\")\n"
+		 << std::endl;
+
+	EnterCriticalSection( &cs );
+	std::map<HMODULE,ModuleLoader*>::iterator it = gLoaders.find(hModule);
+	if( it!=gLoaders.end() ) {
+		// decrease ref counter and possibly delete entry in loader table
+		int refCount = it->second->deref();
+		if( refCount==0 ) gLoaders.erase( it );
 	}
-}						
+	LeaveCriticalSection( &cs );
+	
+	return ((FreeLibraryType*)Kernel32Hook.Functions[1].OrigFn)(hModule);	
+}
 		
+
 BOOL WINAPI DllMain (HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)	{
-	gInstance = hDLL;
-	return TRUE;
-}														
+	switch (dwReason) {
+	case DLL_PROCESS_ATTACH:
+	{
+		InitializeCriticalSection( &cs );
+		core = MulticrewCore::multicrewCore();
+		HookDll( &Kernel32Hook );
+		OutputDebugString( "hooked\n" );
+	} break;
+	case DLL_THREAD_ATTACH:
+		break;
+	case DLL_THREAD_DETACH:
+		break;
+	case DLL_PROCESS_DETACH:
+		core = 0;
+		DeleteCriticalSection( &cs );
+		break;
+	}
+    return TRUE;
+}

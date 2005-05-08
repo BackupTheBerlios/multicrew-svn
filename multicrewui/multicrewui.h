@@ -17,7 +17,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+
+#ifndef MULTICREWUI_H_INCLUDED
+#define MULTICREWUI_H_INCLUDED
+
+#include "common.h"
 #include "resource.h"
+#include "../multicrewcore/multicrewcore.h"
+
 
 class MulticrewUI {
 public:
@@ -28,20 +35,23 @@ public:
 	void connect();
 	void disconnect();
 	void status();
+	void start();
 	void log();
 	void async();
 
 	HMENU newMenu();
 
 private:
+	void updateMenu();
+	void disconnected();
+	void logged( const char *line );
+	void asyncSlot();
+	void modeChanged( MulticrewCore::Mode newMode );
+
 	struct Data;
 	friend Data;
 	Data *d;
-
-	void updateMenu();
-	void disconnected();
-	void planeRegistered();
-	void planeUnregistered();
-	void logged( const char *line );
-	void asyncSlot();
 };
+
+
+#endif

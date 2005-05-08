@@ -25,19 +25,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 class FsuipcModule : public MulticrewModule {
  public:
-	FsuipcModule( bool hostMode );
+	FsuipcModule();
 	virtual ~FsuipcModule();
 
+	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
+	virtual void sendFullState();
+	
+ private:
+	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );	
 	virtual void handlePacket( SmartPtr<PacketBase> packet );
 	virtual void sendProc();
-	virtual void sendFullState();
 
-	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
-	
- protected:
-	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );	
-
- private:
 	struct Data;
 	friend Data;
 	Data *d;	

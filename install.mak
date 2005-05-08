@@ -1,4 +1,4 @@
-all: install
+all: local-install
 
 cfg=$(OUTDIR)
 fs=d:\fs9
@@ -6,18 +6,9 @@ remotefs=m:
 gauge1=PMDG_737NG_Main
 gauge2=PMDG_737NG_OHD_HYDRAULIC
 
-prepare-gauge: prepare-gauge-stamp
-prepare-gauge-stamp: prepare gauge TCAS2v7.dll
-	cd $(fs)
-	multicrewpanelprepare Aircraft\PMDG737-700\panel\Panel.CFG
-#petite -r* multicrewPMDG_737NG_Main.dll
-#del multicrewPMDG_737NG_Main.dll.bak
-	cd $(MAKEDIR)
-	echo > prepare-gauge-stamp
-
 gauge: gauge-stamp
 gauge-stamp: multicrewgauge\$(cfg)\multicrewgauge.dll
-	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(fs)\multicrew
+	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(fs)
 	echo > gauge-stamp
 	
 ui: ui-stamp
@@ -30,14 +21,8 @@ core-stamp: multicrewcore\$(cfg)\multicrewcore.dll
 	copy multicrewcore\$(cfg)\multicrewcore.dll $(fs)
 	echo > core-stamp
 
-prepare: prepare-stamp
-prepare-stamp: multicrewprepare\$(cfg)\multicrewprepare.exe multicrewprepare\$(cfg)\multicrewpanelprepare.exe
-	copy multicrewprepare\$(cfg)\multicrewprepare.exe $(fs)
-	copy multicrewprepare\$(cfg)\multicrewpanelprepare.exe $(fs)
-	echo > prepare-stamp
-
 remote-gauge: remote-gauge-stamp
-remote-gauge-stamp: prepare-gauge gauge
+remote-gauge-stamp: gauge
 	copy $(fs)\gauges\multicrew*.gau $(remotefs)\gauges
 	echo > remote-gauge-stamp
 	
@@ -52,7 +37,7 @@ remote-core-stamp: multicrewcore\$(cfg)\multicrewcore.dll
 	echo > remote-core-stamp
 
 remote-install: remote-core remote-gauge remote-ui
-local-install: core gauge ui core prepare prepare-gauge
+local-install: core gauge ui core
 
 install: local-install remote-install
 

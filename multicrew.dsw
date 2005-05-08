@@ -57,13 +57,10 @@ Package=<5>
 Package=<4>
 {{{
     Begin Project Dependency
-    Project_Dep_Name multicrewcore
-    End Project Dependency
-    Begin Project Dependency
-    Project_Dep_Name multicrewprepare
-    End Project Dependency
-    Begin Project Dependency
     Project_Dep_Name stlplus
+    End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name multicrewcore
     End Project Dependency
 }}}
 

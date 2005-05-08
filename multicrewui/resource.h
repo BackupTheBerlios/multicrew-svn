@@ -21,3 +21,4 @@
 #define ID_STATUS_MENUITEM 49005
 #define ID_LOG 49006
 #define ID_ASYNC 49007
+

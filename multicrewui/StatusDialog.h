@@ -41,8 +41,6 @@ private:
 	Data *d;
 	
 	void VwXinit();
-	void planeRegistered();
-	void planeUnregistered();
 
 	DECLARE_EVENT_TABLE()  
 

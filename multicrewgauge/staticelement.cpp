@@ -33,22 +33,3 @@ StaticElement::StaticElement( int id, Gauge &gauge )
 StaticElement::~StaticElement() {	
 	delete d;
 }
-
-/****************************************************************************************/
-
-StaticRecorder::StaticRecorder( int id, Gauge &gauge )
-	: StaticElement( id, gauge ) {
-}
-
-StaticRecorder::~StaticRecorder() {
-}
-
-
-/****************************************************************************************/
-
-StaticViewer::StaticViewer( int id, Gauge &gauge )
-	: StaticElement( id, gauge ) {
-}
-
-StaticViewer::~StaticViewer() {
-}

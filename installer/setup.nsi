@@ -94,7 +94,7 @@ Section "PMDG 737NG 600/700 (with and without upgrade)" SEC02
   File "multicrew\PMDG*.*"
 
   SetOutPath "$INSTDIR\Multicrew\.."
-  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-700\panel\Panel.CFG'
+;  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-700\panel\Panel.CFG'
 SectionEnd
 
 Section "PMDG 737NG 800/900" SEC03
@@ -103,7 +103,7 @@ Section "PMDG 737NG 800/900" SEC03
   File "multicrew\PMDG*.*"
 
   SetOutPath "$INSTDIR\Multicrew\.."
-  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-900\panel\Panel.CFG'
+;  Exec '"multicrewpanelprepare.exe" Aircraft\PMDG737-900\panel\Panel.CFG'
 SectionEnd
 
 Section -AdditionalIcons

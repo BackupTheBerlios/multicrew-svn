@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/callback.h"
 
 
+/************************ packets *****************************/
 struct NeedleStruct {
 	FLOAT64 value;
 };
@@ -31,6 +32,7 @@ struct NeedleStruct {
 typedef StructPacket<NeedleStruct> NeedlePacket;
 
 
+/**************************************************************/
 struct NeedleElement::Data {	
 	Data( NeedleElement *el ) 
 		: callbackAdapter( el, NeedleElement::callback ) {
@@ -42,6 +44,7 @@ struct NeedleElement::Data {
 	FLOAT64 oldValue;
 };
 
+
 NeedleElement::NeedleElement( int id, Gauge &gauge )
 	: Element( id, gauge ) {
 	d = new Data( this );
@@ -51,14 +54,17 @@ NeedleElement::NeedleElement( int id, Gauge &gauge )
 	d->origCallback = 0;
 }
 
+
 NeedleElement::~NeedleElement() {
 	detach();
 	delete d;
 }
 
+
 ELEMENT_NEEDLE *NeedleElement::needleHeader() { 
 	return d->needleHeader; 
 }
+
 
 void NeedleElement::attach( ELEMENT_HEADER *elementHeader ) {
 	Element::attach( elementHeader );
@@ -71,6 +77,7 @@ void NeedleElement::attach( ELEMENT_HEADER *elementHeader ) {
 		d->needleHeader->update_cb = d->callbackAdapter.callback();
 	}
 }
+
 
 void NeedleElement::detach() {
 	Element::detach();
@@ -86,51 +93,54 @@ SmartPtr<PacketBase> NeedleElement::createPacket( SharedBuffer &buffer ) {
 }
 
 
-/****************************************************************************************/
-
-NeedleRecorder::NeedleRecorder( int id, Gauge &gauge )
-	: NeedleElement( id, gauge ) {
-}
-
-NeedleRecorder::~NeedleRecorder() {
-}
-
-FLOAT64 NeedleRecorder::callback( PELEMENT_NEEDLE pelement ) {	
-	//dout << "> callback " << d->needleHeader << std::endl;
-	FLOAT64 ret = (*d->origCallback)( pelement );
-	if( ret!=d->oldValue ) {
-		//dout << "Needle callback " << d->needleHeader << ":" << this 
-		//	 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
-		d->oldValue = ret;
-		gauge().requestSend( this );
+FLOAT64 NeedleElement::callback( PELEMENT_NEEDLE pelement ) {
+	switch( core()->mode() ) {
+	case MulticrewCore::IdleMode:
+		return (*d->origCallback)( pelement );
+	case MulticrewCore::HostMode:
+	{ 
+        //dout << "> callback " << d->needleHeader << std::endl;
+		FLOAT64 ret = (*d->origCallback)( pelement );
+		if( ret!=d->oldValue ) {
+			//dout << "Needle callback " << d->needleHeader << ":" << this 
+			//	 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
+			d->oldValue = ret;
+			gauge().requestSend( this );
+		}
+		//dout << "< cal lback " << d->needleHeader << std::endl;
+		return ret;
+	} break;
+	case MulticrewCore::ClientMode:
+	{
+		FLOAT64 ret = (*d->origCallback)( pelement );
+		return d->oldValue;
+	} break;
 	}
-	//dout << "< cal lback " << d->needleHeader << std::endl;
-	return ret;
 }
 
 
-void NeedleRecorder::sendProc() {
-	NeedleStruct s;
-	s.value = d->oldValue;
-	gauge().send( id(), new NeedlePacket( s ), true );
-}
-
-/*******************************************************************************/
-
-NeedleViewer::NeedleViewer( int id, Gauge &gauge )
-	: NeedleElement( id, gauge ) {
-}
-
-NeedleViewer::~NeedleViewer() {
-}
-
-FLOAT64 NeedleViewer::callback( PELEMENT_NEEDLE pelement ) {
-	FLOAT64 ret = (*d->origCallback)( pelement );
-	return d->oldValue;
+void NeedleElement::sendProc() {
+	switch( core()->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode:
+	{
+		NeedleStruct s;
+		s.value = d->oldValue;
+		gauge().send( id(), new NeedlePacket( s ), true );
+	} break;
+	case MulticrewCore::ClientMode: break;
+	}   
 }
 
 
-void NeedleViewer::receive( SmartPtr<PacketBase> packet ) {
-	SmartPtr<NeedlePacket> ip = (NeedlePacket*)&*packet;
-	d->oldValue = ip->data().value;
+void NeedleElement::receive( SmartPtr<PacketBase> packet ) {
+	switch( core()->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode: break;
+	case MulticrewCore::ClientMode: 
+	{
+		SmartPtr<NeedlePacket> ip = (NeedlePacket*)&*packet;
+		d->oldValue = ip->data().value;
+	} break;
+	}
 }

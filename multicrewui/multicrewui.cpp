@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 
 #include <windows.h>
+#include "iostream"
 
 #include "wx/wxprec.h"
 #ifndef WX_PRECOMP
@@ -30,38 +31,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/streams.h"
 #include "../multicrewcore/signals.h"
 #include "../multicrewcore/network.h"
+#include "../multicrewcore/log.h"
+#include "../multicrewgauge/GAUGES.h"
 #include "ConnectWizard.h"
 #include "HostWizard.h"
 #include "StatusDialog.h"
 #include "multicrewui.h"
 
+
 struct MulticrewUI::Data {
 	Data( MulticrewUI *ui ) 
 		: core( MulticrewCore::multicrewCore() ),
 		  connection( __FILE__, __LINE__ ),
-		  planeRegisteredSlot( &core->planeLoaded, ui, MulticrewUI::planeRegistered ),
-		  planeUnregisteredSlot( &core->planeUnloaded, ui, MulticrewUI::planeUnregistered ),
 		  disconnectedSlot( 0, ui, MulticrewUI::disconnected ),
 		  statusDlg( NULL ),
 		  loggedSlot( &core->logged, ui, MulticrewUI::logged ),
-		  asyncSlot( &core->initAsyncCallback, ui, MulticrewUI::asyncSlot ) {		
+		  modeChangedSlot( &core->modeChanged, ui, MulticrewUI::modeChanged ),
+		  asyncSlot( &core->initAsyncCallback, ui, MulticrewUI::asyncSlot ) {
 	}
 
+	/* multicrewcore connection */
 	SmartPtr<MulticrewCore> core;
-	Slot<MulticrewUI> planeRegisteredSlot;
-	Slot<MulticrewUI> planeUnregisteredSlot;
+	Slot<MulticrewUI> asyncSlot;
+	Slot1<MulticrewUI,MulticrewCore::Mode> modeChangedSlot;
 
-	StatusDialog *statusDlg;
-	
+	/* connection handling */
 	SmartPtr<Connection> connection; 
 	Slot<MulticrewUI> disconnectedSlot;
 
+	/* log output */
 	Slot1<MulticrewUI, const char*> loggedSlot;
 	CRITICAL_SECTION loggedCritSect;
 	std::list<std::string> loggedLines;
 
-	Slot<MulticrewUI> asyncSlot;
+	/* multicrewgauge.dll */
+	HMODULE hMulticrewGauge;
 
+	/* window handling */
+	StatusDialog *statusDlg;
 	HMENU menu;
 	HWND hwnd;
 	wxWindow *mainWindow;
@@ -69,20 +76,30 @@ struct MulticrewUI::Data {
 
 
 MulticrewUI::MulticrewUI( HWND hwnd ) {
+	dout << "MulticrewUI" << std::endl;
 	d = new Data( this );
+	dout << "data created" << std::endl;
 	d->menu = 0;
 	d->hwnd = hwnd;
 	d->mainWindow= new wxWindow();
 	d->mainWindow->SetHWND( (WXHWND)hwnd );
 	d->statusDlg = new StatusDialog( d->mainWindow );
 	d->mainWindow->Enable( false );
+	d->hMulticrewGauge = 0;
 
 	InitializeCriticalSection( &d->loggedCritSect );
+	dout << "MulticrewUI finished" << std::endl;
+
+	dlog << "Loading multicrewgauge.dll" << std::endl;
+	d->hMulticrewGauge = LoadLibrary( "multicrewgauge.dll" );
 }
 
 
 MulticrewUI::~MulticrewUI() {
 	dout << "> ~MulticrewUI()" << std::endl;
+
+//	FreeLibrary( d->hMulticrewGauge );
+//	d->hMulticrewGauge = 0;
 
 	// disconnect network connections
 	if( !d->connection.isNull() ) {
@@ -100,6 +117,8 @@ MulticrewUI::~MulticrewUI() {
 	d->mainWindow->Destroy();
 	DeleteCriticalSection( &d->loggedCritSect );
 	delete d;
+
+	FreeLibrary( d->hMulticrewGauge );			
 
 #ifdef SHARED_DEBUG
 	SmartPtrBase::dumpPointers();
@@ -137,18 +156,29 @@ void MulticrewUI::host() {
 		wcstombs( password, dlg.password().c_str(), 256 );
 		char name[256];
 		wcstombs( name, dlg.sessionName().c_str(), 256 );
-		SmartPtr<Connection> con( setup.host( dlg.port(), 
-											  name,
-											  dlg.passwordEnabled(), 
-											  password ) );
+		SmartPtr<Connection> con( 
+			setup.host( dlg.port(), name, dlg.passwordEnabled(), password ) );
 		if( con.isNull() )
 			derr << "Session creation failed. Take a look at the logs to find out why." << std::endl;
 		else {
 			d->connection = con;
 			d->disconnectedSlot.connect( &d->connection->disconnected );
+
+			dlog << "Setting host mode" << std::endl;
+			d->core->setMode( MulticrewCore::HostMode );
+			dlog << "Host mode set" << std::endl;
+/*            trigger_key_event( KEY_RELOAD_PANELS, 0 );
+			  dlog << "Panel reloaded" << std::endl;*/
+
 			d->core->prepare( d->connection );
 			bool ok = d->connection->start();
 			if( !ok ) {
+				dlog << "Setting mode to idle" << std::endl;	
+				d->core->setMode( MulticrewCore::IdleMode );
+				dlog << "Idle mode set" << std::endl;
+/*				trigger_key_event( KEY_RELOAD_PANELS, 0 );
+				dlog << "Panel reloaded" << std::endl;*/
+
 				d->core->unprepare();
 				d->connection->disconnect();
 				d->connection = 0;
@@ -176,6 +206,13 @@ void MulticrewUI::connect() {
 	if( !ret.isNull() ) {
 		d->connection = ret;
 		d->disconnectedSlot.connect( &d->connection->disconnected );
+		
+		dlog << "Setting client mode" << std::endl;
+		d->core->setMode( MulticrewCore::ClientMode );
+		dlog << "Client mode set" << std::endl;
+		/*trigger_key_event( KEY_RELOAD_PANELS, 0 );
+		  dlog << "Panel reloaded" << std::endl;*/
+
 		d->core->prepare( d->connection );
 		d->connection->start();
 		d->statusDlg->setConnected();
@@ -196,6 +233,12 @@ void MulticrewUI::disconnect() {
 
 
 void MulticrewUI::disconnected() {
+	dlog << "Setting mode to idle" << std::endl;
+	d->core->setMode( MulticrewCore::IdleMode );
+	dlog << "Idle mode set" << std::endl;
+/*	trigger_key_event( KEY_RELOAD_PANELS, 0 );
+	dlog << "Panel reloaded" << std::endl;*/
+
 	d->connection = 0;
 	updateMenu();
 	d->statusDlg->setUnconnected();
@@ -203,14 +246,7 @@ void MulticrewUI::disconnected() {
 }
 
 
-void MulticrewUI::planeRegistered() {	
-	updateMenu();
-}
-
-
-void MulticrewUI::planeUnregistered() {
-	d->connection = 0;
-	updateMenu();
+void MulticrewUI::modeChanged( MulticrewCore::Mode newMode ) {
 }
 
 
@@ -232,8 +268,7 @@ HMENU MulticrewUI::newMenu() {
 
 void MulticrewUI::updateMenu() {
 	if( d->menu!=0 ) {
-		bool loaded = d->core->isPlaneLoaded();
-		bool hostMode = d->core->isHostMode();
+		MulticrewCore::Mode mode = d->core->mode();
 		bool connected = !d->connection.isNull();
 
 		MENUITEMINFO change;
@@ -241,13 +276,13 @@ void MulticrewUI::updateMenu() {
 		change.cbSize = sizeof(MENUITEMINFO);
 		change.fMask = MIIM_STATE;
 		
-		change.fState = (!connected && loaded && hostMode)?MFS_ENABLED:MFS_GRAYED;
+		change.fState = !connected?MFS_ENABLED:MFS_GRAYED;
 		SetMenuItemInfo( d->menu, ID_HOST_MENUITEM, FALSE, &change );
 
-		change.fState = (!connected && loaded && !hostMode)?MFS_ENABLED:MFS_GRAYED;
+		change.fState = !connected?MFS_ENABLED:MFS_GRAYED;
 		SetMenuItemInfo( d->menu, ID_CONNECT_MENUITEM, FALSE, &change );
 
-		change.fState = (connected)?MFS_ENABLED:MFS_GRAYED;
+		change.fState = connected?MFS_ENABLED:MFS_GRAYED;
 		SetMenuItemInfo( d->menu, ID_DISCONNECT_MENUITEM, FALSE, &change );
 	}
 }

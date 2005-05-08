@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "log.h"
 
 
+
+/************************************ packets ****************************/
 enum {
 	fullSendPacket=0,
 	normalInnerModulePacket
@@ -55,8 +57,6 @@ private:
     
 
 /*******************************************************************/
-
-
 struct MulticrewModule::Data {
 	Data( MulticrewModule *mod ) 
 		: con( __FILE__, __LINE__ ),
@@ -65,8 +65,6 @@ struct MulticrewModule::Data {
 
 	SmartPtr<MulticrewCore> core;
 	std::string moduleName;
-	bool hostMode;
-	bool registered;
 	SmartPtr<Connection> con;
 	SmartPtr<FileConfig> config;
 	TypedInnerModulePacketFactory innerModuleFactory;
@@ -84,48 +82,36 @@ struct MulticrewModule::Data {
 };
 
 
-MulticrewModule::MulticrewModule( std::string moduleName, bool hostMode, 
+MulticrewModule::MulticrewModule( std::string moduleName, 
 								  unsigned minSendWait ) {
 	d = new Data( this );
 	InitializeCriticalSection( &d->sendCritSect );
 	d->moduleName = moduleName;
-	d->hostMode = hostMode;
 	d->minSendWait = minSendWait;
 	d->core = MulticrewCore::multicrewCore();
-	d->registered = d->core->registerModule( this );
-
+	
 	// packet setup
 	d->packet = new ModulePacket();
 	d->packetsSending = 0;
 	d->nextPriority = Connection::lowPriority;
 	d->nextIsSafeTransmission = false;
+
+	MulticrewCore::multicrewCore()->registerModule( this );
 }
 
 
 MulticrewModule::~MulticrewModule() {
 	dout << "~MulticrewModule()" << std::endl;
-	disconnect();
-
-	// unregister from core
-	if( d->registered ) MulticrewCore::multicrewCore()->unregisterModule( this );
+	disconnect();	
+	MulticrewCore::multicrewCore()->unregisterModule( this );
 
 	DeleteCriticalSection( &d->sendCritSect );
 	delete d;
 }
 
 
-bool::MulticrewModule::registered() {
-	return d->registered;
-}
-
-
 std::string MulticrewModule::moduleName() {
 	return d->moduleName;
-}
-
-
-bool MulticrewModule::isHostMode() {
-	return d->hostMode;
 }
 
 

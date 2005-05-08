@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shared.h" 
 
 
+/*********************************** output streams **********************/
 std::string formatError( HRESULT hr ) {
 	char *buf;
 	FormatMessage(
@@ -64,13 +65,12 @@ BOOL APIENTRY DllMain( HANDLE hModule,
                        LPVOID lpReserved
 					 )
 {
-	switch (ul_reason_for_call)
-	{
+	switch (ul_reason_for_call) {
 	case DLL_PROCESS_ATTACH:
 	{
 		OutputDebugString( "core attach\n" );
 		InitializeCriticalSection( &ostreamCritSec );
-
+		
 #ifdef _DEBUG
         // Get current flag
 		int tmpFlag = _CrtSetDbgFlag( _CRTDBG_REPORT_FLAG );

@@ -24,40 +24,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 class PositionModule : public MulticrewModule {
  public:
-	PositionModule( bool hostMode );
+	PositionModule();
 	virtual ~PositionModule();
 
-	virtual void handlePacket( SmartPtr<PacketBase> packet ) {}
 	virtual void sendFullState();
 
- protected:
+ private:
 	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );
-
- private:
-	struct Data;
-	friend Data;
-	Data *d;	
-};
-
-class PositionHostModule : public PositionModule {
- public:
-	PositionHostModule();
-	virtual ~PositionHostModule();
-
- private:
 	virtual void sendProc();
-
-	struct Data;
-	friend Data;
-	Data *d;	
-};
-
-class PositionClientModule : public PositionModule {
- public:
-	PositionClientModule();
-	virtual ~PositionClientModule();
-
- private:
 	virtual void handlePacket( SmartPtr<PacketBase> packet );
 
 	struct Data;

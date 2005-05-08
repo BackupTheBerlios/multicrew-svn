@@ -39,55 +39,69 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WAITTIME 500
 
 
+/****************************************************************************/
+class MetafileChannel {
+public:
+	MetafileChannel( SmartPtr<MetafileCompressor> compressor,
+					 SmartPtr<MetafileDecompressor> decompressor ) 
+		: compressor(compressor),
+		  decompressor(decompressor) {
+	}
+
+	SmartPtr<MetafileCompressor> compressor;
+	SmartPtr<MetafileDecompressor> decompressor;
+};
+
+
+/******************************* packets *******************************/
+
 typedef TypedPacket<unsigned, PacketBase> RoutedPacket;
 
 
 class RoutedPacketFactory : public TypedPacketFactory<unsigned,PacketBase> {
 public:
 	RoutedPacketFactory( std::deque<Gauge *> &gauges, 
-						 std::deque<SmartMetafileChannel> &metafileChannels ) 
-		: _gauges( gauges ),
-		  _metafileChannels( metafileChannels ) {
-	}
+						 std::deque<MetafileChannel> &channels )
+		: gauges( gauges ),
+		  channels( channels ) {}
 
 	virtual SmartPtr<PacketBase> createPacket( unsigned key, SharedBuffer &buffer ) {
 		// metafile or gauge packet?
 		if( key>=1000000 ) {
-			unsigned channel = key-1000000;
-			if( channel<_metafileChannels.size() )
-				return _metafileChannels[channel]->createPacket( buffer );
-			else
-				return 0;
+			if( key>=2000000 ) {
+				unsigned channel = key-2000000;
+				if( channel<channels.size() )
+					return channels[channel].decompressor->createPacket( buffer );
+			} else {
+				unsigned channel = key-1000000;
+				if( channel<channels.size() )
+					return channels[channel].compressor->createPacket( buffer );
+			}
 		} else {
-			if( key<_gauges.size() )
-				return _gauges[key]->createPacket( buffer );
-			else
-				return 0;
+			if( key<gauges.size() ) return gauges[key]->createPacket( buffer );
 		}
+
+		return 0;					
 	}
 
 private:
-	std::deque<Gauge *> &_gauges;
-	std::deque<SmartMetafileChannel> &_metafileChannels;
+	std::deque<Gauge *> &gauges;
+	std::deque<MetafileChannel> &channels;
 };
 
 
-
+/****************************************************************************/
 typedef std::list<Gauge*> GaugeList;
-struct MulticrewGauge::Data {
-	Data( MulticrewGauge *mg )
-		: installCallbackAdapter( mg, MulticrewGauge::installGauge ),
-		  packetFactory( gauges, metafileChannels ) {
-	}
+struct GaugeModule::Data {
+	Data( GaugeModule *mg )
+		: installCallbackAdapter( mg, GaugeModule::installGauge ),
+		  packetFactory( gauges, metafileChannels ) {}
 
-	virtual ~Data() {
-	}
-
-	VoidCallbackAdapter3<MulticrewGauge, PGAUGEHDR, SINT32, UINT32> installCallbackAdapter;
+	VoidCallbackAdapter3<GaugeModule, PGAUGEHDR, SINT32, UINT32> installCallbackAdapter;
 
 	SmartPtr<MulticrewCore> core;
 	std::deque<Gauge*> gauges;
-	std::deque<SmartMetafileChannel> metafileChannels;
+	std::deque<MetafileChannel> metafileChannels;
 	std::map<std::string, GaugeList*> detachedGauges;
 	RoutedPacketFactory packetFactory;
 	std::set<Gauge*> sendRequests;
@@ -95,15 +109,15 @@ struct MulticrewGauge::Data {
 };
 
 
-MulticrewGauge::MulticrewGauge( bool hostMode, std::string moduleName )
-	: MulticrewModule( moduleName, hostMode, WAITTIME ) {
+GaugeModule::GaugeModule( std::string moduleName )
+	: MulticrewModule( moduleName, WAITTIME ) {
 	d = new Data( this );
 	d->core = MulticrewCore::multicrewCore();
 	d->nextIsFullSend = false;
 }
 
 
-MulticrewGauge::~MulticrewGauge() {
+GaugeModule::~GaugeModule() {
 	// stop the parent class thread which might call stepProc otherwise
 	// which depends on this->d
 	disconnect();
@@ -122,18 +136,7 @@ MulticrewGauge::~MulticrewGauge() {
 }
 
 
-bool MulticrewGauge::init() {
-	// register with core
-	if( !registered() ) {
-		dout << "MulticrewGauge init failed" << std::endl;
-		return false;
-	}
-
-	return true;
-}
-
-
-bool MulticrewGauge::configBoolValue( PGAUGEHDR pgauge, const std::string &key, bool def ) {
+bool GaugeModule::configBoolValue( PGAUGEHDR pgauge, const std::string &key, bool def ) {
 	// first look in [name!parameter], then in [name], then def
 	std::string name = pgauge->gauge_name;
 	std::string parameters;
@@ -145,7 +148,7 @@ bool MulticrewGauge::configBoolValue( PGAUGEHDR pgauge, const std::string &key, 
 }
 
 
-int MulticrewGauge::configIntValue( PGAUGEHDR pgauge, const std::string &key, int def ) {
+int GaugeModule::configIntValue( PGAUGEHDR pgauge, const std::string &key, int def ) {
 	// first look in [name!parameter], then in [name], then def
 	std::string name = pgauge->gauge_name;
 	std::string parameters;
@@ -161,10 +164,15 @@ int MulticrewGauge::configIntValue( PGAUGEHDR pgauge, const std::string &key, in
  * Register gauge by creating a Gauge object. But not before
  * PREINSTALL, because the parameter isn't before
  */
-void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
+void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
+	dout << "installGauge "
+		 << "\"" << moduleName() << "\"" 
+		 << "/" << pgauge->gauge_name
+		 << " user_area[9]=" 
+		 << (void*)(int)pgauge->user_area[9] << std::endl;
 	// call old callback
 	if( (int)(pgauge->user_area[9])!=0 )
-		((PGAUGE_CALLBACK)(int)(pgauge->user_area[9]))( pgauge, service_id, extra_data );	
+		((PGAUGE_CALLBACK)(int)(pgauge->user_area[9]))( pgauge, service_id, extra_data );
 
 	if( service_id==PANEL_SERVICE_POST_INSTALL ) {
 		/*if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 )
@@ -184,41 +192,27 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 			int element = configIntValue( pgauge, "metafileelement", 0 );
 			
 			// create new gauge
-			if( isHostMode() )
-				if( metafile>=0 ) {
-					// create enough compression channels
-					while( metafile>=d->metafileChannels.size() ) {
-						int delay = config()->intValue( "metafile", 
-														"delay"+to_string(d->metafileChannels.size()),
-														500 );
-						d->metafileChannels.push_back( 
-							new MetafileCompressor( this, delay,
-													d->metafileChannels.size() ));
-					}
+			if( metafile>=0 ) {
+				// create enough (de)compression channels
+				while( metafile>=d->metafileChannels.size() ) {
+					int delay = config()->intValue( 
+						"metafile", 
+						"delay"+to_string(d->metafileChannels.size()),
+						500 );
+					MetafileChannel channel(
+						new MetafileCompressor( this, delay, d->metafileChannels.size() ),
+						new MetafileDecompressor( this, d->metafileChannels.size() ) );
+					d->metafileChannels.push_back( channel );
+				}
 						
-					// create the gauge with the associated metafile channel
-					gauge = new GaugeMetafileRecorder( 
-						this, d->gauges.size(), 
-						element,
-						(MetafileCompressor*)&*d->metafileChannels[metafile] );
-				} else
-					gauge = new GaugeRecorder( this, d->gauges.size() );
-			else
-				if( metafile>=0 ) {
-					// create enough decompression channels
-					while( metafile>=d->metafileChannels.size() ) {
-						d->metafileChannels.push_back( 
-							new MetafileDecompressor( this, 
-													  d->metafileChannels.size() ));
-					}
-
-					// create the gauge with the associated metafile channel
-					gauge = new GaugeMetafileViewer( 
-						this, d->gauges.size(), 
-						element, 
-						(MetafileDecompressor*)&*d->metafileChannels[metafile] );
-				} else
-					gauge = new GaugeViewer( this, d->gauges.size() );
+				// create the gauge with the associated metafile channel
+				gauge = new MetafileGauge( 
+					this, d->gauges.size(), 
+					element,
+					&*d->metafileChannels[metafile].compressor,
+					&*d->metafileChannels[metafile].decompressor );
+			} else
+				gauge = new Gauge( this, d->gauges.size() );
 			
 			d->gauges.push_back( gauge );
 		}
@@ -228,19 +222,29 @@ void MulticrewGauge::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 e
 }
 
 
-void MulticrewGauge::handlePacket( SmartPtr<PacketBase> packet ) {
+void GaugeModule::handlePacket( SmartPtr<PacketBase> packet ) {
 	SmartPtr<RoutedPacket> gp = (RoutedPacket*)&*packet;
 	lock();
 	
 	// metafile or gauge packet?
 	if( gp->key()>=1000000 ) {
-		// send to metafile channel
-		unsigned channel = gp->key()-1000000;
-		if( channel<d->metafileChannels.size() ) {
-			unlock();
-			d->metafileChannels[channel]->receive( gp->wrappee() );
-		} else
-			unlock();
+		if( gp->key()>=2000000 ) {
+            // send to metafile decompressor
+			unsigned channel = gp->key()-2000000;
+			if( channel<d->metafileChannels.size() ) {
+				unlock();
+				d->metafileChannels[channel].decompressor->receive( gp->wrappee() );
+			} else
+				unlock();
+		} else {
+			// send to metafile compressor
+			unsigned channel = gp->key()-1000000;
+			if( channel<d->metafileChannels.size() ) {
+				unlock();
+				d->metafileChannels[channel].compressor->receive( gp->wrappee() );
+			} else
+				unlock();
+		}
 	} else {
 		// send to gauge
 		if( gp->key()>=0 && gp->key()<d->gauges.size() ) {
@@ -253,7 +257,7 @@ void MulticrewGauge::handlePacket( SmartPtr<PacketBase> packet ) {
 }
 
 
-void MulticrewGauge::send( unsigned gauge, SmartPtr<PacketBase> packet, bool safe,
+void GaugeModule::send( unsigned gauge, SmartPtr<PacketBase> packet, bool safe,
 						   Connection::Priority prio, bool async ) {
 	if( async )
 		MulticrewModule::sendAsync( 
@@ -269,7 +273,7 @@ void MulticrewGauge::send( unsigned gauge, SmartPtr<PacketBase> packet, bool saf
 }
 
 
-void MulticrewGauge::sendMetafilePacket( unsigned channel, 
+void GaugeModule::sendMetafilePacket( unsigned channel, 
 										 SmartPtr<PacketBase> packet, 
 										 bool safe,
 										 Connection::Priority prio ) {
@@ -281,14 +285,14 @@ void MulticrewGauge::sendMetafilePacket( unsigned channel,
 }
 
 
-void MulticrewGauge::requestSend( Gauge *gauge ) {
+void GaugeModule::requestSend( Gauge *gauge ) {
 	lock();
 	d->sendRequests.insert( gauge );
 	unlock();
 }
 
 
-void MulticrewGauge::sendProc() {
+void GaugeModule::sendProc() {
 	lock();
 
 	if( d->nextIsFullSend ) {
@@ -315,17 +319,17 @@ void MulticrewGauge::sendProc() {
 }
 
 
-void MulticrewGauge::sendFullState() {
+void GaugeModule::sendFullState() {
 	d->nextIsFullSend = true;
 }
 
 
-PGAUGE_CALLBACK MulticrewGauge::installCallback() {
+PGAUGE_CALLBACK GaugeModule::installCallback() {
 	return d->installCallbackAdapter.callback();
 }
 
 
-Gauge *MulticrewGauge::getDetachedGauge( const char *name, 
+Gauge *GaugeModule::getDetachedGauge( const char *name, 
 										 const char *parameter ) {
 	// find detached gauges with this name and paramter
 	std::string detachId = std::string(name) + "§" + std::string((parameter!=NULL)?parameter:"");
@@ -341,11 +345,11 @@ Gauge *MulticrewGauge::getDetachedGauge( const char *name,
 }
 
 
-void MulticrewGauge::detached( Gauge *gauge ) {
+void GaugeModule::detached( Gauge *gauge ) {
 	std::string detachId = gauge->name() + "§" + gauge->parameter();
 	dout << "detaching " << detachId << std::endl;
 
-	// find detached gauges with this name and paramter
+	// find detached gauges with this name and parameter
 	std::map<std::string, GaugeList*>::iterator it = d->detachedGauges.find( detachId );
 	GaugeList *list;
 	if( it!=d->detachedGauges.end() )
@@ -360,7 +364,7 @@ void MulticrewGauge::detached( Gauge *gauge ) {
 }
 
 
-SmartPtr<PacketBase> MulticrewGauge::createInnerModulePacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> GaugeModule::createInnerModulePacket( SharedBuffer &buffer ) {
 	lock();
 	SmartPtr<RoutedPacket> gp = new RoutedPacket( buffer, &d->packetFactory );
 	unlock();
