@@ -1,8 +1,8 @@
-all: local-install
+all: install
 
 cfg=$(OUTDIR)
 fs=d:\fs9
-remotefs=m:
+remotefs=f:
 gauge1=PMDG_737NG_Main
 gauge2=PMDG_737NG_OHD_HYDRAULIC
 
@@ -23,7 +23,7 @@ core-stamp: multicrewcore\$(cfg)\multicrewcore.dll
 
 remote-gauge: remote-gauge-stamp
 remote-gauge-stamp: gauge
-	copy $(fs)\gauges\multicrew*.gau $(remotefs)\gauges
+	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(remotefs)
 	echo > remote-gauge-stamp
 	
 remote-ui: remote-ui-stamp

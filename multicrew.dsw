@@ -18,16 +18,10 @@ Package=<4>
     Project_Dep_Name multicrewgauge
     End Project Dependency
     Begin Project Dependency
-    Project_Dep_Name multicrewprepare
-    End Project Dependency
-    Begin Project Dependency
     Project_Dep_Name multicrewui
     End Project Dependency
     Begin Project Dependency
     Project_Dep_Name stlplus
-    End Project Dependency
-    Begin Project Dependency
-    Project_Dep_Name multicrewpanelprepare
     End Project Dependency
 }}}
 
@@ -59,39 +53,6 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name stlplus
     End Project Dependency
-    Begin Project Dependency
-    Project_Dep_Name multicrewcore
-    End Project Dependency
-}}}
-
-###############################################################################
-
-Project: "multicrewpanelprepare"=.\multicrewprepare\multicrewpanelprepare.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
-    Begin Project Dependency
-    Project_Dep_Name multicrewcore
-    End Project Dependency
-    Begin Project Dependency
-    Project_Dep_Name stlplus
-    End Project Dependency
-}}}
-
-###############################################################################
-
-Project: "multicrewprepare"=.\multicrewprepare\multicrewprepare.dsp - Package Owner=<4>
-
-Package=<5>
-{{{
-}}}
-
-Package=<4>
-{{{
     Begin Project Dependency
     Project_Dep_Name multicrewcore
     End Project Dependency

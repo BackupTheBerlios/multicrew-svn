@@ -32,6 +32,7 @@ struct Thread::Data {
 	}
 
 	HANDLE thread;
+	DWORD threadId;
 	HANDLE exitEvent;
 	HANDLE exitedEvent;
 	CallbackAdapter1<DWORD, Thread, LPVOID> threadProcAdapter;
@@ -61,7 +62,7 @@ void Thread::startThread( void *param ) {
 			d->threadProcAdapter.callback(),
 			param,
 			0,
-			NULL );
+			&d->threadId );
 		if( d->thread==NULL ) {
 			CloseHandle( d->exitEvent );
 			d->exitEvent = 0;
@@ -107,4 +108,9 @@ DWORD Thread::threadProcImpl( LPVOID param ) {
 
 bool Thread::setPriority( int priority ) {
 	return SetThreadPriority( d->thread, priority )==TRUE;
+}
+
+
+bool Thread::postThreadMessage( UINT Msg, WPARAM wParam, LPARAM lParam ) {
+	return PostThreadMessage( d->threadId, Msg, wParam, lParam )==TRUE;
 }

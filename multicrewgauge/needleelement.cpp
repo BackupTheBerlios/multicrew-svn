@@ -116,6 +116,8 @@ FLOAT64 NeedleElement::callback( PELEMENT_NEEDLE pelement ) {
 		return d->oldValue;
 	} break;
 	}
+
+	return 0.0;
 }
 
 

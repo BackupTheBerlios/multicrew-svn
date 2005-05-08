@@ -164,11 +164,7 @@ SOURCE=.\fsuipc\FSUIPC_User.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\fsuipc\IPCuser.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\fsuipc\IPCuser.h
+SOURCE=.\fsuipc\ModuleUser.c
 # End Source File
 # End Group
 # Begin Group "Ressourcendateien"

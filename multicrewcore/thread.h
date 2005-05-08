@@ -30,6 +30,7 @@ class DLLEXPORT Thread {
 	void startThread( void *param );
 	unsigned stopThread();
 	bool setPriority( int priority );
+	bool postThreadMessage( UINT Msg, WPARAM wParam, LPARAM lParam );
 
  protected:
 	virtual unsigned threadProc( void *param )=0;

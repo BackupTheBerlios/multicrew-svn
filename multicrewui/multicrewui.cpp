@@ -92,11 +92,17 @@ MulticrewUI::MulticrewUI( HWND hwnd ) {
 
 	dlog << "Loading multicrewgauge.dll" << std::endl;
 	d->hMulticrewGauge = LoadLibrary( "multicrewgauge.dll" );
+
+	startThread( 0 );
 }
 
 
 MulticrewUI::~MulticrewUI() {
 	dout << "> ~MulticrewUI()" << std::endl;
+
+	// stop ui thread
+	postThreadMessage( WM_QUIT, 0, 0 );
+	stopThread();
 
 //	FreeLibrary( d->hMulticrewGauge );
 //	d->hMulticrewGauge = 0;
@@ -124,6 +130,26 @@ MulticrewUI::~MulticrewUI() {
 	SmartPtrBase::dumpPointers();
 #endif
 	dout << "< ~MulticrewUI()" << std::endl;
+}
+
+
+unsigned MulticrewUI::threadProc( void *param ) {
+	MSG msg;
+	BOOL ret; 
+	dout << "Starting MulticrewUI thread" << std::endl;
+	while( (ret=GetMessage( &msg, NULL, 0, 0 ))!=0 ) {
+		dout << "MulticrewUI thread message " << msg.message << std::endl;
+		switch( msg.message ) {
+		case ID_DISCONNECT:
+			d->core->unprepare();
+			d->connection->disconnect();
+			break;
+        }
+		DispatchMessage(&msg); 
+	}
+	dout << "Stopping MulticrewUI thread" << std::endl;
+
+	return 0;
 }
 
 
@@ -167,8 +193,6 @@ void MulticrewUI::host() {
 			dlog << "Setting host mode" << std::endl;
 			d->core->setMode( MulticrewCore::HostMode );
 			dlog << "Host mode set" << std::endl;
-/*            trigger_key_event( KEY_RELOAD_PANELS, 0 );
-			  dlog << "Panel reloaded" << std::endl;*/
 
 			d->core->prepare( d->connection );
 			bool ok = d->connection->start();
@@ -176,14 +200,10 @@ void MulticrewUI::host() {
 				dlog << "Setting mode to idle" << std::endl;	
 				d->core->setMode( MulticrewCore::IdleMode );
 				dlog << "Idle mode set" << std::endl;
-/*				trigger_key_event( KEY_RELOAD_PANELS, 0 );
-				dlog << "Panel reloaded" << std::endl;*/
 
 				d->core->unprepare();
 				d->connection->disconnect();
 				d->connection = 0;
-				//derr << "Session start failed. Take a look at the logs to find out why." 
-				//	 << std::endl;
 			} else
 				d->statusDlg->setConnected();
 		}
@@ -210,8 +230,6 @@ void MulticrewUI::connect() {
 		dlog << "Setting client mode" << std::endl;
 		d->core->setMode( MulticrewCore::ClientMode );
 		dlog << "Client mode set" << std::endl;
-		/*trigger_key_event( KEY_RELOAD_PANELS, 0 );
-		  dlog << "Panel reloaded" << std::endl;*/
 
 		d->core->prepare( d->connection );
 		d->connection->start();
@@ -225,8 +243,7 @@ void MulticrewUI::disconnect() {
 		int ret = MessageBox(d->hwnd, "Really disconnect?", "Multicrew", 
 			MB_OKCANCEL | MB_ICONQUESTION);
 		if( ret==IDOK ) {
-			d->core->unprepare();
-			d->connection->disconnect();
+			postThreadMessage( ID_DISCONNECT, 0, 0 );
 		}
 	}
 }

@@ -317,9 +317,9 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	if( d->originalGaugeCallback!=NULL ) 
 		(*d->originalGaugeCallback)( d->gaugeHeader, service_id, extra_data );
 
-	//if( service_id>=12 ) {
-	//	dout << d->name << " " << service_id << std::endl;
-	//}
+	/*if( service_id>=12 || service_id<=5 ) {
+		dout << d->name << " " << service_id << std::endl;
+		}*/
 
 	// if a pre kill is received the plane is either closed
 	// or the panel is resized. In the latter case all gauges will be
@@ -350,8 +350,7 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	
 	// setup callback
 	d->originalGaugeCallback = d->gaugeHeader->gauge_callback;
-	if( d->originalGaugeCallback!=NULL )		
-		d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
+	d->gaugeHeader->gauge_callback = d->callbackAdapter.callback();	
 
 	// setup mouse callbacks
 	d->hookMouse = configBoolValue( "hookmouse", true );

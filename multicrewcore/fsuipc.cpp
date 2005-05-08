@@ -28,12 +28,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "log.h"
 #include "shared.h"
 
+
+char *gFsuipcErrors[] = {	
+	"Okay",
+	"Attempt to Open when already Open",
+	"Cannot link to FSUIPC or WideClient",
+	"Failed to Register common message with Windows",
+	"Failed to create Atom for mapping filename",
+	"Failed to create a file mapping object",
+	"Failed to open a view to the file map",
+	"Incorrect version of FSUIPC, or not FSUIPC",
+	"Sim is not version requested",
+	"Call cannot execute, link not Open",
+	"Call cannot execute: no requests accumulated",
+	"IPC timed out all retries",
+	"IPC sendmessage failed all retries",
+	"IPC request contains bad data",
+	"Maybe running on WideClient, but FS not running on Server, or wrong FSUIPC",
+	"Read or Write request cannot be added, memory for Process is full",
+};
+
+
+
+/***************************************************************/
 struct Fsuipc::Data {
 	CRITICAL_SECTION critSect;
+	unsigned char mem[256];
 };
 
 
 static Fsuipc *gFsuipc = 0;
+
 
 Fsuipc::Fsuipc() {
 	d = new Data;
@@ -41,8 +66,12 @@ Fsuipc::Fsuipc() {
 
 	// connect to FSUIPC
 	DWORD res;
-	if( !FSUIPC_Open( SIM_ANY, &res ) )
-		dlog << "Cannot connect to FSUIPC" << std::endl;
+	if( !FSUIPC_Open2( SIM_FS2K4, &res, d->mem, 256 ) ) {
+
+		derr << "Cannot connect to FSUIPC: " 
+			 << gFsuipcErrors[res]
+			 << std::endl;
+	}
 }
 
 
@@ -58,7 +87,7 @@ Fsuipc::~Fsuipc() {
 
 
 SmartPtr<Fsuipc> Fsuipc::fsuipc() {
-	gFsuipc = new Fsuipc();
+	if( gFsuipc==0 ) gFsuipc = new Fsuipc();
 	return gFsuipc;
 }
 

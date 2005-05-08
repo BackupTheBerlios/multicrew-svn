@@ -40,10 +40,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static MulticrewCore *multicrewCore = 0;
 
 SmartPtr<MulticrewCore> MulticrewCore::multicrewCore() {
-	if( ::multicrewCore==0 ) {
-		::multicrewCore = new MulticrewCore();
-		::multicrewCore->start();
-	}
+	if( ::multicrewCore==0 ) ::multicrewCore = new MulticrewCore();
 
 	// dout << "MulticrewCore::multicrewCore()" << std::endl;
 	return ::multicrewCore;
@@ -177,6 +174,9 @@ void MulticrewCore::log( std::string line ) {
 
 
 void MulticrewCore::prepare( SmartPtr<Connection> con ) {
+	// finally start fsuipc and position module
+	if( d->posModule.isNull() ) start();
+
 	// prepare modules for connection
 	std::map<std::string, MulticrewModule*>::iterator it = d->modules.begin();
 	while( it!=d->modules.end() ) {

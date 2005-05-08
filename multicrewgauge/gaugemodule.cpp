@@ -165,21 +165,20 @@ int GaugeModule::configIntValue( PGAUGEHDR pgauge, const std::string &key, int d
  * PREINSTALL, because the parameter isn't before
  */
 void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
-	dout << "installGauge "
-		 << "\"" << moduleName() << "\"" 
-		 << "/" << pgauge->gauge_name
-		 << " user_area[9]=" 
-		 << (void*)(int)pgauge->user_area[9] << std::endl;
 	// call old callback
 	if( (int)(pgauge->user_area[9])!=0 )
 		((PGAUGE_CALLBACK)(int)(pgauge->user_area[9]))( pgauge, service_id, extra_data );
 
 	if( service_id==PANEL_SERVICE_POST_INSTALL ) {
-		/*if( pgauge->parameters!=NULL && strlen(pgauge->parameters)>0 )
-			dout << "New gauge " << pgauge << " " << pgauge->gauge_name 
-				 <<	" with " << pgauge->parameters << " id=" << d->gauges.size() << std::endl;
-		else
-		dout << "New gauge " << pgauge << " " << pgauge->gauge_name << " id=" << d->gauges.size() << std::endl;*/
+		dout << "installGauge "
+			 << pgauge << " "
+			 << moduleName() << "/"
+			 << pgauge->gauge_name << "§"
+			 << (pgauge->parameters?pgauge->parameters:"")
+			 << " service_id=" << service_id
+			 << " id=" << d->gauges.size()
+			 << " user_area[9]=" 
+			 << (void*)(int)pgauge->user_area[9] << std::endl;
 
 		// restore old callback
 		pgauge->gauge_callback = (PGAUGE_CALLBACK)(int)(pgauge->user_area[9]);
@@ -188,6 +187,7 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 		// look for detached gauge which is to be reused
 		Gauge *gauge = getDetachedGauge( pgauge->gauge_name, pgauge->parameters );
 		if( gauge==0 ) {
+			// no detached gauge found, create new one
 			int metafile = configIntValue( pgauge, "metafile", -1 );
 			int element = configIntValue( pgauge, "metafileelement", 0 );
 			
@@ -213,8 +213,14 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 					&*d->metafileChannels[metafile].decompressor );
 			} else
 				gauge = new Gauge( this, d->gauges.size() );
+
+			dout << "Created new gauge " 
+				 << gauge << std::endl;
 			
 			d->gauges.push_back( gauge );
+		} else {
+			dout << "Reusing detached gauge " 
+				 << gauge << std::endl;
 		}
 		gauge->attach( pgauge ); 
 		unlock();
