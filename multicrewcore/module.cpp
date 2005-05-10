@@ -219,16 +219,14 @@ void MulticrewModule::connect( SmartPtr<Connection> con ) {
 
 
 void MulticrewModule::disconnect() {
-	dout << moduleName() << " disconnecting" << std::endl;
 	if( !d->con.isNull() ) {
+		dout << moduleName() << " disconnecting" << std::endl;
 		stopThread();
 		
 		// disconnect from connection
 		d->con->removeModule( this );
 		d->con = 0;
 	}
-
-	dout << moduleName() << " disconnected" << std::endl;
 }
 
 

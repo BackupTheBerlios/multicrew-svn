@@ -1,4 +1,4 @@
-all: install
+all: local-install
 
 cfg=$(OUTDIR)
 fs=d:\fs9
@@ -8,7 +8,7 @@ gauge2=PMDG_737NG_OHD_HYDRAULIC
 
 gauge: gauge-stamp
 gauge-stamp: multicrewgauge\$(cfg)\multicrewgauge.dll
-	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(fs)
+	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(fs)\multicrew
 	echo > gauge-stamp
 	
 ui: ui-stamp

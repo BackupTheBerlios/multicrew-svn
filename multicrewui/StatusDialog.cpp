@@ -34,7 +34,6 @@ struct StatusDialog::Data {
 
 	wxTextCtrl *logs;
 	wxStaticText *st4;
-	wxStaticText *st5;
 	wxCheckBox *hostConnected;
 	wxStaticText *st9;
 
@@ -61,7 +60,6 @@ StatusDialog::StatusDialog(wxWindow* parent,wxWindowID id,const wxString& title,
 StatusDialog::~StatusDialog() {
 	delete d->logs;
 	delete d->st4;
-	delete d->st5;
 	delete d->hostConnected;
 	delete d->st9;
 	delete d;

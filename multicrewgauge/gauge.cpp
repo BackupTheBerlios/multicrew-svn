@@ -152,7 +152,7 @@ void Gauge::createElements() {
 		std::stack<ELEMENT_HEADER*> todo;
 		todo.push( d->gaugeHeader->elements_list[0] );
 		int id = 0;
-		bool verbose = 	configBoolValue( "verbose", false );
+		bool verbose = configBoolValue( "verbose", false );
 		
 		while( !todo.empty() ) {
 			ELEMENT_HEADER *pelement = todo.top(); todo.pop();
@@ -162,7 +162,7 @@ void Gauge::createElements() {
 			// element not yet created?
 			if( id>=d->elements.size() )
 				d->elements.push_back( createElement( id, pelement ) );
-
+			
 			// verbose?
 			if( verbose ) {
 				std::string type = "unknown";
@@ -173,8 +173,8 @@ void Gauge::createElements() {
 				case ELEMENT_TYPE_STATIC_IMAGE: type="static"; break;
 				default: break;
 				}
-
-				dlog << "element " << id << " of type " << type << std::endl;
+				
+				dout << "gauge " << d->name << " element " << id << " of type " << type << std::endl;
 			}
 
 			// attach element
@@ -358,8 +358,9 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	if( d->gaugeHeader->mouse_rect!=0 && d->hookMouse ) {
 		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
 		int num = 0;
+		if( rect->rect_type==MOUSE_RECT_EOL ) dout << "No mouse for " << d->name << std::endl;
 	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
-            //dout << "Wrapping mouse callback for " << d->name << std::endl;
+            dout << "Wrapping mouse callback for " << d->name << std::endl;
 			d->originalMouseCallbacks.push_back( rect->mouse_function );			
 			Data::MouseCallback *callback = 
 				new Data::MouseCallback( this, 
@@ -451,6 +452,19 @@ Element *Gauge::createElement( int id, PELEMENT_HEADER pelement ) {
 
 
 BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
+    // the pix is a MOUSECALLBACK structure in fact. Look into GAUGES.H.
+	// that's Microsoft's coding practise ;-)
+	PMOUSECALLBACK mc = (PMOUSECALLBACK)pix;
+			
+	dout << "mouseCallback "
+		 << d->name
+		 << " rel=" << mc->relative_point.x
+		 << ":" << mc->relative_point.y
+		 << " screen=" << mc->screen_point.x
+		 << ":" << mc->screen_point.y
+		 << " rect=" << mouseRectNum
+		 << std::endl;
+
 	switch( d->core->mode() ) {
 	case MulticrewCore::IdleMode:
 		if( mouseRectNum<d->originalMouseCallbacks.size() && 
@@ -464,13 +478,6 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 			mouseRectNum<d->originalMouseCallbacks.size() && 
 			d->originalMouseCallbacks[mouseRectNum]!=0 ) {
 			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
-			dout << "mouseCallback " << (void*)cb 
-				 << " for " << d->name
-				 << " rel=" << ((PMOUSECALLBACK)pix)->relative_point.x
-				 << ":" << ((PMOUSECALLBACK)pix)->relative_point.y
-				 << " screen=" << ((PMOUSECALLBACK)pix)->screen_point.x
-				 << ":" << ((PMOUSECALLBACK)pix)->screen_point.y
-				 << std::endl;
 			cb( pix, flags );
 		}
 		LeaveCriticalSection( &d->cs );
@@ -479,17 +486,10 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 	} break;
 	case MulticrewCore::ClientMode:
 	{
-		dout << "mouseCallback for " << d->name 
-			 << " num=" << mouseRectNum << std::endl;
-		
 		// append mouse event to d->mouseEvents which is sent during the 
 		// next sendProc call
 		EnterCriticalSection( &d->cs );
 		if( !d->swallowMouse ) {
-			// the pix is a MOUSECALLBACK structure in fact. Look into GAUGES.H.
-			// that's Microsoft's coding practise ;-)
-			PMOUSECALLBACK mc = (PMOUSECALLBACK)pix;
-			
 			// create MouseStruct data
 			MouseStruct ms;
 			ms.mouseRectNum = mouseRectNum;

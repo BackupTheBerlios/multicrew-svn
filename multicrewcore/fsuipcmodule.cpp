@@ -137,6 +137,7 @@ struct FsuipcModule::Data {
 	typedef SmartPtr<FsuipcWatch> SmartFsuipcWatch;
 	std::deque<SmartFsuipcWatch> watches;
 	SmartPtr<Fsuipc> fsuipc;
+	SmartPtr<MulticrewCore> core;
 	bool nextIsFullSend;
 };
 
@@ -144,6 +145,7 @@ struct FsuipcModule::Data {
 FsuipcModule::FsuipcModule() 
 	: MulticrewModule( "FSUIPC", WAITTIME ) {
 	d = new Data;
+	d->core = MulticrewCore::multicrewCore();
 	d->fsuipc = Fsuipc::fsuipc();
 }
 
@@ -165,41 +167,55 @@ void FsuipcModule::sendFullState() {
 
 
 void FsuipcModule::sendProc() {
-	// let watches call read
-	d->fsuipc->begin();
-	for( int i=0; i<d->watches.size(); i++ ) {
-		d->watches[i]->update();
-	}
-	bool ok = d->fsuipc->end();
-
-	// let watches process read results
-	if( ok ) {
-		// full send?
-		bool fullSend = d->nextIsFullSend;
-
-		// next is no full send by default
-		d->nextIsFullSend = false;
-
-		// get packets from watches and send
-		for( i=0; i<d->watches.size(); i++ ) {
-			SmartPtr<FsuipcPacket> packet = d->watches[i]->process( fullSend );
-			if( !packet.isNull() ) {
-				send( &*packet, d->watches[i]->safe(), d->watches[i]->priority() );
+	switch( d->core->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode:
+	{
+		// let watches call read
+		d->fsuipc->begin();
+		for( int i=0; i<d->watches.size(); i++ ) {
+			d->watches[i]->update();
+		}
+		bool ok = d->fsuipc->end();
+		
+		// let watches process read results
+		if( ok ) {
+			// full send?
+			bool fullSend = d->nextIsFullSend;
+			
+			// next is no full send by default
+			d->nextIsFullSend = false;
+			
+			// get packets from watches and send
+			for( i=0; i<d->watches.size(); i++ ) {
+				SmartPtr<FsuipcPacket> packet = d->watches[i]->process( fullSend );
+				if( !packet.isNull() ) {
+					send( &*packet, d->watches[i]->safe(), d->watches[i]->priority() );
+				}
 			}
 		}
+	} break;
+	case MulticrewCore::ClientMode: break;
 	}
 }
 
 
 void FsuipcModule::handlePacket( SmartPtr<PacketBase> packet ) {
-	SmartPtr<FsuipcPacket> pp = (FsuipcPacket*)&*packet;
-	
-	// write variables from the FS
-	d->fsuipc->begin();
-	bool ok = d->fsuipc->write( pp->id(), pp->size(), pp->data() );
-	ok = ok && d->fsuipc->end();
-	if( !ok ) {
-		dout << "FSUIPC write error id " << pp->id() << std::endl;
+	switch( d->core->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode:
+	case MulticrewCore::ClientMode: 
+	{
+		SmartPtr<FsuipcPacket> pp = (FsuipcPacket*)&*packet;
+		
+		// write variables from the FS
+		d->fsuipc->begin();
+		bool ok = d->fsuipc->write( pp->id(), pp->size(), pp->data() );
+		ok = ok && d->fsuipc->end();
+		if( !ok ) {
+			dout << "FSUIPC write error id " << pp->id() << std::endl;
+		}
+	} break;
 	}
 }
 

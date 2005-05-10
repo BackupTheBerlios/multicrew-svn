@@ -45,9 +45,9 @@ struct MulticrewUI::Data {
 		  connection( __FILE__, __LINE__ ),
 		  disconnectedSlot( 0, ui, MulticrewUI::disconnected ),
 		  statusDlg( NULL ),
-		  loggedSlot( &core->logged, ui, MulticrewUI::logged ),
-		  modeChangedSlot( &core->modeChanged, ui, MulticrewUI::modeChanged ),
-		  asyncSlot( &core->initAsyncCallback, ui, MulticrewUI::asyncSlot ) {
+		  loggedSlot( 0, ui, MulticrewUI::logged ),
+		  modeChangedSlot( 0, ui, MulticrewUI::modeChanged ),
+		  asyncSlot( 0, ui, MulticrewUI::asyncSlot ) {
 	}
 
 	/* multicrewcore connection */
@@ -63,9 +63,6 @@ struct MulticrewUI::Data {
 	Slot1<MulticrewUI, const char*> loggedSlot;
 	CRITICAL_SECTION loggedCritSect;
 	std::list<std::string> loggedLines;
-
-	/* multicrewgauge.dll */
-	HMODULE hMulticrewGauge;
 
 	/* window handling */
 	StatusDialog *statusDlg;
@@ -85,27 +82,21 @@ MulticrewUI::MulticrewUI( HWND hwnd ) {
 	d->mainWindow->SetHWND( (WXHWND)hwnd );
 	d->statusDlg = new StatusDialog( d->mainWindow );
 	d->mainWindow->Enable( false );
-	d->hMulticrewGauge = 0;
 
 	InitializeCriticalSection( &d->loggedCritSect );
+
+	// connect signals (not earlier because some might need 
+	// completely constructed object)
+	d->loggedSlot.connect( &d->core->logged );
+	d->modeChangedSlot.connect( &d->core->modeChanged );
+	d->asyncSlot.connect( &d->core->initAsyncCallback );
+
 	dout << "MulticrewUI finished" << std::endl;
-
-	dlog << "Loading multicrewgauge.dll" << std::endl;
-	d->hMulticrewGauge = LoadLibrary( "multicrew\\multicrewgauge.dll" );
-
-	startThread( 0 );
 }
 
 
 MulticrewUI::~MulticrewUI() {
 	dout << "> ~MulticrewUI()" << std::endl;
-
-	// stop ui thread
-	postThreadMessage( WM_QUIT, 0, 0 );
-	stopThread();
-
-//	FreeLibrary( d->hMulticrewGauge );
-//	d->hMulticrewGauge = 0;
 
 	// disconnect network connections
 	if( !d->connection.isNull() ) {
@@ -124,32 +115,10 @@ MulticrewUI::~MulticrewUI() {
 	DeleteCriticalSection( &d->loggedCritSect );
 	delete d;
 
-	FreeLibrary( d->hMulticrewGauge );			
-
 #ifdef SHARED_DEBUG
 	SmartPtrBase::dumpPointers();
 #endif
 	dout << "< ~MulticrewUI()" << std::endl;
-}
-
-
-unsigned MulticrewUI::threadProc( void *param ) {
-	MSG msg;
-	BOOL ret; 
-	dout << "Starting MulticrewUI thread" << std::endl;
-	while( (ret=GetMessage( &msg, NULL, 0, 0 ))!=0 ) {
-		dout << "MulticrewUI thread message " << msg.message << std::endl;
-		switch( msg.message ) {
-		case ID_DISCONNECT:
-			d->core->unprepare();
-			d->connection->disconnect();
-			break;
-        }
-		DispatchMessage(&msg); 
-	}
-	dout << "Stopping MulticrewUI thread" << std::endl;
-
-	return 0;
 }
 
 
@@ -243,7 +212,8 @@ void MulticrewUI::disconnect() {
 		int ret = MessageBox(d->hwnd, "Really disconnect?", "Multicrew", 
 			MB_OKCANCEL | MB_ICONQUESTION);
 		if( ret==IDOK ) {
-			postThreadMessage( ID_DISCONNECT, 0, 0 );
+			d->core->unprepare();
+			d->connection->disconnect();
 		}
 	}
 }

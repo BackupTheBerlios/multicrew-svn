@@ -16,6 +16,7 @@
 #include <windows.h>
 #include "multicrewui.h"
 #include "../multicrewgauge/GAUGES.h"
+#include "../multicrewcore/thread.h"
 
 
 /************************** gauge/module linkage ****************************/
@@ -42,12 +43,87 @@ class wxDLLApp : public wxApp {
 
 IMPLEMENT_APP_NO_MAIN(wxDLLApp)
 
-MulticrewUI *ui;
 WNDPROC oldWndProc;
 HWND hFSimWindow;
-
+HINSTANCE gInstance;
 #define	MENU_ENTRY	"Multi&crew"
+LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+
+/*************************** ui thread ***************************************/
+class UIThread : public Thread {
+public:
+	UIThread() {
+		startThread( 0 );
+
+		// load multicrewgauge.dll (it mustn't be unloaded because then
+		// the hooks get invalid and might produce crashes)
+		dout << "Loading multicrewgauge.dll" << std::endl;
+		hMulticrewGauge = LoadLibrary( "multicrew\\multicrewgauge.dll" );
+	}
+
+	virtual ~UIThread() {
+		// stop ui thread
+		postThreadMessage( WM_QUIT, 0, 0 );
+		stopThread();
+	}
+
+	virtual unsigned threadProc( void *param ) {
+		// setup wx
+		wxEntry( gInstance, 0, NULL, 0, false );
+
+		// setup ui
+		dout << "Creating MulticrewUI" << std::endl;
+		ui = new MulticrewUI( hFSimWindow );
+
+		// hook FS window
+		oldWndProc = (WNDPROC)SetWindowLong( hFSimWindow, GWL_WNDPROC, (LONG)FSimWindowProc );
+
+		// thread message queue
+		MSG msg;
+		BOOL ret; 
+		dout << "Starting MulticrewUI thread" << std::endl;
+		while( (ret=GetMessage( &msg, NULL, 0, 0 ))!=0 ) {
+			dout << "MulticrewUI thread message " << msg.message << std::endl;
+			switch( msg.message ) {
+			case WM_COMMAND:
+			{
+				dout << "message was WM_COMMAND " << LOWORD(msg.wParam) << std::endl;
+				switch( LOWORD(msg.wParam) ) {
+				case ID_HOST_MENUITEM: ui->host(); break;
+				case ID_CONNECT_MENUITEM: ui->connect(); break;
+				case ID_DISCONNECT_MENUITEM: ui->disconnect(); break;
+				case ID_STATUS_MENUITEM: ui->status(); break;
+				case ID_LOG: ui->log(); break;
+				case ID_ASYNC: ui->async(); break;
+				}
+			} break;
+			}
+			DispatchMessage(&msg); 
+		}
+
+		// shutdown ui
+		dout << "Shutting down MulticrewUI" << std::endl;
+		delete ui;
+
+		// shutdown wx
+		wxGetApp().OnExit();
+		wxApp::CleanUp();
+		//wxEntryCleanup(); // crashes :(
+		//wxUninitialize();
+
+		return true;
+	}
+
+	MulticrewUI *ui;
+	HMODULE hMulticrewGauge;
+};
+
+
+UIThread *ui;
+
+
+/*****************************************************************************/
 LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uMsg) {
 		case WM_NCPAINT: {
@@ -77,32 +153,14 @@ LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				 * any access to it in the simulator.
 				 */
 				// add the created menu to the main menu
-				AppendMenu(hFSMenu, MF_STRING | MF_POPUP, (UINT_PTR)ui->newMenu(), MENU_ENTRY);		
+				AppendMenu(hFSMenu, MF_STRING | MF_POPUP, (UINT_PTR)ui->ui->newMenu(), MENU_ENTRY);		
 			}
 		}
 		break;
 		
 		case WM_COMMAND:
-			switch( LOWORD(wParam) ) {
-				case ID_HOST_MENUITEM:
-					ui->host();
-					return 0;
-				case ID_CONNECT_MENUITEM:
-					ui->connect();
-					return 0;
-				case ID_DISCONNECT_MENUITEM:
-					ui->disconnect();
-					return 0;
-				case ID_STATUS_MENUITEM:
-					ui->status();
-					return 0;
-				case ID_LOG:
-					ui->log();
-					return 0;
-				case ID_ASYNC:
-					ui->async();
-					return 0;
-			}
+			if( LOWORD(wParam)>=ID_FIRST && LOWORD(wParam)<=ID_LAST )
+				ui->postThreadMessage( uMsg, wParam, lParam );
 			break;
 	}
 
@@ -110,46 +168,28 @@ LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 	return CallWindowProc(oldWndProc, hwnd, uMsg, wParam, lParam);
 }
 
-/**
- * Entry point of the DLL.
- */
-extern "C" BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved);
-BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
-	switch (fdwReason) {
-		case DLL_PROCESS_ATTACH: {
-			dout << "DllMain MulticrewUI" << std::endl;
-			// setup wx
-			int argc = 0;
-			char **argv = new char*;
-			argv[0] = NULL;
-			
-			/*wxInitialize();
-			wxSetInstance( hInstDLL );			
-			wxEntryStart( argc, argv );*/
-			wxEntry( hInstDLL, 0, NULL, 0, false );
 
-			// find FS windows
-			hFSimWindow = FindWindow("FS98MAIN", NULL);
+/*****************************************************************************/
+BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
+	switch( fdwReason ) {
+	case DLL_PROCESS_ATTACH: {
+		OutputDebugString( "Loading MulticrewUI\n" );
+		
+		hFSimWindow = FindWindow("FS98MAIN", NULL);
+		gInstance = hInstDLL;
+		ui = new UIThread();
+		
+		OutputDebugString( "Loaded MulticrewUI\n" );
+	} break;		
+	case DLL_THREAD_ATTACH: break;
+	case DLL_THREAD_DETACH:	break;
+	case DLL_PROCESS_DETACH: {
+		OutputDebugString( "Unloading MulticrewUI\n" );
 
-			// setup ui
-			dout << "Creating MulticrewUI" << std::endl;
-			ui = new MulticrewUI( hFSimWindow );
-			dout << "Created MulticrewUI" << std::endl;
+		delete ui;			
 
-			// hook FS window
-			oldWndProc = (WNDPROC)SetWindowLong(hFSimWindow, GWL_WNDPROC, (LONG)FSimWindowProc);
-
-		} break;		
-		case DLL_PROCESS_DETACH:
-			delete ui;
-
-			// shutdown wx
-			wxGetApp().OnExit();
-			wxApp::CleanUp();
-			//wxEntryCleanup(); // crashes :(
-			//wxUninitialize();
-			break;
+		OutputDebugString( "Unloaded MulticrewUI\n" );
+	} break;
 	}
 	return TRUE;
 }

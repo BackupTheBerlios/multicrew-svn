@@ -215,8 +215,9 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 				gauge = new Gauge( this, d->gauges.size() );
 
 			dout << "Created new gauge " 
-				 << gauge << std::endl;
-			
+				 << gauge << " as id " 
+				 << d->gauges.size() << std::endl;
+		   			
 			d->gauges.push_back( gauge );
 		} else {
 			dout << "Reusing detached gauge " 

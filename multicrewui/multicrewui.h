@@ -23,10 +23,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common.h"
 #include "resource.h"
-#include "../multicrewcore/thread.h"
 #include "../multicrewcore/multicrewcore.h"
 
-class MulticrewUI : private Thread {
+class MulticrewUI {
 public:
 	MulticrewUI( HWND hwnd );
 	virtual ~MulticrewUI();	
@@ -47,7 +46,6 @@ private:
 	void logged( const char *line );
 	void asyncSlot();
 	void modeChanged( MulticrewCore::Mode newMode );
-	virtual unsigned threadProc( void *param );
 
 	struct Data;
 	friend Data;

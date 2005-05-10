@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <CRTDBG.H>
 #endif
 
+#include "streams.h"
 #include "multicrewcore.h"
 #include "streams.h"
 #include "log.h"
@@ -60,15 +61,11 @@ DLLEXPORT LogStream dlog;
 DLLEXPORT CRITICAL_SECTION ostreamCritSec;
 
 
-BOOL APIENTRY DllMain( HANDLE hModule, 
-                       DWORD  ul_reason_for_call, 
-                       LPVOID lpReserved
-					 )
-{
-	switch (ul_reason_for_call) {
-	case DLL_PROCESS_ATTACH:
-	{
-		OutputDebugString( "core attach\n" );
+BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
+	switch( fdwReason ) {
+	case DLL_PROCESS_ATTACH: {
+		OutputDebugString( "Loading MulticrewCore\n" );
+
 		InitializeCriticalSection( &ostreamCritSec );
 		
 #ifdef _DEBUG
@@ -84,15 +81,18 @@ BOOL APIENTRY DllMain( HANDLE hModule,
         // Set flag to the new value
 		_CrtSetDbgFlag( tmpFlag );
 #endif
+
+		OutputDebugString( "Loaded MulticrewCore\n" );
 	} break;
-	case DLL_THREAD_ATTACH:
-		break;
-	case DLL_THREAD_DETACH:
-		break;
-	case DLL_PROCESS_DETACH:
+	case DLL_THREAD_ATTACH: break;
+	case DLL_THREAD_DETACH:	break;
+	case DLL_PROCESS_DETACH: {
+		OutputDebugString( "Unloading MulticrewCore\n" );
+		
 		DeleteCriticalSection( &ostreamCritSec );
-		OutputDebugString( "core detach" );
-		break;
+		
+		OutputDebugString( "Unloaded MulticrewCore\n" );
+	} break;
 	}
     return TRUE;
 }

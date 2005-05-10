@@ -62,7 +62,6 @@ GAUGESLINKAGE Linkage = {
 					   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
-SmartPtr<MulticrewCore> core;
 GAUGESIMPORT ImportTable;
 
 
@@ -254,21 +253,21 @@ BOOL WINAPI MyFreeLibrary( IN HMODULE hModule ) {
 
 BOOL WINAPI DllMain (HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)	{
 	switch (dwReason) {
-	case DLL_PROCESS_ATTACH:
-	{
+	case DLL_PROCESS_ATTACH: {
+		OutputDebugString( "Loading MulticrewGauge\n" );
+		
 		InitializeCriticalSection( &cs );
-		core = MulticrewCore::multicrewCore();
 		HookDll( &Kernel32Hook );
-		OutputDebugString( "hooked\n" );
+		
+		OutputDebugString( "Loaded MulticrewGauge\n" );
 	} break;
-	case DLL_THREAD_ATTACH:
-		break;
-	case DLL_THREAD_DETACH:
-		break;
-	case DLL_PROCESS_DETACH:
-		core = 0;
-		DeleteCriticalSection( &cs );
-		break;
+	case DLL_THREAD_ATTACH: break;
+	case DLL_THREAD_DETACH: break;		
+	case DLL_PROCESS_DETACH: {
+		OutputDebugString( "Unloading MulticrewGauge\n" );
+		gLoaders.clear();
+		OutputDebugString( "Unloaded MulticrewGauge\n" );
+	} break;
 	}
     return TRUE;
 }
