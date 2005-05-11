@@ -61,11 +61,6 @@ NeedleElement::~NeedleElement() {
 }
 
 
-ELEMENT_NEEDLE *NeedleElement::needleHeader() { 
-	return d->needleHeader; 
-}
-
-
 void NeedleElement::attach( ELEMENT_HEADER *elementHeader ) {
 	Element::attach( elementHeader );
 	d->needleHeader = (ELEMENT_NEEDLE*)elementHeader;

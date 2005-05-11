@@ -250,6 +250,7 @@ void Gauge::receive( SmartPtr<PacketBase> packet ) {
 	case elementPacket: 
 	{
 		SmartPtr<ElementPacket> ep = (ElementPacket*)&*gp->wrappee();
+		dout << d->name << " received element packet for " << ep->key() << std::endl;
 		EnterCriticalSection( &d->cs );
 		if( ep->key()>=0 && ep->key()<d->elements.size() ) {
 			Element *element = d->elements[ep->key()];
@@ -259,6 +260,7 @@ void Gauge::receive( SmartPtr<PacketBase> packet ) {
 			LeaveCriticalSection( &d->cs );
 	} break;
 	case mousePacket:
+		dout << "received mouse packet" << std::endl;
 		EnterCriticalSection( &d->cs );
 		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
 		LeaveCriticalSection( &d->cs );
@@ -363,9 +365,7 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
             dout << "Wrapping mouse callback for " << d->name << std::endl;
 			d->originalMouseCallbacks.push_back( rect->mouse_function );			
 			Data::MouseCallback *callback = 
-				new Data::MouseCallback( this, 
-										 Gauge::mouseCallback, 
-										 num );
+				new Data::MouseCallback( this, Gauge::mouseCallback, num );
 			d->mouseCallbackAdapters.push_back( callback );
 			rect->mouse_function = callback->callback();
 
@@ -466,15 +466,15 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 		 << std::endl;
 
 	switch( d->core->mode() ) {
-	case MulticrewCore::IdleMode:
+	case MulticrewCore::IdleMode: {
 		if( mouseRectNum<d->originalMouseCallbacks.size() && 
 			d->originalMouseCallbacks[mouseRectNum]!=0 )
 			return d->originalMouseCallbacks[mouseRectNum]( pix, flags );
-	case MulticrewCore::HostMode:
-	{
+	} break;
+	case MulticrewCore::HostMode: {
 		EnterCriticalSection( &d->cs );
 		if( !d->swallowMouse && 
-			mouseRectNum>=0 && 
+			mouseRectNum>=0 &&
 			mouseRectNum<d->originalMouseCallbacks.size() && 
 			d->originalMouseCallbacks[mouseRectNum]!=0 ) {
 			PMOUSE_FUNCTION cb = d->originalMouseCallbacks[mouseRectNum];
@@ -484,8 +484,7 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 		
 		return TRUE;
 	} break;
-	case MulticrewCore::ClientMode:
-	{
+	case MulticrewCore::ClientMode: {
 		// append mouse event to d->mouseEvents which is sent during the 
 		// next sendProc call
 		EnterCriticalSection( &d->cs );
@@ -524,8 +523,7 @@ void Gauge::handleMouseEvents() {
 
 	switch( d->core->mode() ) {
 	case MulticrewCore::IdleMode: break;
-	case MulticrewCore::HostMode:
-	{
+	case MulticrewCore::HostMode: {
 		// handle mouse events which came in from the network
 		for( std::deque<Data::SmartMousePacket>::iterator it = d->mouseEvents.begin();
 			 it!=d->mouseEvents.end();
@@ -582,8 +580,6 @@ void Gauge::handleMouseEvents() {
 
 
 /**************************************************************************/
-
-
 struct MetafileGauge::Data {
 	int minimumMetafileSize;
 	int metafileElement;
@@ -622,8 +618,7 @@ void MetafileGauge::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	case PANEL_SERVICE_PRE_DRAW: {
 		switch( d->core->mode() ) {
 		case MulticrewCore::IdleMode: break;
-		case MulticrewCore::HostMode:
-		{
+		case MulticrewCore::HostMode: {
 			// record metafile for gauge output
 			EnterCriticalSection( &d->cs );
 			if( d->elements.size()>md->metafileElement && 
@@ -682,8 +677,7 @@ void MetafileGauge::callback( PGAUGEHDR pgauge, SINT32 service_id,
 			}				
 			LeaveCriticalSection( &d->cs );
 		} break;
-		case MulticrewCore::ClientMode:
-		{
+		case MulticrewCore::ClientMode:	{
             // display
 			EnterCriticalSection( &d->cs );
 			SmartPtr<GlobalMem> lastMetafile = md->decompressor->lastMetafile();

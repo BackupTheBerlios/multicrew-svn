@@ -52,27 +52,25 @@ IconElement::IconElement( int id, Gauge &gauge )
 	d->origCallback = 0;
 }
 
+
 IconElement::~IconElement() {
 	detach();
 	delete d;
 }
 
-ELEMENT_ICON *IconElement::iconHeader() { 
-	if( d->iconHeader ) d->iconHeader->update_cb = d->origCallback;	
-	return d->iconHeader; 
-}
 
 void IconElement::attach( ELEMENT_HEADER *elementHeader ) {
 	Element::attach( elementHeader );
 	d->iconHeader = (ELEMENT_ICON*)elementHeader;
 	d->origCallback = d->iconHeader->update_cb;
 
-	if( d->iconHeader->update_cb!=NULL ) {
-		// install callback wrapper	
-//		dout << "install updateCallback for " << d->iconHeader << std::endl;
-		d->iconHeader->update_cb = d->callbackAdapter.callback();
+	if( d->iconHeader->update_cb==NULL ) {
+		dout << gauge().name() << ":" << id() << " no update_cb " << std::endl;
 	}
+	
+	d->iconHeader->update_cb = d->callbackAdapter.callback();
 }
+
 
 void IconElement::detach() {
 	Element::detach();
@@ -91,12 +89,19 @@ SmartPtr<PacketBase> IconElement::createPacket( SharedBuffer &buffer ) {
 
 FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 	switch( core()->mode() ) {
-	case MulticrewCore::IdleMode:
-		return (*d->origCallback)( pelement );
-	case MulticrewCore::HostMode:
-	{
-		//dout << "> callback " << d->iconHeader << std::endl;
-		FLOAT64 ret = (*d->origCallback)( pelement );
+	case MulticrewCore::IdleMode: 
+		if( d->origCallback )
+			return (*d->origCallback)( pelement );
+		else
+			if( pelement->source_var.id!=-1 ) return pelement->source_var.var_value.n;
+		break;
+	case MulticrewCore::HostMode: {
+		FLOAT64 ret = 0.0;
+		if( d->origCallback )
+			ret = (*d->origCallback)( pelement );
+		else
+			if( pelement->source_var.id!=-1 ) ret = pelement->source_var.var_value.n;
+			
 		if( ret!=d->oldValue ) {
 			dout << "Icon callback " << d->iconHeader << ":" << this 
 				 << " in " << gauge().name() << " = " << (unsigned long)ret 
@@ -104,14 +109,14 @@ FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 			d->oldValue = ret;
 			gauge().requestSend( this );
 		}
-		// dout << "< cal lback " << d->iconHeader << std::endl;
+		// dout << "< callback " << d->iconHeader << std::endl;
 		return ret;
 	} break;
-	case MulticrewCore::ClientMode:
-	{
-		FLOAT64 ret = (*d->origCallback)( pelement );
+	case MulticrewCore::ClientMode: {
+		if( d->origCallback )
+			(*d->origCallback)( pelement );
 		return d->oldValue;
-	} break;
+	}
 	}
 
 	return 0.0;
@@ -138,6 +143,7 @@ void IconElement::receive( SmartPtr<PacketBase> packet ) {
 	case MulticrewCore::HostMode: break;
 	case MulticrewCore::ClientMode: 
 	{
+		dout << "receive icon packet" << std::endl;
 		SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
 		d->oldValue = ip->data().value;
 	} break;

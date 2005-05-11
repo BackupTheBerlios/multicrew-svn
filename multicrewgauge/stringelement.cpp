@@ -63,6 +63,7 @@ struct StringElement::Data {
 	CRITICAL_SECTION cs;
 };
 
+
 StringElement::StringElement( int id, Gauge &gauge )
 	: Element( id, gauge ) {
 	d = new Data( this );
@@ -76,15 +77,13 @@ StringElement::StringElement( int id, Gauge &gauge )
 	InitializeCriticalSection( &d->cs );
 }
 
+
 StringElement::~StringElement() {
 	detach();
 	DeleteCriticalSection( &d->cs );
 	delete d;
 }
 
-ELEMENT_STRING *StringElement::stringHeader() { 
-	return d->stringHeader; 
-}
 
 void StringElement::attach( ELEMENT_HEADER *elementHeader ) {
 	Element::attach( elementHeader );
@@ -97,6 +96,7 @@ void StringElement::attach( ELEMENT_HEADER *elementHeader ) {
 		d->stringHeader->update_cb = d->callbackAdapter.callback();
 	}
 }
+
 
 void StringElement::detach() {
 	Element::detach();

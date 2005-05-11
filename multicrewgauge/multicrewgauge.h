@@ -69,8 +69,6 @@ class IconElement : public Element {
 	IconElement( int id, Gauge &gauge );
 	virtual ~IconElement();
 
-	ELEMENT_ICON *iconHeader();
-
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 
@@ -92,8 +90,6 @@ class NeedleElement : public Element {
 	NeedleElement( int id, Gauge &gauge );
 	virtual ~NeedleElement();
 
-	ELEMENT_NEEDLE *needleHeader();
-
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 
@@ -114,8 +110,6 @@ class StringElement : public Element {
  public:
 	StringElement( int id, Gauge &gauge );
 	virtual ~StringElement();
-
-	ELEMENT_STRING *stringHeader();
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
