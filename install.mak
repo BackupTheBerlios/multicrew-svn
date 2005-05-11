@@ -1,4 +1,4 @@
-all: local-install
+all: install
 
 cfg=$(OUTDIR)
 fs=d:\fs9
@@ -23,7 +23,7 @@ core-stamp: multicrewcore\$(cfg)\multicrewcore.dll
 
 remote-gauge: remote-gauge-stamp
 remote-gauge-stamp: gauge
-	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(remotefs)
+	copy multicrewgauge\$(cfg)\multicrewgauge.dll $(remotefs)\multicrew
 	echo > remote-gauge-stamp
 	
 remote-ui: remote-ui-stamp
