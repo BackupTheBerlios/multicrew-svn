@@ -143,7 +143,7 @@ void IconElement::receive( SmartPtr<PacketBase> packet ) {
 	case MulticrewCore::HostMode: break;
 	case MulticrewCore::ClientMode: 
 	{
-		dout << "receive icon packet" << std::endl;
+		//dout << "receive icon packet" << std::endl;
 		SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
 		d->oldValue = ip->data().value;
 	} break;

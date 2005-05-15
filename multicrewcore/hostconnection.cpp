@@ -167,7 +167,7 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 
 	// host the game
 	dlog << "Hosting session" << std::endl;
-	bool ok = d->server->Start( 8, 0, 1, port );
+	bool ok = d->server->Start( 8, 0, 50, port );
 	if( !ok ) {
 		dlog << "Failed" << std::endl;
 		return 0;

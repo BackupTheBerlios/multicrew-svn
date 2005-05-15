@@ -112,6 +112,9 @@ public:
 	Signal initAsyncCallback;
 	void callbackAsync();
 
+	void ackNewFrame();
+	Signal frameSignal;
+
  protected:
 	friend AsyncCallee;
 	void triggerAsyncCallback( AsyncCallee *callee );

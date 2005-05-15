@@ -20,8 +20,13 @@
 
 
 /************************** gauge/module linkage ****************************/
-void FSAPI module_init(void) {}
-void FSAPI module_deinit(void) {}
+void FSAPI module_init(void) {
+}
+
+
+void FSAPI module_deinit(void) {
+}
+
 
 GAUGESLINKAGE Linkage = {
 	0x00000000,
@@ -84,11 +89,11 @@ public:
 		BOOL ret; 
 		dout << "Starting MulticrewUI thread" << std::endl;
 		while( (ret=GetMessage( &msg, NULL, 0, 0 ))!=0 ) {
-			dout << "MulticrewUI thread message " << msg.message << std::endl;
+			//dout << "MulticrewUI thread message " << msg.message << std::endl;
 			switch( msg.message ) {
 			case WM_COMMAND:
 			{
-				dout << "message was WM_COMMAND " << LOWORD(msg.wParam) << std::endl;
+				//dout << "message was WM_COMMAND " << LOWORD(msg.wParam) << std::endl;
 				switch( LOWORD(msg.wParam) ) {
 				case ID_HOST_MENUITEM: ui->host(); break;
 				case ID_CONNECT_MENUITEM: ui->connect(); break;

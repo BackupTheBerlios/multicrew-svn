@@ -46,7 +46,8 @@ typedef StructPacket<PositionStruct> PositionPacket;
 
 /********************************************************/
 struct PositionModule::Data {
-	Data( PositionModule *mod ) {
+	Data( PositionModule *mod ) 
+		: frameSlot( 0, mod, PositionModule::frameCallback ) {
 		fsuipc = Fsuipc::fsuipc();
 	}
 
@@ -59,6 +60,8 @@ struct PositionModule::Data {
     /* client mode */
 	double timediff; // mean value of time difference to host
 	double meanLatency; // mean value of latency derivation
+	PositionStruct previousPos;
+	Slot<PositionModule> frameSlot;
 };
 
 
@@ -70,6 +73,9 @@ PositionModule::PositionModule()
 	/* client mode */
 	d->timediff = 0;
 	d->meanLatency = 0;
+	d->previousPos.timestamp = 0.0;
+
+	d->frameSlot.connect( &d->core->frameSignal );
 }
 
 
@@ -84,6 +90,26 @@ SmartPtr<PacketBase> PositionModule::createInnerModulePacket( SharedBuffer &buff
 
 
 void PositionModule::sendFullState() {
+}
+
+
+void PositionModule::frameCallback() {
+	switch( d->core->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode: break;
+	case MulticrewCore::ClientMode: {
+		if( d->previousPos.timestamp!=0.0 ) {
+			d->fsuipc->begin();
+			bool ok = d->fsuipc->write( 0x560, 9*sizeof(DWORD), d->previousPos.pos );
+			//ok = ok && d->fsuipc->write( 0x3060, 6*8, d->previousPos.accel );
+			ok = ok && d->fsuipc->write( 0x3090, 6*sizeof(FLOAT64), d->previousPos.vel );
+			ok = ok && d->fsuipc->end();
+			if( !ok ) {
+				dout << "FSUIPC position write error" << std::endl;
+			}
+		}
+	} break;
+	}
 }
 
 
@@ -127,8 +153,7 @@ void PositionModule::handlePacket( SmartPtr<PacketBase> packet ) {
 		d->timediff += latency/10.0;
 		d->meanLatency = (d->meanLatency*9.0 + ((latency<0)?-latency:latency))/10.0;
 		//dout << "timediff=" << d->timediff << " meanLat=" << d->meanLatency << " latency=" << latency << std::endl;
-		
-		
+				
 		// interpolate
         /*	FLOAT64 pos[3];
 	    pos[0] = pp->data().pos[0] + latency*65536.0*65536.0*pp->data().vel[1]/0.3048;
@@ -138,14 +163,7 @@ void PositionModule::handlePacket( SmartPtr<PacketBase> packet ) {
 		// write variables from the FS
 		if( latency<0 ) latency=-latency;
 		if( latency<d->meanLatency ) {
-			d->fsuipc->begin();
-			bool ok = d->fsuipc->write( 0x560, 9*sizeof(DWORD), pp->data().pos );
-			//ok = ok && d->fsuipc->write( 0x3060, 6*8, pp->data().accel );
-			ok = ok && d->fsuipc->write( 0x3090, 6*sizeof(FLOAT64), pp->data().vel );
-			ok = ok && d->fsuipc->end();
-			if( !ok ) {
-				dout << "FSUIPC position write error" << std::endl;
-			}
+			memcpy( &d->previousPos, &pp->data(), sizeof(PositionPacket));			
 		}
 	} break;
 	}

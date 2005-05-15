@@ -106,6 +106,11 @@ double MulticrewCore::time() {
 }
 
 
+void MulticrewCore::ackNewFrame() {
+	frameSignal.emit();
+}
+
+
 void MulticrewCore::registerModule( MulticrewModule *module ) {
 	dout << "module " << module->moduleName() << " registered" << std::endl;
 

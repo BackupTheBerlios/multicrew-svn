@@ -130,6 +130,8 @@ struct Gauge::Data {
 
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR           gdiplusToken;	
+
+	double oldDrawTime;
 };
 
 
@@ -141,6 +143,7 @@ Gauge::Gauge( GaugeModule *mgauge, int id ) {
 	d->parameters = "";
 	d->id = id;
 	d->core = MulticrewCore::multicrewCore();
+	d->oldDrawTime = d->core->time();
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -236,11 +239,12 @@ GaugeModule *Gauge::mgauge() {
 
 void Gauge::send( unsigned element, SmartPtr<PacketBase> packet, 
 				  bool safe, bool async ) {
-	d->mgauge->send( id(), 
-					 new GaugePacket( 
-						 elementPacket,
-						 new ElementPacket(element, packet)),
-					 safe, Connection::mediumPriority, async );
+	d->mgauge->send( 
+		id(), 
+		new GaugePacket( 
+			elementPacket,
+			new ElementPacket(element, packet)),
+		safe, Connection::mediumPriority, async );
 }
 
 
@@ -250,7 +254,7 @@ void Gauge::receive( SmartPtr<PacketBase> packet ) {
 	case elementPacket: 
 	{
 		SmartPtr<ElementPacket> ep = (ElementPacket*)&*gp->wrappee();
-		dout << d->name << " received element packet for " << ep->key() << std::endl;
+		dout << d->name << " packet for " << ep->key() << std::endl;
 		EnterCriticalSection( &d->cs );
 		if( ep->key()>=0 && ep->key()<d->elements.size() ) {
 			Element *element = d->elements[ep->key()];
@@ -294,7 +298,7 @@ void Gauge::sendProc( bool fullSend ) {
 
     // call element's sendProc
 	if( fullSend ) {
-		//full send
+		// full send
 		for( int i=0; i<d->elements.size(); i++ ) {
 			Element *element = d->elements[i];
 			if( element ) element->sendProc();
@@ -322,13 +326,24 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 	/*if( service_id>=12 || service_id<=5 ) {
 		dout << d->name << " " << service_id << std::endl;
 		}*/
-
-	// if a pre kill is received the plane is either closed
-	// or the panel is resized. In the latter case all gauges will be
-	// recreated during the next moments
-	if( service_id==PANEL_SERVICE_PRE_KILL ) {
-		//dout << "PANEL_SERVICE_PRE_KILL" << std::endl;
+	switch( service_id ) {
+	case PANEL_SERVICE_PRE_DRAW:
+		if( name()=="Switches" ) {
+			d->core->ackNewFrame();
+			//dout << "pre draw " << this << "/" << name() << std::endl;
+		}
+		break;
+	case PANEL_SERVICE_POST_DRAW:
+		if( name()=="Switches" || name()=="Master_Alt_Bat" ) {
+			//dout << "post draw " << this << "/" << name() << std::endl;
+		}
+		break;
+	case PANEL_SERVICE_PRE_KILL:
+		// if a pre kill is received the plane is either closed
+		// or the panel is resized. In the latter case all gauges will be
+		// recreated during the next moments
 		detach();
+		break;
 	}
 }
 
@@ -360,9 +375,9 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 	if( d->gaugeHeader->mouse_rect!=0 && d->hookMouse ) {
 		PMOUSERECT rect = d->gaugeHeader->mouse_rect;
 		int num = 0;
-		if( rect->rect_type==MOUSE_RECT_EOL ) dout << "No mouse for " << d->name << std::endl;
+		//if( rect->rect_type==MOUSE_RECT_EOL ) dout << "No mouse for " << d->name << std::endl;
 	   	while( rect->rect_type!=MOUSE_RECT_EOL ) {
-            dout << "Wrapping mouse callback for " << d->name << std::endl;
+            //dout << "Wrapping mouse callback for " << d->name << std::endl;
 			d->originalMouseCallbacks.push_back( rect->mouse_function );			
 			Data::MouseCallback *callback = 
 				new Data::MouseCallback( this, Gauge::mouseCallback, num );

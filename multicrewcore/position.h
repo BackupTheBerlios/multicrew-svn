@@ -33,6 +33,7 @@ class PositionModule : public MulticrewModule {
 	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );
 	virtual void sendProc();
 	virtual void handlePacket( SmartPtr<PacketBase> packet );
+	void frameCallback();
 
 	struct Data;
 	friend Data;

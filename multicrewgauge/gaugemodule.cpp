@@ -36,7 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/packets.h"
 
 
-#define WAITTIME 500
+#define WAITTIME 50
 
 
 /****************************************************************************/
@@ -68,15 +68,11 @@ public:
 	virtual SmartPtr<PacketBase> createPacket( unsigned key, SharedBuffer &buffer ) {
 		// metafile or gauge packet?
 		if( key>=1000000 ) {
-			if( key>=2000000 ) {
-				unsigned channel = key-2000000;
-				if( channel<channels.size() )
-					return channels[channel].decompressor->createPacket( buffer );
-			} else {
-				unsigned channel = key-1000000;
-				if( channel<channels.size() )
-					return channels[channel].compressor->createPacket( buffer );
-			}
+			unsigned channel = key-1000000;
+			if( channel<channels.size() )
+				// decompressor and compressor use the same packet factory, so
+				// don't care
+				return channels[channel].decompressor->createPacket( buffer );
 		} else {
 			if( key<gauges.size() ) return gauges[key]->createPacket( buffer );
 		}
@@ -170,16 +166,6 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 		((PGAUGE_CALLBACK)(int)(pgauge->user_area[9]))( pgauge, service_id, extra_data );
 
 	if( service_id==PANEL_SERVICE_POST_INSTALL ) {
-		dout << "installGauge "
-			 << pgauge << " "
-			 << moduleName() << "/"
-			 << pgauge->gauge_name << "§"
-			 << (pgauge->parameters?pgauge->parameters:"")
-			 << " service_id=" << service_id
-			 << " id=" << d->gauges.size()
-			 << " user_area[9]=" 
-			 << (void*)(int)pgauge->user_area[9] << std::endl;
-
 		// restore old callback
 		pgauge->gauge_callback = (PGAUGE_CALLBACK)(int)(pgauge->user_area[9]);
 
@@ -187,6 +173,15 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 		// look for detached gauge which is to be reused
 		Gauge *gauge = getDetachedGauge( pgauge->gauge_name, pgauge->parameters );
 		if( gauge==0 ) {
+			dout << "new "
+				 << pgauge << " "
+				 << moduleName() << "/"
+				 << pgauge->gauge_name << "§"
+				 << (pgauge->parameters?pgauge->parameters:"")
+				 << " id=" << d->gauges.size()
+				 << " user_area[9]=" 
+				 << (void*)(int)pgauge->user_area[9] << std::endl;
+
 			// no detached gauge found, create new one
 			int metafile = configIntValue( pgauge, "metafile", -1 );
 			int element = configIntValue( pgauge, "metafileelement", 0 );
@@ -214,14 +209,16 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 			} else
 				gauge = new Gauge( this, d->gauges.size() );
 
-			dout << "Created new gauge " 
-				 << gauge << " as id " 
-				 << d->gauges.size() << std::endl;
-		   			
 			d->gauges.push_back( gauge );
 		} else {
-			dout << "Reusing detached gauge " 
-				 << gauge << std::endl;
+			dout << "reusing "
+				 << pgauge << " "
+				 << moduleName() << "/"
+				 << pgauge->gauge_name << "§"
+				 << (pgauge->parameters?pgauge->parameters:"")
+				 << " id=" << gauge->id()
+				 << " user_area[9]=" 
+				 << (void*)(int)pgauge->user_area[9] << std::endl;			
 		}
 		gauge->attach( pgauge ); 
 		unlock();
@@ -265,7 +262,7 @@ void GaugeModule::handlePacket( SmartPtr<PacketBase> packet ) {
 
 
 void GaugeModule::send( unsigned gauge, SmartPtr<PacketBase> packet, bool safe,
-						   Connection::Priority prio, bool async ) {
+						Connection::Priority prio, bool async ) {
 	if( async )
 		MulticrewModule::sendAsync( 
 			new RoutedPacket(gauge, packet), 

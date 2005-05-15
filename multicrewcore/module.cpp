@@ -75,7 +75,6 @@ struct MulticrewModule::Data {
 	int packetSize;
 	unsigned maxPacketSize;
 	bool nextIsSafeTransmission;
-	volatile int packetsSending;
 	unsigned minSendWait;
 	Connection::Priority nextPriority;
 	CRITICAL_SECTION sendCritSect;
@@ -92,7 +91,6 @@ MulticrewModule::MulticrewModule( std::string moduleName,
 	
 	// packet setup
 	d->packet = new ModulePacket();
-	d->packetsSending = 0;
 	d->nextPriority = Connection::lowPriority;
 	d->nextIsSafeTransmission = false;
 
@@ -144,6 +142,8 @@ void MulticrewModule::lock() {
 void MulticrewModule::send( SmartPtr<PacketBase> packet, bool safe, 
 							Connection::Priority prio ) {
 	if( !d->con.isNull() ) {
+		EnterCriticalSection( &d->sendCritSect );
+
 		// append packet
 		d->packet->append( new TypedInnerModulePacket( 
 							   normalInnerModulePacket,
@@ -154,6 +154,8 @@ void MulticrewModule::send( SmartPtr<PacketBase> packet, bool safe,
 		if( (d->nextPriority==Connection::lowPriority && prio==Connection::mediumPriority) ||
 			d->nextPriority!=Connection::highPriority && prio==Connection::highPriority)
 			d->nextPriority = prio;
+
+		LeaveCriticalSection( &d->sendCritSect );
 	}
 }
 
@@ -188,17 +190,11 @@ void MulticrewModule::unlock() {
 
 void MulticrewModule::sendCompleted() {
 	//dout << moduleName() << " send completed" << std::endl;
-	EnterCriticalSection( &d->sendCritSect );
-	d->packetsSending--;
-	LeaveCriticalSection( &d->sendCritSect );
 }
 
 
 void MulticrewModule::sendFailed() {
 	dout << moduleName() << " send failed" << std::endl;
-	EnterCriticalSection( &d->sendCritSect );
-	d->packetsSending--;
-	LeaveCriticalSection( &d->sendCritSect );
 }
 
 
@@ -206,7 +202,6 @@ void MulticrewModule::connect( SmartPtr<Connection> con ) {
 	dout << moduleName() << " connecting" << std::endl;
 	d->con = con;
 	d->con->addModule( this );
-	d->packetsSending = 0;
 	
     // start thread
 	if( d->minSendWait>0 ) {
@@ -244,33 +239,28 @@ unsigned MulticrewModule::threadProc( void *param ) {
 	dout << moduleName() << " thread started" << std::endl;
 
 	while( true ) {
-		// call send proc if previous packet has arrived
-		if( d->packetsSending==0 ) {
-			// prepare packet
-			sendProc();
+		// prepare packet
+		sendProc();
 
-			// send packet
-			EnterCriticalSection( &d->sendCritSect );
-			if( d->packet->size()>0 ) {
-				d->packetsSending++;
-				LeaveCriticalSection( &d->sendCritSect );
-				if( !d->con->send( 
-						d->packet, 
-						d->nextIsSafeTransmission, 
-						d->nextPriority, 
-						this ) ) {
-					EnterCriticalSection( &d->sendCritSect );
-					d->packetsSending--;					
-					LeaveCriticalSection( &d->sendCritSect );
-				}
-				EnterCriticalSection( &d->sendCritSect );
-			} 			
+		// copy current packet
+		EnterCriticalSection( &d->sendCritSect );
+		SmartPtr<ModulePacket> packet = d->packet;
+		bool nextIsSafeTransmission = d->nextIsSafeTransmission;
+		Connection::Priority nextPriority = d->nextPriority;
+		
+		// setup for next packet
+		d->packet = new ModulePacket;
+		d->nextPriority = Connection::lowPriority;
+		d->nextIsSafeTransmission = false;
+		LeaveCriticalSection( &d->sendCritSect );
 
-			// default values
-			d->packet = new ModulePacket;
-			d->nextPriority = Connection::lowPriority;
-			d->nextIsSafeTransmission = false;
-			LeaveCriticalSection( &d->sendCritSect );
+		// send packet
+		if( packet->size()>0 ) {
+			d->con->send( 
+				packet, 
+				nextIsSafeTransmission, 
+				nextPriority, 
+				this );
 		}
 			
 		// wait an amount of milliseconds or exit thread
