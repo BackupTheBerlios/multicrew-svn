@@ -23,18 +23,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multicrewcore.h"
 
 
-class FsuipcModule : public MulticrewModule {
+class FsuipcModule : public MulticrewModule, 
+					 public Thread, 
+					 public NetworkChannel {
  public:
 	FsuipcModule();
 	virtual ~FsuipcModule();
 
 	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
-	virtual void sendFullState();
 	
  private:
-	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );	
-	virtual void handlePacket( SmartPtr<PacketBase> packet );
-	virtual void sendProc();
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
+	virtual void receive( SmartPtr<PacketBase> packet );
+	virtual unsigned threadProc( void *param );
+	virtual void sendFullState();
 
 	struct Data;
 	friend Data;

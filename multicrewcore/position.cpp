@@ -66,7 +66,7 @@ struct PositionModule::Data {
 
 
 PositionModule::PositionModule() 
-	: MulticrewModule( "FSUIPCPos", WAITTIME ) {
+	: MulticrewModule( "FSUIPCPos" ), NetworkChannel( "FSUIPCPos" ) {
 	d = new Data( this );
 	d->core = MulticrewCore::multicrewCore();
 
@@ -80,11 +80,12 @@ PositionModule::PositionModule()
 
 
 PositionModule::~PositionModule() {
+	stopThread();
 	delete d;
 }
 
 
-SmartPtr<PacketBase> PositionModule::createInnerModulePacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> PositionModule::createPacket( SharedBuffer &buffer ) {
 	return new PositionPacket( buffer );
 }
 
@@ -113,37 +114,40 @@ void PositionModule::frameCallback() {
 }
 
 
-void PositionModule::sendProc() {
-	switch( d->core->mode() ) {
-	case MulticrewCore::IdleMode: break;
-	case MulticrewCore::HostMode:
-	{
-		// calculate time difference to previous packet
-		d->data.timestamp = MulticrewCore::multicrewCore()->time();
-
-		// read variables from the FS	
-		d->fsuipc->begin();	
-		bool ok = d->fsuipc->read( 0x560, 9*sizeof(DWORD), d->data.pos );
-		//ok = ok && d->fsuipc->read( 0x3060, 6*8, data.accel );
-		ok = ok && d->fsuipc->read( 0x3090, 6*sizeof(FLOAT64), d->data.vel );
-		ok = ok && d->fsuipc->end();
-		if( !ok )
-			dout << "FSUIPC position read error" << std::endl;
-		else
-			// and send packet
-			send( new PositionPacket(d->data), false, Connection::mediumPriority );
-	} break;
-	case MulticrewCore::ClientMode: break;
+unsigned PositionModule::threadProc( void *param ) {
+	while( !shouldExit( WAITTIME ) ) {
+		switch( d->core->mode() ) {
+		case MulticrewCore::IdleMode: break;
+		case MulticrewCore::HostMode: {
+			// calculate time difference to previous packet
+			d->data.timestamp = MulticrewCore::multicrewCore()->time();
+			
+			// read variables from the FS	
+			d->fsuipc->begin();	
+			bool ok = d->fsuipc->read( 0x560, 9*sizeof(DWORD), d->data.pos );
+			//ok = ok && d->fsuipc->read( 0x3060, 6*8, data.accel );
+			ok = ok && d->fsuipc->read( 0x3090, 6*sizeof(FLOAT64), d->data.vel );
+			ok = ok && d->fsuipc->end();
+			if( !ok )
+				dout << "FSUIPC position read error" << std::endl;
+			else
+				// and send packet
+				send( new PositionPacket(d->data), 
+					  false, mediumPriority );
+		} break;
+		case MulticrewCore::ClientMode: break;
+		}
 	}
+
+	return 0;
 }
 
 
-void PositionModule::handlePacket( SmartPtr<PacketBase> packet ) {
+void PositionModule::receive( SmartPtr<PacketBase> packet ) {
 	switch( d->core->mode() ) {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode: break;
-	case MulticrewCore::ClientMode: 
-	{
+	case MulticrewCore::ClientMode: {
 		SmartPtr<PositionPacket> pp = (PositionPacket*)&*packet;
 		//dout << "position packet received" << std::endl;
 		

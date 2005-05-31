@@ -34,38 +34,40 @@ struct Element::Data {
 	int id;
 };
 
-Element::Element( int id, Gauge &gauge ) {
+
+Element::Element( Gauge *gauge, unsigned num ) 
+ : Identified( gauge, num ) {
 	d = new Data;
-	d->gauge = &gauge;
+	d->gauge = gauge;
 	d->elementHeader = 0;
-	d->id = id;
 	d->core = MulticrewCore::multicrewCore();
-	//dout << "Element " << elementHeader << std::endl;	
 }
+
 
 Element::~Element() {	
 	delete d;
 }
 
+
 ELEMENT_HEADER *Element::elementHeader() { 
 	return d->elementHeader; 
 }
 
-Gauge &Element::gauge() { 
-	return *d->gauge; 
+
+Gauge *Element::gauge() { 
+	return d->gauge; 
 }
 
-int Element::id() {
-	return d->id;
-}
 
 void Element::attach( ELEMENT_HEADER *elementHeader ) {
 	d->elementHeader = elementHeader;
 }
 
+
 void Element::detach() {
 	d->elementHeader = 0;
 }
+
 
 MulticrewCore *Element::core() {
 	return &*d->core;

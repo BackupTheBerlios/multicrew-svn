@@ -22,14 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/streams.h"
 #include "multicrewgauge.h"
 
-struct StaticElement::Data {		
-};
-
-StaticElement::StaticElement( int id, Gauge &gauge )
-	: Element( id, gauge ) {
-	d = new Data;
+StaticElement::StaticElement( Gauge *gauge, unsigned num )
+	: Element( gauge, num ) {
 }
 
 StaticElement::~StaticElement() {	
-	delete d;
 }

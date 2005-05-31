@@ -29,11 +29,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "streams.h"
 #include "log.h"
 #include "config.h"
-#include "networkimpl.h"
+#include "network.h"
 #include "callback.h"
 
 
-class HostConnectionImpl : public ConnectionImpl,
+class HostConnectionImpl : public Connection,
 						   public Multiplayer<RakServerInterface>
 {
 public:

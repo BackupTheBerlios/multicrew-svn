@@ -21,11 +21,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MULTICREW_METAFILE_H_INCLUDED
 
 
+#include "../multicrewcore/multicrewcore.h"
 #include "../multicrewcore/shared.h"
 #include "../multicrewcore/packets.h"
 #include "../multicrewcore/thread.h"
+#include "../multicrewcore/network.h"
 
 #include "zdelta/zdlib.h"
+
+
+class MetafileCompressor;
+class MetafileDecompressor;
+class MetafileChannel {
+ private:
+	friend MetafileCompressor;
+	friend MetafileDecompressor;
+	virtual bool send( bool fromCompressor, SmartPtr<PacketBase> packet, 
+					   bool safe, Priority prio )=0;
+	virtual unsigned channelNum()=0;
+};
 
 
 class GlobalMem : public Shared {
@@ -72,16 +86,16 @@ private:
 class GaugeModule;
 class MetafileCompressor : public Shared, private Thread {
  public:
-	MetafileCompressor( GaugeModule *mgauge, int delay, int channel );
+	MetafileCompressor( MetafileChannel *channel, int delay );
 	virtual ~MetafileCompressor();
 
-	virtual void receive( SmartPtr<PacketBase> packet );	
 	bool open();
 	void close( SmartPtr<GlobalMem> metafile );
 
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
+	void receive( SmartPtr<PacketBase> packet );	
+	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
- protected:
+ private:
 	int zd_compress1(const Bytef *ref, uLong rsize,
 					 const Bytef *tar, uLong tsize,
 					 Bytef **delta, uLongf *dsize);	
@@ -89,7 +103,6 @@ class MetafileCompressor : public Shared, private Thread {
 	virtual unsigned threadProc( void *param );
 	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD);
 
- private:
 	struct Data;
 	friend Data;
 	Data *d;
@@ -98,14 +111,13 @@ class MetafileCompressor : public Shared, private Thread {
 
 class MetafileDecompressor : public Shared {
  public:
-	MetafileDecompressor( GaugeModule *mgauge, int channel );
+	MetafileDecompressor( MetafileChannel *channel );
 	virtual ~MetafileDecompressor();
-
-	virtual void receive( SmartPtr<PacketBase> packet );
 	SmartPtr<GlobalMem> lastMetafile();
 	int counter();
 
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
+	void receive( SmartPtr<PacketBase> packet );	
+	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
  private:
 	struct Data;

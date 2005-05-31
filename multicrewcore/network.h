@@ -27,47 +27,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <map>
 #include <string>
 
+#include <PacketPriority.h>
+
 #include "shared.h"
 #include "signals.h"
 #include "packets.h"
+#include "network.h"
+#include "thread.h"
 
 #define MULTICREW_PORT "1299"
 
 
-class MulticrewModule;
-class ModulePacket : public ArrayPacket<PacketBase> {
- public:
-	ModulePacket() {
-	}
-
-	ModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) 
-		: ArrayPacket<PacketBase>(buffer) {
-		this->mod = mod;
-	}
-
- private:
-	SmartPtr<MulticrewModule> mod;
-	
-	virtual SmartPtr<PacketBase> createChild( SharedBuffer &buffer );
-};
+enum Priority { highPriority, mediumPriority, lowPriority };
 
 
-typedef PacketFactory<PacketBase> ModulePacketFactory;
-
-
-class Connection : public Shared {
+class Connection : public Shared, public Thread {
 public:
-	enum Priority { highPriority, mediumPriority, lowPriority };	
+	Connection();
+	virtual ~Connection();
 
-	virtual void addModule( MulticrewModule *module )=0;
-	virtual void removeModule( MulticrewModule *module )=0;
-
-	virtual bool start()=0;
-	virtual bool send( SmartPtr<ModulePacket> packet, bool safe, 
-					   Priority prio, SmartPtr<MulticrewModule> sender,
-					   bool async=false, int channel=0 )=0;
-	virtual void disconnect()=0;
+	virtual bool start();
+	virtual bool send( SmartPtr<PacketBase> packet, bool safe, 
+					   Priority prio, int channel=0 );
+	virtual void disconnect();
 	Signal disconnected;
+
+protected:
+	virtual bool sendImpl( char *buf, unsigned len, 
+						   PacketPriority priority, 
+						   PacketReliability reliability, 
+						   char orderingChannel )=0;
+	virtual void disconnectImpl()=0;
+	virtual void processImpl()=0;
+	virtual unsigned threadProc( void *param );
+	void processPacket( void *data, unsigned length );
+
+	struct Data;
+	friend Data;
+	Data *d;
 };
 
 

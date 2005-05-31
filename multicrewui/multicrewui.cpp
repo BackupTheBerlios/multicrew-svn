@@ -101,7 +101,7 @@ MulticrewUI::~MulticrewUI() {
 	// disconnect network connections
 	if( !d->connection.isNull() ) {
 		d->disconnectedSlot.disconnect();
-		d->core->unprepare();
+		d->core->useConnection( 0 );
 		d->connection->disconnect();
 		d->connection = 0;
 	}
@@ -163,14 +163,14 @@ void MulticrewUI::host() {
 			d->core->setMode( MulticrewCore::HostMode );
 			dlog << "Host mode set" << std::endl;
 
-			d->core->prepare( d->connection );
+			d->core->useConnection( d->connection );
 			bool ok = d->connection->start();
 			if( !ok ) {
 				dlog << "Setting mode to idle" << std::endl;	
 				d->core->setMode( MulticrewCore::IdleMode );
 				dlog << "Idle mode set" << std::endl;
 
-				d->core->unprepare();
+				d->core->useConnection( 0 );
 				d->connection->disconnect();
 				d->connection = 0;
 			} else
@@ -200,7 +200,7 @@ void MulticrewUI::connect() {
 		d->core->setMode( MulticrewCore::ClientMode );
 		dlog << "Client mode set" << std::endl;
 
-		d->core->prepare( d->connection );
+		d->core->useConnection( d->connection );
 		d->connection->start();
 		d->statusDlg->setConnected();
 	}
@@ -212,7 +212,7 @@ void MulticrewUI::disconnect() {
 		int ret = MessageBox(d->hwnd, "Really disconnect?", "Multicrew", 
 			MB_OKCANCEL | MB_ICONQUESTION);
 		if( ret==IDOK ) {
-			d->core->unprepare();
+			d->core->useConnection( 0 );
 			d->connection->disconnect();
 		}
 	}

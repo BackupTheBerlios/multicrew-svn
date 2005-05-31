@@ -45,8 +45,8 @@ struct NeedleElement::Data {
 };
 
 
-NeedleElement::NeedleElement( int id, Gauge &gauge )
-	: Element( id, gauge ) {
+NeedleElement::NeedleElement( Gauge *gauge, unsigned num )
+	: Element( gauge, num ), NetworkChannel( id() ) {
 	d = new Data( this );
 	d->needleHeader = 0;
 	d->oldValue = (FLOAT64)0x57524320;
@@ -88,42 +88,14 @@ SmartPtr<PacketBase> NeedleElement::createPacket( SharedBuffer &buffer ) {
 }
 
 
-FLOAT64 NeedleElement::callback( PELEMENT_NEEDLE pelement ) {
-	switch( core()->mode() ) {
-	case MulticrewCore::IdleMode:
-		return (*d->origCallback)( pelement );
-	case MulticrewCore::HostMode:
-	{ 
-        //dout << "> callback " << d->needleHeader << std::endl;
-		FLOAT64 ret = (*d->origCallback)( pelement );
-		if( ret!=d->oldValue ) {
-			//dout << "Needle callback " << d->needleHeader << ":" << this 
-			//	 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
-			d->oldValue = ret;
-			gauge().requestSend( this );
-		}
-		//dout << "< cal lback " << d->needleHeader << std::endl;
-		return ret;
-	} break;
-	case MulticrewCore::ClientMode:
-	{
-		FLOAT64 ret = (*d->origCallback)( pelement );
-		return d->oldValue;
-	} break;
-	}
-
-	return 0.0;
-}
-
-
-void NeedleElement::sendProc() {
+void NeedleElement::sendState() {
 	switch( core()->mode() ) {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode:
 	{
 		NeedleStruct s;
 		s.value = d->oldValue;
-		gauge().send( id(), new NeedlePacket( s ), true );
+		send( new NeedlePacket( s ), true, mediumPriority );
 	} break;
 	case MulticrewCore::ClientMode: break;
 	}   
@@ -140,4 +112,37 @@ void NeedleElement::receive( SmartPtr<PacketBase> packet ) {
 		d->oldValue = ip->data().value;
 	} break;
 	}
+}
+
+
+void NeedleElement::sendFullState() {
+	sendState();
+}
+
+
+FLOAT64 NeedleElement::callback( PELEMENT_NEEDLE pelement ) {
+	switch( core()->mode() ) {
+	case MulticrewCore::IdleMode:
+		return (*d->origCallback)( pelement );
+	case MulticrewCore::HostMode:
+	{ 
+        //dout << "> callback " << d->needleHeader << std::endl;
+		FLOAT64 ret = (*d->origCallback)( pelement );
+		if( ret!=d->oldValue ) {
+			//dout << "Needle callback " << d->needleHeader << ":" << this 
+			//	 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
+			d->oldValue = ret;
+			sendState();
+		}
+		//dout << "< cal lback " << d->needleHeader << std::endl;
+		return ret;
+	} break;
+	case MulticrewCore::ClientMode:
+	{
+		FLOAT64 ret = (*d->origCallback)( pelement );
+		return d->oldValue;
+	} break;
+	}
+
+	return 0.0;
 }

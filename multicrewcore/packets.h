@@ -133,17 +133,12 @@ class DLLEXPORT SharedBuffer {
 
 class PacketBase : public Shared {
  public:
-	virtual unsigned compiledSize()=0;
-	virtual void compile( void *buffer )=0;
-};
-
-
-class EmptyPacket : public PacketBase {
- public:
-	EmptyPacket() {}
 	virtual unsigned compiledSize() { return 0; }
-	virtual void compile( void *buffer ) {}
+	virtual void compile( void *buffer ) {};
 };
+
+
+class EmptyPacket : public PacketBase {};
 
 
 template< class Prefix, class Wrappee >

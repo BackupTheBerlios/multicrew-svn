@@ -44,8 +44,8 @@ struct IconElement::Data {
 };
 
 
-IconElement::IconElement( int id, Gauge &gauge )
-	: Element( id, gauge ) {
+IconElement::IconElement( Gauge *gauge, unsigned num )
+	: Element( gauge, num ), NetworkChannel( id() ) {
 	d = new Data( this );
 	d->iconHeader = 0;
 	d->oldValue = 0.0;
@@ -65,7 +65,7 @@ void IconElement::attach( ELEMENT_HEADER *elementHeader ) {
 	d->origCallback = d->iconHeader->update_cb;
 
 	if( d->iconHeader->update_cb==NULL ) {
-		dout << gauge().name() << ":" << id() << " no update_cb " << std::endl;
+		dout << id() << " no update_cb " << std::endl;
 	}
 	
 	d->iconHeader->update_cb = d->callbackAdapter.callback();
@@ -82,8 +82,27 @@ void IconElement::detach() {
 }
 
 
+void IconElement::receive( SmartPtr<PacketBase> packet ) {
+	switch( core()->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode: break;
+	case MulticrewCore::ClientMode: 
+	{
+		//dout << "receive icon packet" << std::endl;
+		SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
+		d->oldValue = ip->data().value;
+	} break;
+	}
+}
+
+
 SmartPtr<PacketBase> IconElement::createPacket( SharedBuffer &buffer ) {
 	return new IconPacket( buffer );
+}
+
+
+void IconElement::sendFullState() {
+	sendState();
 }
 
 
@@ -104,10 +123,9 @@ FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 			
 		if( ret!=d->oldValue ) {
 			dout << "Icon callback " << d->iconHeader << ":" << this 
-				 << " in " << gauge().name() << " = " << (unsigned long)ret 
-				 << " id=" << id() << std::endl;
+				 << " in " << id() << " = " << (unsigned long)ret << std::endl;
 			d->oldValue = ret;
-			gauge().requestSend( this );
+			sendState();
 		}
 		// dout << "< callback " << d->iconHeader << std::endl;
 		return ret;
@@ -123,29 +141,15 @@ FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 }
 
 
-void IconElement::sendProc() {	
+void IconElement::sendState() {	
 	switch( core()->mode() ) {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode:
 	{
 		IconStruct s;
 		s.value = d->oldValue;
-		gauge().send( id(), new IconPacket( s ), true );
+		send( new IconPacket( s ), true, mediumPriority );
 	} break;
 	case MulticrewCore::ClientMode: break;
 	}   
-}
-
-
-void IconElement::receive( SmartPtr<PacketBase> packet ) {
-	switch( core()->mode() ) {
-	case MulticrewCore::IdleMode: break;
-	case MulticrewCore::HostMode: break;
-	case MulticrewCore::ClientMode: 
-	{
-		//dout << "receive icon packet" << std::endl;
-		SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
-		d->oldValue = ip->data().value;
-	} break;
-	}
 }

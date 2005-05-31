@@ -39,21 +39,17 @@ class Gauge;
 class GaugeModule;
 
 
-class Element : public PacketFactory<PacketBase> {
+class Element : public Identified {
 public:
-	Element( int id, Gauge &gauge );
+	Element( Gauge *gauge, unsigned num );
 	virtual ~Element();
 
 	ELEMENT_HEADER *elementHeader();
-	Gauge &gauge();
-	int id();
+	Gauge *gauge();
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
-	virtual void sendProc() {};
 	virtual void receive( SmartPtr<PacketBase> packet ) {}
 	virtual void detach();
-	
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer )=0;
 
  protected:
 	MulticrewCore *core();
@@ -64,19 +60,20 @@ public:
 };
 
 
-class IconElement : public Element {
+class IconElement : public Element, private NetworkChannel {
  public:
-	IconElement( int id, Gauge &gauge );
+	IconElement( Gauge *gauge, unsigned num );
 	virtual ~IconElement();
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
-
  private:
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
 	virtual void receive( SmartPtr<PacketBase> packet );
-	virtual void sendProc();
+	virtual void sendFullState();
+	void sendState();
+
 	virtual FLOAT64 callback( PELEMENT_ICON pelement );
 
 	struct Data;
@@ -85,19 +82,20 @@ class IconElement : public Element {
 };
 
 
-class NeedleElement : public Element {
+class NeedleElement : public Element, public NetworkChannel {
  public:
-	NeedleElement( int id, Gauge &gauge );
+	NeedleElement( Gauge *gauge, unsigned num );
 	virtual ~NeedleElement();
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
-
  private:
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
 	virtual void receive( SmartPtr<PacketBase> packet );
-	virtual void sendProc();
+	virtual void sendFullState();
+	void sendState();
+
 	virtual FLOAT64 callback( PELEMENT_NEEDLE pelement );
 
 	struct Data;
@@ -106,20 +104,21 @@ class NeedleElement : public Element {
 };
 
 
-class StringElement : public Element {
+class StringElement : public Element, public NetworkChannel {
  public:
-	StringElement( int id, Gauge &gauge );
+	StringElement( Gauge *gauge, unsigned num );
 	virtual ~StringElement();
 
 	virtual void attach( ELEMENT_HEADER *elementHeader );
 	virtual void detach();
 	
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
-
  private:
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
+	virtual void receive( SmartPtr<PacketBase> packet );
+	virtual void sendFullState();
+	void sendState();
+
 	virtual FLOAT64 callback( PELEMENT_STRING pelement );
-	virtual void sendProc();
-	virtual void receive( SmartPtr<PacketBase> );
 
 	struct Data;
 	friend Data;
@@ -129,46 +128,35 @@ class StringElement : public Element {
 
 class StaticElement : public Element {
 public:
-	StaticElement( int id, Gauge &gauge );
+	StaticElement( Gauge *gauge, unsigned num );
 	virtual ~StaticElement();
-
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer ) { return 0; }
-
-protected:	
-	struct Data;
-	Data *d;
 };
 
 
-class Gauge : public PacketFactory<PacketBase> {
-public:
-	Gauge( GaugeModule *mgauge, int id );
+class Gauge : private NetworkChannel, public Identified {
+ public:
+	Gauge( GaugeModule *mgauge, std::string name, std::string parameters );
 	virtual ~Gauge();
 
 	PGAUGEHDR gaugeHeader() ;
 	std::string name();
 	std::string parameter();
-	int id();
 	GaugeModule *mgauge();
-	virtual void sendProc( bool fullSend );
-
-	void send( unsigned element, SmartPtr<PacketBase> packet, 
-			   bool safe, bool async=false );
-	virtual void receive( SmartPtr<PacketBase> packet );
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
 
 	virtual void attach( PGAUGEHDR gaugeHeader );
 	virtual void detach();
 
-	void requestSend( Element *element );
-
  protected:	
 	void createElements();
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
-	Element *createElement( int id, PELEMENT_HEADER pelement );
+	Element *createElement( int num, PELEMENT_HEADER pelement );
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
 	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {}
 	void handleMouseEvents();
+
+	void receive( SmartPtr<PacketBase> packet );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
+	void sendFullState();
 
 	bool configBoolValue( const std::string &key, bool def );
 	int configIntValue( const std::string &key, int def );
@@ -181,7 +169,9 @@ public:
 
 class MetafileGauge : public Gauge {
  public:
-	MetafileGauge( GaugeModule *mgauge, int id, int metafileElement,
+	MetafileGauge( GaugeModule *mgauge, 
+				   std::string name, std::string parameter,
+				   int metafileElement,
 				   SmartPtr<MetafileCompressor> compressor,
 				   SmartPtr<MetafileDecompressor> decompressor );
 	virtual ~MetafileGauge();
@@ -200,31 +190,15 @@ class GaugeModule : public MulticrewModule {
 	GaugeModule( std::string moduleName );
 	virtual ~GaugeModule();
 
-	void send( unsigned gauge, SmartPtr<PacketBase> packet, bool safe, 
-			   Connection::Priority prio=Connection::mediumPriority, 
-			   bool async=false );
-
-	void sendMetafilePacket( unsigned channel, SmartPtr<PacketBase> packet, bool safe, 
-							 Connection::Priority prio=Connection::mediumPriority );
-
 	PGAUGE_CALLBACK installCallback();
 
-	void requestSend( Gauge *gauge );
-	virtual void sendFullState();
-	
  protected:
 	friend Gauge;
 	void detached( Gauge *gauge );
-	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );
-
 	bool configBoolValue( PGAUGEHDR pgauge, const std::string &key, bool def );
 	int configIntValue( PGAUGEHDR pgauge, const std::string &key, int def );
 
- protected:	
-	virtual void handlePacket( SmartPtr<PacketBase> packet );
 	void installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
-	virtual void sendProc();
-
 	Gauge *getDetachedGauge( const char *name, const char *parameter );
 	
  private:

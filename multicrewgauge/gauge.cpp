@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stack>
 #include <map>
 #include <set>
+#include "../stlplus/source/string_utilities.hpp"
 
 #include "gauges.h"
 #include "multicrewgauge.h"
@@ -36,12 +37,6 @@ using namespace Gdiplus;
 
 
 /********************************** packets *******************************/
-enum {
-	mousePacket = 0,
-	elementPacket,
-};
-
-
 struct MouseStruct {
 	int mouseRectNum;
 	float relX;
@@ -52,61 +47,17 @@ struct MouseStruct {
 };
 
 
-typedef TypedPacket<char, PacketBase> GaugePacket;
-typedef TypedPacket<unsigned, PacketBase> ElementPacket;
 typedef StructPacket<MouseStruct> MousePacket;
-
-
-class ElementPacketFactory : public TypedPacketFactory<unsigned,PacketBase> {
-public:
-	ElementPacketFactory( std::deque<Element *> &elements ) 
-		: _elements( elements ) {
-	}
-
-	virtual SmartPtr<PacketBase> createPacket( unsigned key, SharedBuffer &buffer ) {
-		if( key<_elements.size() )
-			return _elements[key]->createPacket( buffer );
-		else
-			return 0;
-	}
-
-private:
-	std::deque<Element *> &_elements;
-};
-
-
-class GaugePacketFactory : public TypedPacketFactory<char,PacketBase> {
-public:
-	GaugePacketFactory( ElementPacketFactory& elementFactory ) 
-		: _elementFactory( elementFactory ) {
-	}
-
-	virtual SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer ) {
-		switch( key ) {
-		case mousePacket: return new MousePacket( buffer );
-		case elementPacket:	return new ElementPacket( buffer, &_elementFactory );
-		default: return 0;
-		}
-	}
-
-private:
-	ElementPacketFactory& _elementFactory;
-};
 
 
 /*********************************************************************/
 struct Gauge::Data {
 	Data( Gauge *gauge )
-		: callbackAdapter( gauge, Gauge::callback ),
-		  elementPacketFactory( elements ),
-		  packetFactory( elementPacketFactory ) {
-	}
+		: callbackAdapter( gauge, Gauge::callback ) {}
 
 	PGAUGEHDR gaugeHeader;
 	PGAUGE_CALLBACK originalGaugeCallback;
 	VoidCallbackAdapter3<Gauge, PGAUGEHDR, SINT32, UINT32> callbackAdapter;
-	ElementPacketFactory elementPacketFactory;
-	GaugePacketFactory packetFactory;
 	SmartPtr<MulticrewCore> core;
 
 	// mouse data
@@ -124,7 +75,6 @@ struct Gauge::Data {
 	std::set<Element*> sendRequests;
 	std::string name;
 	std::string parameters;
-	int id;
 	GaugeModule *mgauge;
 	CRITICAL_SECTION cs;
 
@@ -135,13 +85,13 @@ struct Gauge::Data {
 };
 
 
-Gauge::Gauge( GaugeModule *mgauge, int id ) {
+Gauge::Gauge( GaugeModule *mgauge, std::string name, std::string parameters ) 
+	: Identified( mgauge, name+"§"+parameters ), NetworkChannel( id() ) {
 	d = new Data( this );
 	d->mgauge = mgauge;
 	d->gaugeHeader = 0;
-	d->name = "";
-	d->parameters = "";
-	d->id = id;
+	d->name = name;
+	d->parameters = parameters;
 	d->core = MulticrewCore::multicrewCore();
 	d->oldDrawTime = d->core->time();
 
@@ -154,7 +104,7 @@ void Gauge::createElements() {
 	if( d->gaugeHeader->elements_list[0]!=NULL ) {
 		std::stack<ELEMENT_HEADER*> todo;
 		todo.push( d->gaugeHeader->elements_list[0] );
-		int id = 0;
+		int num = 0;
 		bool verbose = configBoolValue( "verbose", false );
 		
 		while( !todo.empty() ) {
@@ -163,8 +113,8 @@ void Gauge::createElements() {
 			EnterCriticalSection( &d->cs );
 
 			// element not yet created?
-			if( id>=d->elements.size() )
-				d->elements.push_back( createElement( id, pelement ) );
+			if( num>=d->elements.size() )
+				d->elements.push_back( createElement( num, pelement ) );
 			
 			// verbose?
 			if( verbose ) {
@@ -177,13 +127,13 @@ void Gauge::createElements() {
 				default: break;
 				}
 				
-				dout << "gauge " << d->name << " element " << id << " of type " << type << std::endl;
+				dout << "gauge " << d->name << " element " << num << " of type " << type << std::endl;
 			}
 
 			// attach element
-			if( d->elements[id] ) d->elements[id]->attach( pelement );
+			if( d->elements[num] ) d->elements[num]->attach( pelement );
 
-			id++;
+			num++;
 			LeaveCriticalSection( &d->cs );
 
 			if( pelement->next_element!=NULL ) {
@@ -227,94 +177,26 @@ std::string Gauge::parameter() {
 }
 
 
-int Gauge::id() {
-	return d->id;
-}
-
-
 GaugeModule *Gauge::mgauge() {
 	return d->mgauge;
 }
 
 
-void Gauge::send( unsigned element, SmartPtr<PacketBase> packet, 
-				  bool safe, bool async ) {
-	d->mgauge->send( 
-		id(), 
-		new GaugePacket( 
-			elementPacket,
-			new ElementPacket(element, packet)),
-		safe, Connection::mediumPriority, async );
-}
-
-
 void Gauge::receive( SmartPtr<PacketBase> packet ) {
-	SmartPtr<GaugePacket> gp = (GaugePacket*)&*packet;
-	switch( gp->key() ) {
-	case elementPacket: 
-	{
-		SmartPtr<ElementPacket> ep = (ElementPacket*)&*gp->wrappee();
-		dout << d->name << " packet for " << ep->key() << std::endl;
-		EnterCriticalSection( &d->cs );
-		if( ep->key()>=0 && ep->key()<d->elements.size() ) {
-			Element *element = d->elements[ep->key()];
-			LeaveCriticalSection( &d->cs );
-			if( element ) element->receive( ep->wrappee() );
-		} else
-			LeaveCriticalSection( &d->cs );
-	} break;
-	case mousePacket:
-		dout << "received mouse packet" << std::endl;
-		EnterCriticalSection( &d->cs );
-		d->mouseEvents.push_back( (MousePacket*)&*gp->wrappee() );
-		LeaveCriticalSection( &d->cs );
-		handleMouseEvents();
-		break;
-	default:
-		break;
-	}
+	dout << "received mouse packet" << std::endl;
+	EnterCriticalSection( &d->cs );
+	d->mouseEvents.push_back( (MousePacket*)&*packet );
+	LeaveCriticalSection( &d->cs );
+	handleMouseEvents();
 }
 
 
 SmartPtr<PacketBase> Gauge::createPacket( SharedBuffer &buffer ) {
-	EnterCriticalSection( &d->cs );
-	SmartPtr<GaugePacket> gp = new GaugePacket( buffer, &d->packetFactory );
-	LeaveCriticalSection( &d->cs );
-	return gp;
+	return new MousePacket( buffer );
 }
 
 
-void Gauge::requestSend( Element *element ) {
-	EnterCriticalSection( &d->cs );
-	d->sendRequests.insert( element );
-	LeaveCriticalSection( &d->cs );
-	
-	d->mgauge->requestSend( this );
-}
-
-
-void Gauge::sendProc( bool fullSend ) {
-	EnterCriticalSection( &d->cs );
-
-    // call element's sendProc
-	if( fullSend ) {
-		// full send
-		for( int i=0; i<d->elements.size(); i++ ) {
-			Element *element = d->elements[i];
-			if( element ) element->sendProc();
-		}
-	} else {
-		// only send changed element packets
-		for( std::set<Element*>::iterator it = d->sendRequests.begin();
-			 it!=d->sendRequests.end();
-			 it++ )
-			(*it)->sendProc();
-	}
-	
-	// clear send queue
-	d->sendRequests.clear();
-
-	LeaveCriticalSection( &d->cs );
+void Gauge::sendFullState() {
 }
 
 
@@ -356,8 +238,6 @@ void Gauge::attach( PGAUGEHDR gaugeHeader ) {
 
 	// initialize general variables
 	d->gaugeHeader = gaugeHeader;
-	d->name = gaugeHeader->gauge_name;	
-	d->parameters = (gaugeHeader->parameters!=NULL)?gaugeHeader->parameters:"";
 	d->swallowMouse = configBoolValue( "swallowmouse", false );
 	if( d->swallowMouse ) dout << "will swallow mouse" << std::endl;
 
@@ -451,14 +331,13 @@ void Gauge::detach() {
 }
 
 
-Element *Gauge::createElement( int id, PELEMENT_HEADER pelement ) {
+Element *Gauge::createElement( int num, PELEMENT_HEADER pelement ) {
 	Element *el = 0;
-
 	switch( pelement->element_type ) {
-	case ELEMENT_TYPE_ICON: el = new IconElement( id, *this ); break;	
-	case ELEMENT_TYPE_NEEDLE: el = new NeedleElement( id, *this ); break;
-	case ELEMENT_TYPE_STRING: el = new StringElement( id, *this ); break;
-	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticElement( id, *this ); break;
+	case ELEMENT_TYPE_ICON: el = new IconElement( this, num ); break;	
+	case ELEMENT_TYPE_NEEDLE: el = new NeedleElement( this, num ); break;
+	case ELEMENT_TYPE_STRING: el = new StringElement( this, num ); break;
+	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticElement( this, num ); break;
 	default: break;
 	}
 
@@ -514,14 +393,9 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 			ms.flags = flags;
 			
 			// send MouseStruct packet
-			d->mgauge->send( 
-				id(), 
-				new GaugePacket(
-					mousePacket,
-					new MousePacket(ms)), 
-				false, // safe
-				Connection::highPriority,
-				true ); // async		
+			send( new MousePacket(ms), 
+				  true, // safe
+				  highPriority );
 		}
 		LeaveCriticalSection( &d->cs );
 		
@@ -605,10 +479,12 @@ struct MetafileGauge::Data {
 };
 
 
-MetafileGauge::MetafileGauge( GaugeModule *mgauge, int id, int metafileElement,
+MetafileGauge::MetafileGauge( GaugeModule *mgauge, 
+							  std::string name, std::string parameters,
+							  int metafileElement,
 							  SmartPtr<MetafileCompressor> compressor,
 							  SmartPtr<MetafileDecompressor> decompressor ) 
-	: Gauge( mgauge, id ) {
+	: Gauge( mgauge, name, parameters ) {
 	md = new Data;
 	md->metafileElement = metafileElement;	
 	md->metafileCounter = -1;

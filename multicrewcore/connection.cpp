@@ -22,96 +22,36 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "streams.h"
 #include "log.h"
-#include "networkimpl.h"
+#include "network.h"
 #include "callback.h"
-
-
-class RoutedModulePacket : public PacketBase {
-public:
-	RoutedModulePacket( SmartPtr<ModulePacket> packet, SmartPtr<MulticrewModule> mod ) {
-		this->packet = packet;
-		this->mod = mod;
-		this->modName = mod->moduleName();
-	}	
-
-	RoutedModulePacket( SharedBuffer &buffer, SmartPtr<MulticrewModule> mod ) {
-		this->mod = mod;
-		this->modName = mod->moduleName();
-		packet = new ModulePacket( SharedBuffer(buffer,modName.size()+1), mod );
-	}
-
-	virtual unsigned compiledSize() {
-		return modName.length()+1+packet->compiledSize();
-	}
-
-	virtual void compile( void *data ) {
-		strcpy( (char*)data, modName.c_str() );
-		packet->compile( ((char*)data)+modName.length()+1 );
-	}
-
-	SmartPtr<MulticrewModule> module() {
-		return mod;
-	}
-
-	SmartPtr<ModulePacket> modulePacket() {
-		return packet;
-	}
-
-	static std::string moduleName( SharedBuffer &buffer ) {
-		return (char*)buffer.data();
-	}
-
-private:	
-	std::string modName;
-	SmartPtr<ModulePacket> packet;
-	SmartPtr<MulticrewModule> mod;
-};
-
-SmartPtr<PacketBase> ModulePacket::createChild( SharedBuffer &buffer ) {
-	return mod->createPacket( buffer );
-}
 
 
 /*******************************************************************/
 
 
-struct ConnectionImpl::Data {
-	Data( ConnectionImpl *con ) {}
+struct Connection::Data {
+	Data( Connection *con ) {}
 
 	bool disconnected;
 	CRITICAL_SECTION critSect;
 };
 
 
-ConnectionImpl::ConnectionImpl() {
+Connection::Connection() {
 	d = new Data( this );
 	d->disconnected = false;
 	InitializeCriticalSection( &d->critSect );
 }
 
 
-ConnectionImpl::~ConnectionImpl() {
+Connection::~Connection() {
 	stopThread();
 	DeleteCriticalSection( &d->critSect );
 	delete d;
 }
 
 
-void ConnectionImpl::addModule( MulticrewModule *module ) {
-	EnterCriticalSection( &d->critSect );
-	modules[module->moduleName()] = module;
-	LeaveCriticalSection( &d->critSect );
-}
-
-
-void ConnectionImpl::removeModule( MulticrewModule *module ) {
-	EnterCriticalSection( &d->critSect );
-	modules.erase( modules.find(module->moduleName()) );
-	LeaveCriticalSection( &d->critSect );
-}
-
-
-unsigned ConnectionImpl::threadProc( void *param ) {
+unsigned Connection::threadProc( void *param ) {
 	while( !shouldExit(10) ) {
 		processImpl();
 	}
@@ -119,32 +59,17 @@ unsigned ConnectionImpl::threadProc( void *param ) {
 }
 
 
-void ConnectionImpl::processPacket( void *data, unsigned length ) {
+void Connection::processPacket( void *data, unsigned length ) {
 	SharedBuffer packetBuf( ((char*)data)+1, length-1 );
 
 	// find destination
 	EnterCriticalSection( &d->critSect );
-	std::map<std::string,MulticrewModule*>::iterator dest;
-	std::string moduleId = RoutedModulePacket::moduleName( packetBuf );
-	dest = modules.find( moduleId );
-	if( dest==modules.end() ) {
-		LeaveCriticalSection( &d->critSect );
-		dout << "Unroutable packet for module \"" << moduleId << "\"" << std::endl;
-		return;
-	}			
+	MulticrewCore::multicrewCore()->receive( ((char*)data)+1, length-1 );
 	LeaveCriticalSection( &d->critSect );
-	
-	// create packet
-	SmartPtr<RoutedModulePacket> routed = 
-		new RoutedModulePacket( packetBuf, (MulticrewModule*)(dest->second) );
-				
-	// deliver packet
-	if( !routed.isNull() )
-		routed->module()->receive( routed->modulePacket() );
 }
 
 
-void ConnectionImpl::disconnect() {
+void Connection::disconnect() {
 	if( !d->disconnected ) {
 		ref();
 		d->disconnected = true;
@@ -156,27 +81,23 @@ void ConnectionImpl::disconnect() {
 }
 
 
-bool ConnectionImpl::start() {
+bool Connection::start() {
 	startThread( 0 );
 	return true;
 }
 
 
-bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe, 
-						   Priority prio, SmartPtr<MulticrewModule> sender,
-						   bool async, int channel ) {
+bool Connection::send( SmartPtr<PacketBase> packet, bool safe, 
+						   Priority prio, int channel ) {
 	// connected?
 	if( d->disconnected ) {
-		if( !sender.isNull() ) sender->sendFailed();
 		return false;
 	}
 
 	// prepare packet
-	SmartPtr<RoutedModulePacket> routed = 
-		new RoutedModulePacket( packet, sender );
-	unsigned size = routed->compiledSize()+1;
+	unsigned size = packet->compiledSize()+1;
 	char *buffer = (char*)malloc( size );
-	routed->compile( buffer+1 );
+	packet->compile( buffer+1 );
 	buffer[0]=127;
 
 	// set priority
@@ -190,17 +111,10 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 
 	// set reliability mode
 	PacketReliability reliability;
-	if( async ) {
-		if( safe )
-			reliability = RELIABLE_ORDERED;
-		else
-			reliability = UNRELIABLE_SEQUENCED;
-	} else {
-		if( safe )
-			reliability = RELIABLE_ORDERED;
-		else
-			reliability = UNRELIABLE_SEQUENCED;
-	}
+	if( safe )
+		reliability = RELIABLE_ORDERED;
+	else
+		reliability = UNRELIABLE_SEQUENCED;
 				
 	// send
 	bool ok = sendImpl( (char*)buffer, 
@@ -214,11 +128,9 @@ bool ConnectionImpl::send( SmartPtr<ModulePacket> packet, bool safe,
 
     // error?
 	if( !ok ) {
-		if( !sender.isNull() ) sender->sendFailed();
 		dout << "Failed to send packet." << std::endl;
 		return false;
 	}
 
-    if( !sender.isNull() && !async ) sender->sendCompleted();
 	return true;
 }

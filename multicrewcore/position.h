@@ -22,17 +22,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "multicrewcore.h"
 
-class PositionModule : public MulticrewModule {
+class PositionModule : public MulticrewModule,
+					   public Thread, 
+					   public NetworkChannel {
  public:
 	PositionModule();
 	virtual ~PositionModule();
 
-	virtual void sendFullState();
-
  private:
-	virtual SmartPtr<PacketBase> createInnerModulePacket( SharedBuffer &buffer );
-	virtual void sendProc();
-	virtual void handlePacket( SmartPtr<PacketBase> packet );
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
+	virtual void receive( SmartPtr<PacketBase> packet );
+	virtual unsigned threadProc( void *param );
+	virtual void sendFullState();
 	void frameCallback();
 
 	struct Data;

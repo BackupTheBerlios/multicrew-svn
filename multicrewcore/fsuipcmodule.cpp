@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "../multicrewgauge/gauges.h"
 #include "streams.h"
+#include "multicrewcore.h"
 #include "fsuipcmodule.h"
 #include "fsuipc.h"
 #include "log.h"
@@ -78,7 +79,7 @@ protected:
 /*********************************************************************/
 class FsuipcWatch : public Shared {
 public:
-	FsuipcWatch( SmartPtr<Fsuipc> fsuipc, WORD id, BYTE size, Connection::Priority prio, bool safe ) {
+	FsuipcWatch( SmartPtr<Fsuipc> fsuipc, WORD id, BYTE size, Priority prio, bool safe ) {
 		this->id = id;
 		this->size = size;
 		this->_prio = prio;
@@ -117,14 +118,14 @@ public:
 		return _safe;
 	}
 
-	Connection::Priority priority() {
+	Priority priority() {
 		return _prio;
 	}
 
 private:
 	WORD id;
 	BYTE size;
-	Connection::Priority _prio;
+	Priority _prio;
 	bool _safe;
 	void *data;
 	void *oldData;
@@ -143,7 +144,7 @@ struct FsuipcModule::Data {
 
 
 FsuipcModule::FsuipcModule() 
-	: MulticrewModule( "FSUIPC", WAITTIME ) {
+	: MulticrewModule( "FSUIPC" ), NetworkChannel( "FSUIPC" ) {
 	d = new Data;
 	d->core = MulticrewCore::multicrewCore();
 	d->fsuipc = Fsuipc::fsuipc();
@@ -151,56 +152,56 @@ FsuipcModule::FsuipcModule()
 
 
 FsuipcModule::~FsuipcModule() {
+	stopThread();
 	d->watches.clear();
 	delete d;
 }
 
 
-SmartPtr<PacketBase> FsuipcModule::createInnerModulePacket( SharedBuffer &buffer ) {
+SmartPtr<PacketBase> FsuipcModule::createPacket( SharedBuffer &buffer ) {
 	return new FsuipcPacket( buffer );
 }
 
 
-void FsuipcModule::sendFullState() {
-	d->nextIsFullSend = true;
-}
-
-
-void FsuipcModule::sendProc() {
-	switch( d->core->mode() ) {
-	case MulticrewCore::IdleMode: break;
-	case MulticrewCore::HostMode:
-	{
-		// let watches call read
-		d->fsuipc->begin();
-		for( int i=0; i<d->watches.size(); i++ ) {
-			d->watches[i]->update();
-		}
-		bool ok = d->fsuipc->end();
-		
-		// let watches process read results
-		if( ok ) {
-			// full send?
-			bool fullSend = d->nextIsFullSend;
+unsigned  FsuipcModule::threadProc( void *param ) {
+	while( !shouldExit( WAITTIME ) ) {
+		switch( d->core->mode() ) {
+		case MulticrewCore::IdleMode: break;
+		case MulticrewCore::HostMode:
+		{
+			// let watches call read
+			d->fsuipc->begin();
+			for( int i=0; i<d->watches.size(); i++ ) {
+				d->watches[i]->update();
+			}
+			bool ok = d->fsuipc->end();
 			
-			// next is no full send by default
-			d->nextIsFullSend = false;
-			
-			// get packets from watches and send
-			for( i=0; i<d->watches.size(); i++ ) {
-				SmartPtr<FsuipcPacket> packet = d->watches[i]->process( fullSend );
-				if( !packet.isNull() ) {
-					send( &*packet, d->watches[i]->safe(), d->watches[i]->priority() );
+			// let watches process read results
+			if( ok ) {
+				// full send?
+				bool fullSend = d->nextIsFullSend;
+				
+				// next is no full send by default
+				d->nextIsFullSend = false;
+				
+				// get packets from watches and send
+				for( i=0; i<d->watches.size(); i++ ) {
+					SmartPtr<FsuipcPacket> packet = d->watches[i]->process( fullSend );
+					if( !packet.isNull() ) {
+						send( &*packet, d->watches[i]->safe(), d->watches[i]->priority() );
+					}
 				}
 			}
+		} break;
+		case MulticrewCore::ClientMode: break;
 		}
-	} break;
-	case MulticrewCore::ClientMode: break;
 	}
+		
+	return 0;
 }
 
 
-void FsuipcModule::handlePacket( SmartPtr<PacketBase> packet ) {
+void FsuipcModule::receive( SmartPtr<PacketBase> packet ) {
 	switch( d->core->mode() ) {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode:
@@ -220,8 +221,14 @@ void FsuipcModule::handlePacket( SmartPtr<PacketBase> packet ) {
 }
 
 
+void FsuipcModule::sendFullState() {
+	d->nextIsFullSend = true;
+}
+
+
 void FsuipcModule::watch( WORD id, BYTE size, bool safe, bool highPrio ) {
-	d->watches.push_back( new FsuipcWatch( d->fsuipc, id, size, 
-										   highPrio?Connection::highPriority:
-										   Connection::mediumPriority, safe ));
+	d->watches.push_back( 
+		new FsuipcWatch( d->fsuipc, id, size, 
+						 highPrio?highPriority:mediumPriority, 
+						 safe ));
 }

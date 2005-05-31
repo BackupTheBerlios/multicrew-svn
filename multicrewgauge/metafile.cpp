@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "multicrewgauge.h"
 #include "metafile.h"
+#include "../stlplus/source/string_utilities.hpp"
 #include "../multicrewcore/streams.h"
 #include "../multicrewcore/callback.h"
 #include "../multicrewcore/log.h"
@@ -104,9 +105,8 @@ struct MetafileCompressor::Data {
 	}
 
 	// general stuff
-	GaugeModule *mgauge;
+	MetafileChannel *channel;
 	CRITICAL_SECTION cs;
-	int channel;
 
 	// metafile data
 	SmartPtr<GlobalMem> lastMetafile;
@@ -122,10 +122,8 @@ struct MetafileCompressor::Data {
 };
 
 
-MetafileCompressor::MetafileCompressor( GaugeModule *mgauge, int delay,
-										int channel ) {
+MetafileCompressor::MetafileCompressor( MetafileChannel *channel, int delay ) {
 	d = new Data( this );
-	d->mgauge = mgauge;
 	d->channel = channel;
 	d->metafileCounter = 0;
 	d->minimumMetafileSize = -1;
@@ -153,7 +151,7 @@ void MetafileCompressor::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*packet;
 	switch( mp->key() ) {
 	case resetPacket: 
-		dout << "channel " << d->channel
+		dout << "channel " << d->channel->channelNum()
 			 << " reset metafile received" << std::endl;
 		EnterCriticalSection( &d->cs );
 		d->metafileCounter = 0;
@@ -295,7 +293,7 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 				refSize = 1000;
 				ref = malloc( refSize );			
 				ZeroMemory( ref, refSize );
-				dout << "channel " << d->channel 
+				dout << "channel " << d->channel->channelNum() 
 					 << " start fresh metafile" << std::endl;
 			} else {
 				if( previous.isNull() ) {
@@ -333,15 +331,15 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 			// compression successful?
 			if( ret==ZD_OK && counter==d->metafileCounter ) {
 				// send metafile
-				d->mgauge->sendMetafilePacket( 
-					d->channel, 
+				d->channel->send( 
+					true,
 					new MetafilePacket( 
 						dataPacket,
 						new MetafileDataPacket(
 							d->metafileCounter,
 							SharedBuffer(new Buffer( delta, deltaSize, false )))),
 					true, // safe
-					Connection::lowPriority );
+					lowPriority );
 				
 				// packet sent
 				d->metafileCounter++;
@@ -350,7 +348,7 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 				d->previousMetafile = last;
 			} else {
 				free( delta );
-				dout << "channel " << d->channel
+				dout << "channel " << d->channel->channelNum()
 					 << " compress failed" << std::endl;		   
 			}
 			
@@ -394,9 +392,8 @@ struct MetafileDecompressor::Data {
 	}
 
 	// general stuff
-	GaugeModule *mgauge;
+	MetafileChannel *channel;
 	CRITICAL_SECTION cs;
-	int channel;
 
 	SmartPtr<GlobalMem> lastMetafile;
 	int metafileCounter;
@@ -405,10 +402,8 @@ struct MetafileDecompressor::Data {
 };
 
 
-MetafileDecompressor::MetafileDecompressor( GaugeModule *mgauge, 
-											int channel ) {
+MetafileDecompressor::MetafileDecompressor( MetafileChannel *channel ) {
 	d = new Data( this );
-	d->mgauge = mgauge;
 	d->channel = channel;
 	d->metafileCounter = 0;
 
@@ -434,37 +429,38 @@ int MetafileDecompressor::counter() {
 	return d->metafileCounter;
 }
 
+
 void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<MetafilePacket> mp = (MetafilePacket*)&*packet;
 	SmartPtr<MetafileDataPacket> mdp = (MetafileDataPacket*)&*mp->wrappee();
 
 	EnterCriticalSection( &d->cs );
-	dout << "channel " << d->channel
+	dout << "channel " << d->channel->channelNum()
 		 << " metafile packet with size " << mdp->buffer().size() 
 		 << " counter=" << mdp->counter() << std::endl;
 
 	// correct sequence?
 	if( d->metafileCounter!=mdp->counter() ) {
 		d->metafileCounter = 0;
-		d->mgauge->sendMetafilePacket(
-			d->channel,
+		d->channel->send(
+			false,
 			new MetafilePacket(
 				resetPacket,
 				new MetafileResetPacket()),
 			true,
-			Connection::highPriority );			
+			highPriority );			
 		
-		dout << "channel " << d->channel
+		dout << "channel " << d->channel->channelNum()
 			 << " invalid metafile sequence, reset" << std::endl;
 	} else {
 		// acknowledge
-		d->mgauge->sendMetafilePacket(
-			d->channel,
+		d->channel->send(
+			false,
 			new MetafilePacket(
 				ackPacket,
 				new MetafileAckPacket()),
 			true,
-			Connection::highPriority );			
+			highPriority );			
 
 		// decompress
 		void *ref = 0;
@@ -475,7 +471,7 @@ void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 			refSize = 1000;
 			ref = malloc( refSize );
 			ZeroMemory( ref, refSize );
-			dout << "channel " << d->channel
+			dout << "channel " << d->channel->channelNum()
 				 << " start with fresh metafile" << std::endl;
 		} else {
 			// use previous as reference
@@ -502,7 +498,7 @@ void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 				free( ref );				
 			else
 				previous->unlock();
-			dout << "channel " << d->channel
+			dout << "channel " << d->channel->channelNum()
 				 << " uncompress failed" << std::endl;
 		}
 		

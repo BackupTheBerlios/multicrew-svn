@@ -64,8 +64,8 @@ struct StringElement::Data {
 };
 
 
-StringElement::StringElement( int id, Gauge &gauge )
-	: Element( id, gauge ) {
+StringElement::StringElement( Gauge *gauge, unsigned num )
+	: Element( gauge, num ), NetworkChannel( id() ) {
 	d = new Data( this );
 	d->stringHeader = 0;
 	d->value[0] = 0;
@@ -112,54 +112,13 @@ SmartPtr<PacketBase> StringElement::createPacket( SharedBuffer &buffer ) {
 }
 
 
-FLOAT64 StringElement::callback( PELEMENT_STRING pelement ) {	
-	switch( core()->mode() ) {
-	case MulticrewCore::IdleMode:
-		return (*d->origCallback)( pelement );
-	case MulticrewCore::HostMode:
-	{ 
-		//dout << "> callback " << d->stringHeader << std::endl;
-		FLOAT64 ret = (*d->origCallback)( pelement );
-		EnterCriticalSection( &d->cs );
-		if( (pelement->string==0 && d->value[0]!=0) 
-			|| strcmp(pelement->string, d->value)!=0 ) {
-			dout << "String callback " << d->stringHeader << ":" << this 
-				 << " in " << gauge().name() << " = " << (unsigned long)ret << std::endl;
-			
-			// empty string?
-			if( pelement->string==0 )
-				d->value[0] = 0;
-			else
-				strncpy( d->value, pelement->string, BUFFER_SIZE );
-			
-			gauge().requestSend( this );
-		}
-		//dout << "< cal lback " << d->stringHeader << std::endl;
-		LeaveCriticalSection( &d->cs );
-		return ret;
-	} break;
-	case MulticrewCore::ClientMode:
-	{
-		EnterCriticalSection( &d->cs );
-		FLOAT64 ret = (*d->origCallback)( pelement );
-		pelement->string = d->buffer;
-		strncpy( d->buffer, d->value, BUFFER_SIZE );	
-		LeaveCriticalSection( &d->cs );
-		return ret;
-	} break;
-	}
-
-	return 0.0;
-}
-
-
-void StringElement::sendProc() {
+void StringElement::sendState() {
 	switch( core()->mode() ) {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode:
 	{
 		EnterCriticalSection( &d->cs );
-		gauge().send( id(), new StringPacket(d->value), false );
+		send( new StringPacket(d->value), false, mediumPriority );
 		LeaveCriticalSection( &d->cs );
 	} break;
 	case MulticrewCore::ClientMode: break;
@@ -179,4 +138,50 @@ void StringElement::receive( SmartPtr<PacketBase> packet ) {
 		LeaveCriticalSection( &d->cs );
 	} break;
 	}
+}
+
+
+void StringElement::sendFullState() {
+	sendState();
+}
+
+
+FLOAT64 StringElement::callback( PELEMENT_STRING pelement ) {	
+	switch( core()->mode() ) {
+	case MulticrewCore::IdleMode:
+		return (*d->origCallback)( pelement );
+	case MulticrewCore::HostMode:
+	{ 
+		//dout << "> callback " << d->stringHeader << std::endl;
+		FLOAT64 ret = (*d->origCallback)( pelement );
+		EnterCriticalSection( &d->cs );
+		if( (pelement->string==0 && d->value[0]!=0) 
+			|| strcmp(pelement->string, d->value)!=0 ) {
+			dout << "String callback " << d->stringHeader << ":" << this 
+				 << " in " << id() << " = " << (unsigned long)ret << std::endl;
+			
+			// empty string?
+			if( pelement->string==0 )
+				d->value[0] = 0;
+			else
+				strncpy( d->value, pelement->string, BUFFER_SIZE );
+			
+			sendState();
+		}
+		//dout << "< cal lback " << d->stringHeader << std::endl;
+		LeaveCriticalSection( &d->cs );
+		return ret;
+	} break;
+	case MulticrewCore::ClientMode:
+	{
+		EnterCriticalSection( &d->cs );
+		FLOAT64 ret = (*d->origCallback)( pelement );
+		pelement->string = d->buffer;
+		strncpy( d->buffer, d->value, BUFFER_SIZE );	
+		LeaveCriticalSection( &d->cs );
+		return ret;
+	} break;
+	}
+
+	return 0.0;
 }
