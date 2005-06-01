@@ -133,7 +133,7 @@ public:
 };
 
 
-class Gauge : private NetworkChannel, public Identified {
+class Gauge : public Identified, private NetworkChannel, private AsyncCallee {
  public:
 	Gauge( GaugeModule *mgauge, std::string name, std::string parameters );
 	virtual ~Gauge();
@@ -153,6 +153,7 @@ class Gauge : private NetworkChannel, public Identified {
 	virtual BOOL mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags );
 	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {}
 	void handleMouseEvents();
+	virtual void asyncCallback();
 
 	void receive( SmartPtr<PacketBase> packet );
 	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );

@@ -50,40 +50,28 @@ typedef TypedPacket<char, PacketBase> MulticrewPacket;
 typedef EmptyPacket FullSendPacket;
 
 
-class ChannelPacket : public PacketBase {
-public:
-	ChannelPacket( SmartPtr<PacketBase> packet, std::string channel ) {
-		this->_packet = packet;
-		this->_channel = channel;
+class ChannelPacket : public StringTypedPacket<PacketBase> {
+ public:
+	ChannelPacket( std::string channel, SmartPtr<PacketBase> packet ) 
+		: StringTypedPacket<PacketBase>( channel, packet ) {
 	}	
 
-	virtual unsigned compiledSize() {
-		return _channel.length()+1+_packet->compiledSize();
-	}
-
-	virtual void compile( void *data ) {
-		strcpy( (char*)data, _channel.c_str() );
-		_packet->compile( ((char*)data)+_channel.length()+1 );
+	ChannelPacket( SharedBuffer &buffer, Factory *factory ) 
+		: StringTypedPacket<PacketBase>( buffer, factory ) {
 	}
 
 	std::string channel() {
-		return _channel;
+		return key();
 	}
-
-	SmartPtr<PacketBase> packet() {
-		return _packet;
-	}
-
-private:	
-	std::string _channel;
-	SmartPtr<PacketBase> _packet;
 };
 
 
 /*********************************************************************/
 
 
-class MulticrewCoreImpl : public MulticrewCore {
+class MulticrewCoreImpl : public MulticrewCore, 
+						  private TypedPacketFactory<char,PacketBase>,
+						  private StringTypedPacketFactory<PacketBase> {
  public:
 	MulticrewCoreImpl();
 	virtual ~MulticrewCoreImpl();
@@ -96,8 +84,10 @@ class MulticrewCoreImpl : public MulticrewCore {
 	void handleFullState();
 	unsigned registerNetworkChannel( NetworkChannel *channel );
 	void unregisterNetworkChannel( NetworkChannel *channel );
-	void receiveChannelPacket( SharedBuffer &buffer );
-	void receive( void *data, unsigned length );
+	void receive( SmartPtr<PacketBase> packet );
+	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
+	SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer );
+	SmartPtr<PacketBase> createPacket( std::string channel, SharedBuffer &buffer );
 	void log( std::string line );
 	double time();
 	void callbackAsync();
@@ -105,7 +95,7 @@ class MulticrewCoreImpl : public MulticrewCore {
 	void ackNewFrame();
 	void registerModule( MulticrewModule *module );
 	void unregisterModule( MulticrewModule *module );   
-	bool sendChannelPacket( SmartPtr<PacketBase> packet, bool safe,
+	bool sendChannelPacket( SmartPtr<ChannelPacket> packet, bool safe,
 							Priority prio, unsigned channel );
 	struct Data;
 	Data *d;
@@ -135,6 +125,7 @@ struct MulticrewCoreImpl::Data {
 
 
 static MulticrewCoreImpl *multicrewCore = 0;
+
 
 SmartPtr<MulticrewCore> MulticrewCore::multicrewCore() {
 	if( ::multicrewCore==0 ) ::multicrewCore = new MulticrewCoreImpl();
@@ -181,7 +172,7 @@ unsigned NetworkChannel::channelNum() {
 bool NetworkChannel::send( SmartPtr<PacketBase> packet, bool safe, 
 						   Priority prio ) {
 	return d->core->sendChannelPacket(
-		new ChannelPacket( packet, d->id ), 
+		new ChannelPacket( d->id, packet ), 
 		safe, prio, d->num );
 }
 
@@ -307,12 +298,17 @@ void MulticrewCoreImpl::useConnection( SmartPtr<Connection> con ) {
 
 	// finally start fsuipc and position module
 	if( d->posModule.isNull() ) start();
+	if( d->fsuipcModule.isNull() ) start();
+
+	// resync the whole state
+	sendFullState();
 }
 
 
 void MulticrewCoreImpl::triggerAsyncCallback( AsyncCallee *callee ) {
 	EnterCriticalSection( &d->critSect );
 	bool first = d->asyncCallees.size()==0;
+	//dout << "triggering async (first" << first << ")" << std::endl;
 
 	// add callee to list of callback requesters
 	d->asyncCallees.insert( callee );
@@ -355,29 +351,40 @@ void MulticrewCoreImpl::unregisterNetworkChannel( NetworkChannel *channel ) {
 }
 
 
-bool MulticrewCoreImpl::sendChannelPacket( SmartPtr<PacketBase> packet, 
+bool MulticrewCoreImpl::sendChannelPacket( SmartPtr<ChannelPacket> packet, 
 										   bool safe, Priority prio, 
 										   unsigned channel ) {
 	bool ret = false;
 	EnterCriticalSection( &d->critSect );
-	if( !d->connection.isNull() ) {
-		ret = d->connection->send( 
-			new MulticrewPacket( channelPacket, packet ),
+	SmartPtr<Connection> con = d->connection;
+	LeaveCriticalSection( &d->critSect );
+
+	if( !con.isNull() ) {
+		return con->send( 
+			new MulticrewPacket( channelPacket, &*packet ),
 			safe, prio, channel );
 	}
-	LeaveCriticalSection( &d->critSect );
-	return ret;
+	return false;
 }
 
 
 void MulticrewCoreImpl::handleFullState() {
+	// collect channels
+	std::deque<NetworkChannel*> channels;
 	EnterCriticalSection( &d->critSect );
 	std::map<std::string,NetworkChannel *>::iterator it = d->channels.end();
 	while( it!=d->channels.end() ) {
-		it->second->sendFullState();
+		channels.push_back( it->second );
 		it++;
 	}
 	LeaveCriticalSection( &d->critSect );
+
+	// send full state
+	std::deque<NetworkChannel*>::iterator it2 = channels.begin();
+	while( it2!=channels.end() ) {
+		(*it2)->sendFullState();
+		it2++;
+	}
 }
 
 
@@ -398,37 +405,63 @@ void MulticrewCoreImpl::sendFullState() {
 }
 
 
-void MulticrewCoreImpl::receive( void *data, unsigned length ) {
-	SharedBuffer buffer( data, length );
-	switch( *(char*)buffer.data() ) {
-	case fullSendPacket:
-		handleFullState();
-		break;
-	case channelPacket:
-		receiveChannelPacket( SharedBuffer( buffer, 1 ) );
-		break;
-	}
+SmartPtr<PacketBase> MulticrewCoreImpl::createPacket( SharedBuffer &buffer ) {
+	return new MulticrewPacket( buffer, this );
 }
 
 
-void MulticrewCoreImpl::receiveChannelPacket( SharedBuffer &buffer ) {
-	EnterCriticalSection( &d->critSect );
-	std::string moduleId = (char*)buffer.data();
-
-	// find destination
-	std::map<std::string,NetworkChannel *>::iterator channel =
-		d->channels.find( moduleId );
-	if( channel==d->channels.end() ) {
-		dout << "Unroutable packet for module \"" << moduleId << "\"" << std::endl;
-	} else {
-		// create packet and send it to receiver object
-		SmartPtr<PacketBase> packet = 
-			channel->second->createPacket( 
-				SharedBuffer( buffer, moduleId.length() ) );
-		channel->second->receive( packet );
+SmartPtr<PacketBase> MulticrewCoreImpl::createPacket( char key, 
+													  SharedBuffer &buffer ) {
+	switch( key ) {
+	case fullSendPacket:
+		return new FullSendPacket();
+		break;
+	case channelPacket:
+		return new ChannelPacket( buffer, this );
+		break;
 	}
+	return 0;
+}
 
-	LeaveCriticalSection( &d->critSect );
+SmartPtr<PacketBase> MulticrewCoreImpl::createPacket( std::string channel,
+													  SharedBuffer &buffer ) {
+    // find destination
+	std::map<std::string,NetworkChannel *>::iterator dest =
+		d->channels.find( channel );
+	if( dest==d->channels.end() ) {
+		dout << "Unroutable packet for module \"" << channel
+			 << "\"" << std::endl;
+	} else {		
+		return dest->second->createPacket( buffer );
+	}
+	return 0;	
+}
+
+
+void MulticrewCoreImpl::receive( SmartPtr<PacketBase> packet ) {
+	SmartPtr<MulticrewPacket> mp = (MulticrewPacket*)&*packet;
+	switch( mp->key() ) {
+	case fullSendPacket:
+		handleFullState();
+		break;
+	case channelPacket: {
+		EnterCriticalSection( &d->critSect );
+		SmartPtr<ChannelPacket> ncp = (ChannelPacket*)&*mp->wrappee();
+		
+        // find destination
+		std::map<std::string,NetworkChannel *>::iterator dest =
+			d->channels.find( ncp->key() );
+		if( dest==d->channels.end() ) {
+			dout << "Unroutable packet for module \"" << ncp->key() 
+				 << "\"" << std::endl;
+			LeaveCriticalSection( &d->critSect );
+		} else {
+			NetworkChannel *channel = dest->second;
+			LeaveCriticalSection( &d->critSect );
+			channel->receive( ncp->wrappee() );
+		}		
+	}
+	}
 }
 
 
@@ -436,5 +469,6 @@ void MulticrewCoreImpl::receiveChannelPacket( SharedBuffer &buffer ) {
 
 
 void AsyncCallee::triggerAsyncCallback() {
+	//dout << "triggering async" << std::endl;
 	MulticrewCore::multicrewCore()->triggerAsyncCallback( this );
 }

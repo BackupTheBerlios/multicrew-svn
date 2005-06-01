@@ -100,7 +100,7 @@ public:
 				case ID_DISCONNECT_MENUITEM: ui->disconnect(); break;
 				case ID_STATUS_MENUITEM: ui->status(); break;
 				case ID_LOG: ui->log(); break;
-				case ID_ASYNC: ui->async(); break;
+					//case ID_ASYNC: ui->async(); break;
 				}
 			} break;
 			}
@@ -125,48 +125,54 @@ public:
 };
 
 
-UIThread *ui;
+UIThread *uiThread;
 
 
 /*****************************************************************************/
 LRESULT CALLBACK FSimWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uMsg) {
-		case WM_NCPAINT: {
-			// add a menu to the fs window
-			HMENU hFSMenu;
-
-			hFSMenu = GetMenu(hwnd);
-			if( hFSMenu!=NULL ) {
-				int i;
-				// Look for our menu entry in the main menu.
-				for( i=0; i<GetMenuItemCount(hFSMenu); i++ ) {
-					char buf[128];
-					GetMenuString( hFSMenu, i, buf, 128, MF_BYPOSITION );
-					if( strcmp(buf, MENU_ENTRY)==0 ) {
-						// It is already here, we do not need to add it again
-						break;
-					}
-				}
-				if( i<GetMenuItemCount(hFSMenu) ) {
+	case WM_NCPAINT: {
+		// add a menu to the fs window
+		HMENU hFSMenu;
+		
+		hFSMenu = GetMenu(hwnd);
+		if( hFSMenu!=NULL ) {
+			int i;
+			// Look for our menu entry in the main menu.
+			for( i=0; i<GetMenuItemCount(hFSMenu); i++ ) {
+				char buf[128];
+				GetMenuString( hFSMenu, i, buf, 128, MF_BYPOSITION );
+				if( strcmp(buf, MENU_ENTRY)==0 ) {
 					// It is already here, we do not need to add it again
 					break;
 				}
-				
-				/* Create new menu. NOTE: It seems that this will be
-				 * reached more times, so we cannot save the handle, because
-				 * in such case it could be destroyed and we will not have
-				 * any access to it in the simulator.
-				 */
-				// add the created menu to the main menu
-				AppendMenu(hFSMenu, MF_STRING | MF_POPUP, (UINT_PTR)ui->ui->newMenu(), MENU_ENTRY);		
 			}
+			if( i<GetMenuItemCount(hFSMenu) ) {
+				// It is already here, we do not need to add it again
+				break;
+			}
+			
+			/* Create new menu. NOTE: It seems that this will be
+			 * reached more times, so we cannot save the handle, because
+			 * in such case it could be destroyed and we will not have
+			 * any access to it in the simulator.
+			 */
+			// add the created menu to the main menu
+			AppendMenu(hFSMenu, MF_STRING | MF_POPUP, (UINT_PTR)uiThread->ui->newMenu(), MENU_ENTRY);		
 		}
-		break;
+	}break;
 		
-		case WM_COMMAND:
-			if( LOWORD(wParam)>=ID_FIRST && LOWORD(wParam)<=ID_LAST )
-				ui->postThreadMessage( uMsg, wParam, lParam );
-			break;
+	case WM_COMMAND: {
+		if( LOWORD(wParam)>=ID_FIRST && LOWORD(wParam)<=ID_LAST )
+			uiThread->postThreadMessage( uMsg, wParam, lParam );
+		else
+			switch( LOWORD(wParam) ) {
+			case ID_ASYNC: 
+				uiThread->ui->async(); 
+				//dout << "async" << std::endl;
+				break;
+			}
+	} break;
 	}
 
 	// Call the original window procedure to handle all other messages
@@ -182,7 +188,7 @@ BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
 		
 		hFSimWindow = FindWindow("FS98MAIN", NULL);
 		gInstance = hInstDLL;
-		ui = new UIThread();
+		uiThread = new UIThread();
 		
 		OutputDebugString( "Loaded MulticrewUI\n" );
 	} break;		
@@ -191,7 +197,7 @@ BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
 	case DLL_PROCESS_DETACH: {
 		OutputDebugString( "Unloading MulticrewUI\n" );
 
-		delete ui;			
+		delete uiThread;			
 
 		OutputDebugString( "Unloaded MulticrewUI\n" );
 	} break;

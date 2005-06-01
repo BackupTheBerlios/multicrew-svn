@@ -281,5 +281,6 @@ void MulticrewUI::async() {
 
 
 void MulticrewUI::asyncSlot() {
+	//dout << "posting async" << std::endl;
 	PostMessage( d->hwnd, WM_COMMAND, ID_ASYNC, 0 );
 }

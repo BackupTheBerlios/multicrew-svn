@@ -187,7 +187,7 @@ void Gauge::receive( SmartPtr<PacketBase> packet ) {
 	EnterCriticalSection( &d->cs );
 	d->mouseEvents.push_back( (MousePacket*)&*packet );
 	LeaveCriticalSection( &d->cs );
-	handleMouseEvents();
+	triggerAsyncCallback();
 }
 
 
@@ -404,6 +404,11 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 	}
 
 	return true;
+}
+
+
+void Gauge::asyncCallback() {
+	handleMouseEvents();
 }
 
 

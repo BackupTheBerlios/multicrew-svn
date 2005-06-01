@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 class MetafileCompressor;
 class MetafileDecompressor;
-class MetafileChannel {
+class MetafileChannel : public Shared {
  private:
 	friend MetafileCompressor;
 	friend MetafileDecompressor;
@@ -84,7 +84,7 @@ private:
 
 
 class GaugeModule;
-class MetafileCompressor : public Shared, private Thread {
+class MetafileCompressor : public SharedAdaptor, private Thread {
  public:
 	MetafileCompressor( MetafileChannel *channel, int delay );
 	virtual ~MetafileCompressor();
@@ -109,7 +109,7 @@ class MetafileCompressor : public Shared, private Thread {
 };
 
 
-class MetafileDecompressor : public Shared {
+class MetafileDecompressor : public SharedAdaptor {
  public:
 	MetafileDecompressor( MetafileChannel *channel );
 	virtual ~MetafileDecompressor();

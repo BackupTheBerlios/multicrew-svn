@@ -94,7 +94,7 @@ class DLLEXPORT NetworkChannel : public PacketFactory<PacketBase> {
 
 
 class DLLEXPORT MulticrewCore : public Shared {
-public:
+ public:
 	static SmartPtr<MulticrewCore> multicrewCore();	
 
 	/* mode handling */
@@ -111,6 +111,7 @@ public:
 	/* connection handling */
 	virtual void useConnection( SmartPtr<Connection> con )=0;
 	virtual void sendFullState()=0;
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer )=0;
 
 	/* general stuff */
 	virtual void log( std::string line )=0;
@@ -126,7 +127,7 @@ public:
 
  protected:
 	friend Connection;
-	virtual void receive( void *data, unsigned length )=0;
+	virtual void receive( SmartPtr<PacketBase> packet )=0;
 
  protected:
 	friend AsyncCallee;

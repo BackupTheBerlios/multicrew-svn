@@ -115,14 +115,15 @@ struct MetafileCompressor::Data {
 	UINT_PTR boostTimer;
 	VoidCallbackAdapter4<MetafileCompressor, HWND,UINT,UINT_PTR,DWORD> boostTimerCallback;
 	int minimumMetafileSize;
-	int metafileDelay;	
+	int metafileDelay;
 
 	MetafileFactory factory;
 	int timeout; // if timeout==0 then compress else wait, used for throttling
 };
 
 
-MetafileCompressor::MetafileCompressor( MetafileChannel *channel, int delay ) {
+MetafileCompressor::MetafileCompressor( MetafileChannel *channel, int delay ) 
+	: SharedAdaptor( channel ) {
 	d = new Data( this );
 	d->channel = channel;
 	d->metafileCounter = 0;
@@ -388,8 +389,7 @@ SmartPtr<PacketBase> MetafileCompressor::createPacket( SharedBuffer &buffer ) {
 
 
 struct MetafileDecompressor::Data {
-	Data( MetafileDecompressor *mc ) {
-	}
+	Data( MetafileDecompressor *mc ) {}
 
 	// general stuff
 	MetafileChannel *channel;
@@ -402,7 +402,8 @@ struct MetafileDecompressor::Data {
 };
 
 
-MetafileDecompressor::MetafileDecompressor( MetafileChannel *channel ) {
+MetafileDecompressor::MetafileDecompressor( MetafileChannel *channel ) 
+	: SharedAdaptor( channel ) {
 	d = new Data( this );
 	d->channel = channel;
 	d->metafileCounter = 0;

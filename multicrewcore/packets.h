@@ -169,7 +169,7 @@ class DLLEXPORT WrappedPacket : public PacketBase {
 		memcpy( buffer, this->buffer.data(), this->buffer.size() );
 	}
 
-	SmartPtr<Wrappee> wrappee() {
+	virtual SmartPtr<Wrappee> wrappee() {
 		return createWrappee( SharedBuffer(buffer, sizeof(Prefix)) );
 	}
 
@@ -296,11 +296,12 @@ template< class Key, class P >
 class TypedPacketFactory : public PacketFactory<P> {
  public:
 	virtual SmartPtr<P> createPacket( Key key, SharedBuffer &buffer )=0;
-	
+
  private:
 	virtual SmartPtr<P> createPacket( SharedBuffer &buffer ) {
-		return createPacket( TypedPacket<Key,P>::prefix(buffer)->key,
-							 SharedBuffer( buffer, sizeof(TypePrefix<Key>) ) );
+		return createPacket(
+			TypedPacket<Key,P>::prefix(buffer)->key,
+			SharedBuffer( buffer, sizeof(TypePrefix<Key>) ) );
 	}
 };
 
@@ -412,5 +413,86 @@ public:
  private:
 	T _data;
 };
+
+
+template< class P >
+class StringTypedPacketFactory : public PacketFactory<P> {
+ public:
+	virtual SmartPtr<P> createPacket( std::string key, SharedBuffer &buffer )=0;
+	
+ private:
+	virtual SmartPtr<P> createPacket( SharedBuffer &buffer ) {
+		std::string key = StringTypedPacket<P>::key(buffer);
+		return createPacket( key, SharedBuffer( buffer, key.length() ) );
+	}
+};
+
+
+template< class Wrappee >
+class DLLEXPORT StringWrappedPacket : public PacketBase {
+ public:
+	StringWrappedPacket( std::string key, SmartPtr<Wrappee> wrappee ) 
+		: buffer(key.length()+1+wrappee->compiledSize()) {
+		strcpy( (char*)buffer.data(), key.c_str() );
+		wrappee->compile( buffer.data(key.length()+1) );
+	}
+
+	StringWrappedPacket( SharedBuffer &buf ) 
+		: buffer( buf ) {
+	}
+
+	virtual ~StringWrappedPacket() {
+	}
+
+	std::string key() {
+		return (char*)buffer.data();
+	}
+
+	virtual unsigned compiledSize() {
+		return buffer.size();
+	}
+
+	virtual void compile( void *buffer ) {
+		memcpy( buffer, this->buffer.data(), this->buffer.size() );
+	}
+
+	virtual SmartPtr<Wrappee> wrappee() {
+		return createWrappee( SharedBuffer(buffer, strlen((char*)buffer.data())+1) );
+	}
+
+	static std::string key( SharedBuffer &buffer ) {
+		return (char*)buffer.data();
+	}
+
+ protected:
+	virtual SmartPtr<Wrappee> createWrappee( SharedBuffer &buffer )=0;
+
+ private:
+	SharedBuffer buffer;
+};
+
+
+template< class P >
+class DLLEXPORT StringTypedPacket : public StringWrappedPacket<P> {
+ public:
+	typedef StringTypedPacketFactory<P> Factory;
+	StringTypedPacket( SharedBuffer &buffer, Factory *factory )
+		: StringWrappedPacket<P>( buffer ) {
+		this->factory = factory;
+	}
+
+	StringTypedPacket( std::string key, SmartPtr<P> packet ) 
+		: StringWrappedPacket<P>( key, packet ) {
+	}
+
+ protected:
+	virtual SmartPtr<P> createWrappee( SharedBuffer &buffer ) {
+		return factory->createPacket( key(), buffer );
+	}
+	
+ private:
+	Factory *factory;
+};
+
 
 #endif

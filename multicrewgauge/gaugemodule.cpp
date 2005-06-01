@@ -45,22 +45,23 @@ class MetafileChannelImpl : public MetafileChannel,
 							private TypedPacketFactory<char,PacketBase> {
  public:
 	MetafileChannelImpl( GaugeModule *mgauge, unsigned num )
-		: Identified( mgauge, num ), NetworkChannel( id() ) {
-		int delay = mgauge->config()->intValue( 
-			"metafile", 
-			"delay"+to_string(num),
-			500 );
-		this->num = num;
-		compressor = new MetafileCompressor( this, delay );
-		decompressor = new MetafileDecompressor( this );
+		: Identified( mgauge, num ), 
+		  NetworkChannel( id() ),
+		  num( num ),
+		  compressor( this, 
+					  mgauge->config()->intValue( 
+						  "metafile", 
+						  "delay"+to_string(num),
+						  500 ) ),
+		  decompressor( this ) {
 	}
 
 	unsigned channelNum() {
 		return num;
 	}
 
-	SmartPtr<MetafileCompressor> compressor;
-	SmartPtr<MetafileDecompressor> decompressor;
+	MetafileCompressor compressor;
+	MetafileDecompressor decompressor;
 
  private:
 	bool send( bool fromCompressor, SmartPtr<PacketBase> packet, 
@@ -72,17 +73,17 @@ class MetafileChannelImpl : public MetafileChannel,
 
 	SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer ) {
 		if( key==0 )
-			return compressor->createPacket( buffer );
+			return compressor.createPacket( buffer );
 		else
-			return decompressor->createPacket( buffer );
+			return decompressor.createPacket( buffer );
 	}
 
 	void receive( SmartPtr<PacketBase> packet ) {
 		SmartPtr<MetafileChannelPacket> mcp = (MetafileChannelPacket*)&*packet;
 		if( mcp->key()==0 )
-			compressor->receive( mcp->wrappee() );
+			compressor.receive( mcp->wrappee() );
 		else
-			decompressor->receive( mcp->wrappee() );
+			decompressor.receive( mcp->wrappee() );
 	}
 
 	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer ) {
@@ -96,6 +97,9 @@ class MetafileChannelImpl : public MetafileChannel,
 };
 
 
+typedef SmartPtr<MetafileChannelImpl> SmartMetafileChannelImpl;
+
+
 /****************************************************************************/
 typedef std::list<Gauge*> GaugeList;
 struct GaugeModule::Data {
@@ -106,7 +110,7 @@ struct GaugeModule::Data {
 
 	SmartPtr<MulticrewCore> core;
 	std::deque<Gauge*> gauges;
-	std::deque<MetafileChannelImpl> metafileChannels;
+	std::deque<SmartMetafileChannelImpl> metafileChannels;
 	std::map<std::string, GaugeList*> detachedGauges;
 };
 
@@ -194,15 +198,15 @@ void GaugeModule::installGauge( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extr
 				while( metafile>=d->metafileChannels.size() ) {
 					unsigned num = d->metafileChannels.size();
 					d->metafileChannels.push_back( 
-						MetafileChannelImpl( this, num ) );
+						new MetafileChannelImpl( this, num ) );
 				}
 						
 				// create the gauge with the associated metafile channel
 				gauge = new MetafileGauge( 
 					this, name, parameters,
 					element,
-					&*d->metafileChannels[metafile].compressor,
-					&*d->metafileChannels[metafile].decompressor );
+					&d->metafileChannels[metafile]->compressor,
+					&d->metafileChannels[metafile]->decompressor );
 			} else
 				gauge = new Gauge( this, name, parameters );
 

@@ -18,7 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include <windows.h>
-#include <dplay8.h>
+//#include <dplay8.h>
 
 #include "streams.h"
 #include "log.h"
@@ -63,9 +63,9 @@ void Connection::processPacket( void *data, unsigned length ) {
 	SharedBuffer packetBuf( ((char*)data)+1, length-1 );
 
 	// find destination
-	EnterCriticalSection( &d->critSect );
-	MulticrewCore::multicrewCore()->receive( ((char*)data)+1, length-1 );
-	LeaveCriticalSection( &d->critSect );
+	SmartPtr<PacketBase> packet = 
+		MulticrewCore::multicrewCore()->createPacket( packetBuf );
+	MulticrewCore::multicrewCore()->receive( packet );
 }
 
 
