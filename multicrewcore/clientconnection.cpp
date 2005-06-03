@@ -19,11 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <windows.h>
 
-#include <PacketEnumerations.h>
-#include <RakNetworkFactory.h>
-#include <RakClientInterface.h>
-#include <NetworkTypes.h>
-#include <Multiplayer.h>
+#include "../RakNet/source/PacketEnumerations.h"
+#include "../RakNet/source/RakNetworkFactory.h"
+#include "../RakNet/source/RakClientInterface.h"
+#include "../RakNet/source/NetworkTypes.h"
+#include "../RakNet/source/Multiplayer.h"
 
 #include "streams.h"
 #include "log.h"
