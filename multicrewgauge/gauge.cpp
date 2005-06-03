@@ -72,6 +72,7 @@ struct Gauge::Data {
 
 	// general gauge data
 	std::deque<Element *> elements;	
+	std::deque<StaticElement *> statics;
 	std::set<Element*> sendRequests;
 	std::string name;
 	std::string parameters;
@@ -131,7 +132,8 @@ void Gauge::createElements() {
 			}
 
 			// attach element
-			if( d->elements[num] ) d->elements[num]->attach( pelement );
+			if( d->elements[num] )
+				d->elements[num]->attach( pelement );			
 
 			num++;
 			LeaveCriticalSection( &d->cs );
@@ -209,12 +211,18 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 		dout << d->name << " " << service_id << std::endl;
 		}*/
 	switch( service_id ) {
-	case PANEL_SERVICE_PRE_DRAW:
+	case PANEL_SERVICE_PRE_DRAW: {
 		if( name()=="Switches" ) {
-			d->core->ackNewFrame();
+			d->core->ackNewFrame();			
 			//dout << "pre draw " << this << "/" << name() << std::endl;
 		}
-		break;
+
+		std::deque<StaticElement*>::iterator it = d->statics.begin();
+		while( it!=d->statics.end() ) {
+			(*it)->callback();
+			it++;
+		}
+	} break;
 	case PANEL_SERVICE_POST_DRAW:
 		if( name()=="Switches" || name()=="Master_Alt_Bat" ) {
 			//dout << "post draw " << this << "/" << name() << std::endl;
@@ -337,7 +345,10 @@ Element *Gauge::createElement( int num, PELEMENT_HEADER pelement ) {
 	case ELEMENT_TYPE_ICON: el = new IconElement( this, num ); break;	
 	case ELEMENT_TYPE_NEEDLE: el = new NeedleElement( this, num ); break;
 	case ELEMENT_TYPE_STRING: el = new StringElement( this, num ); break;
-	case ELEMENT_TYPE_STATIC_IMAGE: el = new StaticElement( this, num ); break;
+	case ELEMENT_TYPE_STATIC_IMAGE: {
+		el = new StaticElement( this, num, watchStaticFlags( num ) ); 
+		d->statics.push_back( (StaticElement*)el );
+	} break;
 	default: break;
 	}
 
@@ -351,7 +362,7 @@ BOOL Gauge::mouseCallback( int mouseRectNum, PPIXPOINT pix, FLAGS32 flags ) {
 	PMOUSECALLBACK mc = (PMOUSECALLBACK)pix;
 			
 	dout << "mouseCallback "
-		 << d->name
+		 << id()
 		 << " rel=" << mc->relative_point.x
 		 << ":" << mc->relative_point.y
 		 << " screen=" << mc->screen_point.x
@@ -470,6 +481,20 @@ void Gauge::handleMouseEvents() {
 
 	d->mouseEvents.clear();
 	LeaveCriticalSection( &d->cs );
+}
+
+
+bool Gauge::watchStaticFlags( int elementNum ) {
+	return true;
+}
+
+
+void Gauge::redrawStatics() {
+		std::deque<StaticElement*>::iterator it = d->statics.begin();
+		while( it!=d->statics.end() ) {
+			(*it)->redraw();
+			it++;
+		}	
 }
 
 
@@ -623,4 +648,9 @@ void MetafileGauge::callback( PGAUGEHDR pgauge, SINT32 service_id,
 	
 	// call inherited callback
 	Gauge::callback( pgauge, service_id, extra_data );
+}
+
+
+bool MetafileGauge::watchStaticFlags( int elementNum ) {
+	return elementNum!=md->metafileElement;
 }

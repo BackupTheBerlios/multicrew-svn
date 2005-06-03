@@ -436,9 +436,9 @@ void MetafileDecompressor::receive( SmartPtr<PacketBase> packet ) {
 	SmartPtr<MetafileDataPacket> mdp = (MetafileDataPacket*)&*mp->wrappee();
 
 	EnterCriticalSection( &d->cs );
-	dout << "channel " << d->channel->channelNum()
+	/*dout << "channel " << d->channel->channelNum()
 		 << " metafile packet with size " << mdp->buffer().size() 
-		 << " counter=" << mdp->counter() << std::endl;
+		 << " counter=" << mdp->counter() << std::endl;*/
 
 	// correct sequence?
 	if( d->metafileCounter!=mdp->counter() ) {

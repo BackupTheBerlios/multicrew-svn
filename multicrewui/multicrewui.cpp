@@ -101,7 +101,7 @@ MulticrewUI::~MulticrewUI() {
 	// disconnect network connections
 	if( !d->connection.isNull() ) {
 		d->disconnectedSlot.disconnect();
-		d->core->useConnection( 0 );
+		d->core->stop();
 		d->connection->disconnect();
 		d->connection = 0;
 	}
@@ -158,19 +158,12 @@ void MulticrewUI::host() {
 		else {
 			d->connection = con;
 			d->disconnectedSlot.connect( &d->connection->disconnected );
-
-			dlog << "Setting host mode" << std::endl;
-			d->core->setMode( MulticrewCore::HostMode );
-			dlog << "Host mode set" << std::endl;
-
-			d->core->useConnection( d->connection );
 			bool ok = d->connection->start();
+			dlog << "Setting host mode" << std::endl;
+			d->core->start( true, d->connection );
 			if( !ok ) {
 				dlog << "Setting mode to idle" << std::endl;	
-				d->core->setMode( MulticrewCore::IdleMode );
-				dlog << "Idle mode set" << std::endl;
-
-				d->core->useConnection( 0 );
+				d->core->stop();
 				d->connection->disconnect();
 				d->connection = 0;
 			} else
@@ -197,10 +190,7 @@ void MulticrewUI::connect() {
 		d->disconnectedSlot.connect( &d->connection->disconnected );
 		
 		dlog << "Setting client mode" << std::endl;
-		d->core->setMode( MulticrewCore::ClientMode );
-		dlog << "Client mode set" << std::endl;
-
-		d->core->useConnection( d->connection );
+		d->core->start( false, d->connection );
 		d->connection->start();
 		d->statusDlg->setConnected();
 	}
@@ -212,7 +202,7 @@ void MulticrewUI::disconnect() {
 		int ret = MessageBox(d->hwnd, "Really disconnect?", "Multicrew", 
 			MB_OKCANCEL | MB_ICONQUESTION);
 		if( ret==IDOK ) {
-			d->core->useConnection( 0 );
+			d->core->stop();
 			d->connection->disconnect();
 		}
 	}
@@ -221,11 +211,7 @@ void MulticrewUI::disconnect() {
 
 void MulticrewUI::disconnected() {
 	dlog << "Setting mode to idle" << std::endl;
-	d->core->setMode( MulticrewCore::IdleMode );
-	dlog << "Idle mode set" << std::endl;
-/*	trigger_key_event( KEY_RELOAD_PANELS, 0 );
-	dlog << "Panel reloaded" << std::endl;*/
-
+	d->core->stop();
 	d->connection = 0;
 	updateMenu();
 	d->statusDlg->setUnconnected();

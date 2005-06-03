@@ -48,7 +48,7 @@ public:
 
 	virtual bool start();
 	virtual bool send( SmartPtr<PacketBase> packet, bool safe, 
-					   Priority prio, int channel=0 );
+					   Priority prio, unsigned channel );
 	virtual void disconnect();
 	Signal disconnected;
 
@@ -56,7 +56,7 @@ protected:
 	virtual bool sendImpl( char *buf, unsigned len, 
 						   PacketPriority priority, 
 						   PacketReliability reliability, 
-						   char orderingChannel )=0;
+						   unsigned orderingChannel )=0;
 	virtual void disconnectImpl()=0;
 	virtual void processImpl()=0;
 	virtual unsigned threadProc( void *param );

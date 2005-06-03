@@ -24,8 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/callback.h"
 
 
+#define ICON_FLAGS_MASK (~(IMAGE_ON_SCREEN |IMAGE_HIDDEN ))
+
 struct IconStruct {
 	FLOAT64 value;
+	FLAGS flags;
 };
 
 typedef StructPacket<IconStruct> IconPacket;
@@ -41,6 +44,8 @@ struct IconElement::Data {
 
 	/* recorder */
 	FLOAT64 oldValue;
+	FLAGS oldFlags;
+	bool changed;
 };
 
 
@@ -50,6 +55,7 @@ IconElement::IconElement( Gauge *gauge, unsigned num )
 	d->iconHeader = 0;
 	d->oldValue = 0.0;
 	d->origCallback = 0;
+	d->changed = false;
 }
 
 
@@ -63,6 +69,7 @@ void IconElement::attach( ELEMENT_HEADER *elementHeader ) {
 	Element::attach( elementHeader );
 	d->iconHeader = (ELEMENT_ICON*)elementHeader;
 	d->origCallback = d->iconHeader->update_cb;
+	d->oldFlags = d->iconHeader->image_flags & ICON_FLAGS_MASK;
 
 	if( d->iconHeader->update_cb==NULL ) {
 		dout << id() << " no update_cb " << std::endl;
@@ -88,9 +95,12 @@ void IconElement::receive( SmartPtr<PacketBase> packet ) {
 	case MulticrewCore::HostMode: break;
 	case MulticrewCore::ClientMode: 
 	{
-		//dout << "receive icon packet" << std::endl;
 		SmartPtr<IconPacket> ip = (IconPacket*)&*packet;
-		d->oldValue = ip->data().value;
+		IconStruct &icon = ip->data();
+		d->oldValue = icon.value;
+		d->oldFlags = icon.flags & ICON_FLAGS_MASK;
+		//dout << "Icon receive " << id() << " = " << (unsigned long)d->oldValue << std::endl;
+		d->changed = true;		
 	} break;
 	}
 }
@@ -121,20 +131,35 @@ FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 		else
 			if( pelement->source_var.id!=-1 ) ret = pelement->source_var.var_value.n;
 			
-		if( ret!=d->oldValue ) {
-			dout << "Icon callback " << d->iconHeader << ":" << this 
-				 << " in " << id() << " = " << (unsigned long)ret << std::endl;
+		if( ret!=d->oldValue || (pelement->image_flags & ICON_FLAGS_MASK)!=d->oldFlags ) {
+			dout << "Icon callback " << id() 
+				 << " = " << (unsigned long)ret
+				 << "/" << to_string( pelement->image_flags, 2 )
+				 << std::endl;
 			d->oldValue = ret;
+			d->oldFlags = pelement->image_flags & ICON_FLAGS_MASK;
 			sendState();
 		}
-		// dout << "< callback " << d->iconHeader << std::endl;
 		return ret;
 	} break;
 	case MulticrewCore::ClientMode: {
+		pelement->image_flags = (pelement->image_flags & ~ICON_FLAGS_MASK) | d->oldFlags;
 		if( d->origCallback )
 			(*d->origCallback)( pelement );
+
+		if( d->changed ) {
+			dout << "Icon redraw " << id() 
+				 << " = " << (unsigned long)d->oldValue << std::endl;
+			d->changed = false;
+
+            // redraw statics		
+			if( d->iconHeader->image_flags & IMAGE_USE_TRANSPARENCY ) {
+				gauge()->redrawStatics();
+			}
+			SET_OFF_SCREEN( d->iconHeader );
+		}
 		return d->oldValue;
-	}
+	} break;
 	}
 
 	return 0.0;
@@ -148,7 +173,8 @@ void IconElement::sendState() {
 	{
 		IconStruct s;
 		s.value = d->oldValue;
-		send( new IconPacket( s ), true, mediumPriority );
+		s.flags = d->oldFlags;
+		send( new IconPacket( s ), false, highPriority );
 	} break;
 	case MulticrewCore::ClientMode: break;
 	}   

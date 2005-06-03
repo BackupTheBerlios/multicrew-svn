@@ -132,8 +132,7 @@ unsigned PositionModule::threadProc( void *param ) {
 				dout << "FSUIPC position read error" << std::endl;
 			else
 				// and send packet
-				send( new PositionPacket(d->data), 
-					  false, mediumPriority );
+				send( new PositionPacket(d->data), false, mediumPriority );
 		} break;
 		case MulticrewCore::ClientMode: break;
 		}

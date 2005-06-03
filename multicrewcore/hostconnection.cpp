@@ -44,7 +44,7 @@ protected:
 	virtual bool sendImpl( char *buf, unsigned len, 
 					  PacketPriority priority, 
 					  PacketReliability reliability, 
-					  char orderingChannel );
+					  unsigned orderingChannel );
 	virtual void disconnectImpl(); 
 	virtual void processImpl();
 	virtual void ProcessUnhandledPacket(Packet *packet, 
@@ -96,7 +96,7 @@ HostConnectionImpl::~HostConnectionImpl() {
 		server->Disconnect( 300 );
 		RakNetworkFactory::DestroyRakServerInterface( server );	
 	}
-
+	stopThread();
 	RakNetworkFactory::DestroyRakClientInterface( client );	
 }
 
@@ -104,7 +104,7 @@ HostConnectionImpl::~HostConnectionImpl() {
 bool HostConnectionImpl::sendImpl( char *buf, unsigned len, 
 								   PacketPriority priority, 
 								   PacketReliability reliability, 
-								   char orderingChannel ) {
+								   unsigned orderingChannel ) {
 	if( server->GetConnectedPlayers()>0 ) {
 		return server->Send( buf, len, priority, reliability, 
 							 orderingChannel,

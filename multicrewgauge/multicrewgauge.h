@@ -126,10 +126,25 @@ class StringElement : public Element, public NetworkChannel {
 };
 
 
-class StaticElement : public Element {
+class StaticElement : public Element, public NetworkChannel {
 public:
-	StaticElement( Gauge *gauge, unsigned num );
+	StaticElement( Gauge *gauge, unsigned num, bool watchFlags );
 	virtual ~StaticElement();
+
+	virtual void attach( ELEMENT_HEADER *elementHeader );
+	virtual void detach();
+	void callback();
+	void redraw();
+
+ private:
+	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
+	virtual void receive( SmartPtr<PacketBase> packet );
+	virtual void sendFullState();
+	void sendState();
+
+	struct Data;
+	friend Data;
+	Data *d;
 };
 
 
@@ -145,6 +160,7 @@ class Gauge : public Identified, private NetworkChannel, private AsyncCallee {
 
 	virtual void attach( PGAUGEHDR gaugeHeader );
 	virtual void detach();
+	void redrawStatics();
 
  protected:	
 	void createElements();
@@ -154,6 +170,7 @@ class Gauge : public Identified, private NetworkChannel, private AsyncCallee {
 	virtual void boostMetafileThread( HWND, UINT, UINT_PTR, DWORD) {}
 	void handleMouseEvents();
 	virtual void asyncCallback();
+	virtual bool watchStaticFlags( int elementNum );
 
 	void receive( SmartPtr<PacketBase> packet );
 	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
@@ -179,6 +196,7 @@ class MetafileGauge : public Gauge {
 
  private:
 	virtual void callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data );
+	virtual bool watchStaticFlags( int elementNum );
 
 	struct Data;
 	friend Data;

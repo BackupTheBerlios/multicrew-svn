@@ -118,7 +118,7 @@ void StringElement::sendState() {
 	case MulticrewCore::HostMode:
 	{
 		EnterCriticalSection( &d->cs );
-		send( new StringPacket(d->value), false, mediumPriority );
+		send( new StringPacket(d->value), false, highPriority );
 		LeaveCriticalSection( &d->cs );
 	} break;
 	case MulticrewCore::ClientMode: break;
@@ -136,6 +136,10 @@ void StringElement::receive( SmartPtr<PacketBase> packet ) {
 		EnterCriticalSection( &d->cs );
 		strncpy( d->value, sp->string.c_str(), BUFFER_SIZE );
 		LeaveCriticalSection( &d->cs );
+		dout << "String receive " << id() << " = " << d->value << std::endl;
+		if( d->stringHeader ) {
+			SET_OFF_SCREEN( d->stringHeader );
+		}
 	} break;
 	}
 }
@@ -156,16 +160,13 @@ FLOAT64 StringElement::callback( PELEMENT_STRING pelement ) {
 		FLOAT64 ret = (*d->origCallback)( pelement );
 		EnterCriticalSection( &d->cs );
 		if( (pelement->string==0 && d->value[0]!=0) 
-			|| strcmp(pelement->string, d->value)!=0 ) {
-			dout << "String callback " << d->stringHeader << ":" << this 
-				 << " in " << id() << " = " << (unsigned long)ret << std::endl;
-			
+			|| strcmp(pelement->string, d->value)!=0 ) {	
 			// empty string?
 			if( pelement->string==0 )
 				d->value[0] = 0;
 			else
 				strncpy( d->value, pelement->string, BUFFER_SIZE );
-			
+			dout << "String callback " << id() << " = " << d->value << std::endl;			
 			sendState();
 		}
 		//dout << "< cal lback " << d->stringHeader << std::endl;

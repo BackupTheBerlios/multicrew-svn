@@ -88,7 +88,7 @@ bool Connection::start() {
 
 
 bool Connection::send( SmartPtr<PacketBase> packet, bool safe, 
-						   Priority prio, int channel ) {
+						   Priority prio, unsigned channel ) {
 	// connected?
 	if( d->disconnected ) {
 		return false;
@@ -114,7 +114,7 @@ bool Connection::send( SmartPtr<PacketBase> packet, bool safe,
 	if( safe )
 		reliability = RELIABLE_ORDERED;
 	else
-		reliability = UNRELIABLE_SEQUENCED;
+		reliability = RELIABLE_SEQUENCED;
 				
 	// send
 	bool ok = sendImpl( (char*)buffer, 

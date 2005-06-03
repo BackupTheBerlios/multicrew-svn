@@ -39,7 +39,7 @@ public:
 	virtual bool sendImpl( char *buf, unsigned len, 
 						   PacketPriority priority, 
 						   PacketReliability reliability, 
-						   char orderingChannel );
+						   unsigned orderingChannel );
 	virtual void disconnectImpl();
 	virtual void processImpl();
 
@@ -153,13 +153,14 @@ ClientConnectionImpl::~ClientConnectionImpl() {
 		client->Disconnect( 300 );
 		RakNetworkFactory::DestroyRakClientInterface( client );	
 	}
+	stopThread();
 }
 
 
 bool ClientConnectionImpl::sendImpl( char *buf, unsigned len, 
 								   PacketPriority priority, 
 								   PacketReliability reliability, 
-								   char orderingChannel ) {
+								   unsigned orderingChannel ) {
 	return client->Send( buf, len, priority, reliability, 
 						 orderingChannel );
 }

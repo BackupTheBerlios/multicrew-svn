@@ -95,7 +95,7 @@ void NeedleElement::sendState() {
 	{
 		NeedleStruct s;
 		s.value = d->oldValue;
-		send( new NeedlePacket( s ), true, mediumPriority );
+		send( new NeedlePacket( s ), false, mediumPriority );
 	} break;
 	case MulticrewCore::ClientMode: break;
 	}   
@@ -110,6 +110,9 @@ void NeedleElement::receive( SmartPtr<PacketBase> packet ) {
 	{
 		SmartPtr<NeedlePacket> ip = (NeedlePacket*)&*packet;
 		d->oldValue = ip->data().value;
+		if( d->needleHeader ) {
+			SET_OFF_SCREEN( d->needleHeader );
+		}
 	} break;
 	}
 }
@@ -139,7 +142,7 @@ FLOAT64 NeedleElement::callback( PELEMENT_NEEDLE pelement ) {
 	} break;
 	case MulticrewCore::ClientMode:
 	{
-		FLOAT64 ret = (*d->origCallback)( pelement );
+		(*d->origCallback)( pelement );
 		return d->oldValue;
 	} break;
 	}

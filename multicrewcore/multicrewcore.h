@@ -104,12 +104,10 @@ class DLLEXPORT MulticrewCore : public Shared {
 		ClientMode,
 	};
 
+	virtual void start( bool host, SmartPtr<Connection> con )=0;
+	virtual void stop()=0;
 	virtual Mode mode()=0;
-	virtual void setMode( Mode newMode )=0;
 	Signal1<Mode> modeChanged;
-
-	/* connection handling */
-	virtual void useConnection( SmartPtr<Connection> con )=0;
 	virtual void sendFullState()=0;
 	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer )=0;
 
