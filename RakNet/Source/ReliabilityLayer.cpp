@@ -596,7 +596,7 @@ bool ReliabilityLayer::HandleSocketReceiveFromConnectedPlayer( char *buffer, int
 				// Check for a rebuilt packet
 				
 				if ( internalPacket->reliability != RELIABLE_ORDERED )
-					internalPacket->orderingChannel = 255; // Use 255 to designate not sequenced and not ordered
+					internalPacket->orderingChannel = -1; // Use -1 to designate not sequenced and not ordered
 					
 #ifdef _DEBUG
 				//reliabilityLayerMutexes[splitPacketList_MUTEX].Lock();
@@ -655,7 +655,7 @@ bool ReliabilityLayer::HandleSocketReceiveFromConnectedPlayer( char *buffer, int
 				{
 					// Get the list to hold ordered packets for this stream
 					BasicDataStructures::LinkedList<InternalPacket*> *orderingListAtOrderingStream;
-					unsigned char orderingChannelCopy = internalPacket->orderingChannel;
+					unsigned orderingChannelCopy = internalPacket->orderingChannel;
 					
 					statistics.orderedMessagesInOrder++;
 					
@@ -829,9 +829,9 @@ int ReliabilityLayer::Receive( char **data )
 // bitStream contains the data to send
 // priority is what priority to send the data at
 // reliability is what reliability to use
-// ordering channel is from 0 to 255 and specifies what stream to use
+// ordering channel is from 0 to 4095 and specifies what stream to use
 //-------------------------------------------------------------------------------------------------------
-bool ReliabilityLayer::Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned char orderingChannel, bool makeDataCopy, int MTUSize )
+bool ReliabilityLayer::Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, bool makeDataCopy, int MTUSize )
 {
 #ifdef _DEBUG
 	assert( !( reliability > RELIABLE_SEQUENCED || reliability < 0 ) );
@@ -1518,8 +1518,8 @@ void ReliabilityLayer::RemovePacketFromResendQueueAndDeleteOlderReliableSequence
 {
 	InternalPacket * internalPacket;
 	PacketReliability reliability; // What type of reliability algorithm to use with this packet
-	unsigned char orderingChannel; // What ordering channel this packet is on, if the reliability type uses ordering channels
-	unsigned char orderingIndex; // The ID used as identification for ordering channels
+	unsigned orderingChannel; // What ordering channel this packet is on, if the reliability type uses ordering channels
+	unsigned orderingIndex; // The ID used as identification for ordering channels
 	
 	// reliabilityLayerMutexes[resendQueue_MUTEX].Lock();
 	
@@ -1752,8 +1752,8 @@ int ReliabilityLayer::WriteToBitStreamFromInternalPacket( RakNet::BitStream *bit
 	// If the reliability requires an ordering channel and ordering index, we Write those.
 	if ( internalPacket->reliability == UNRELIABLE_SEQUENCED || internalPacket->reliability == RELIABLE_SEQUENCED || internalPacket->reliability == RELIABLE_ORDERED )
 	{
-		// ordering channel encoded in 5 bits (from 0 to 31)
-		bitStream->WriteBits( ( unsigned char* ) & ( internalPacket->orderingChannel ), 5, true );
+		// ordering channel encoded in 12 bits (from 0 to 4095)
+		bitStream->WriteBits( ( unsigned char * ) & ( internalPacket->orderingChannel ), 12, true );
 		
 		// ordering index is one byte
 		bitStream->Write( internalPacket->orderingIndex );
@@ -1869,8 +1869,9 @@ InternalPacket* ReliabilityLayer::CreateInternalPacketFromBitStream( RakNet::Bit
 	// If the reliability requires an ordering channel and ordering index, we read those.
 	if ( internalPacket->reliability == UNRELIABLE_SEQUENCED || internalPacket->reliability == RELIABLE_SEQUENCED || internalPacket->reliability == RELIABLE_ORDERED )
 	{
-		// ordering channel encoded in 5 bits (from 0 to 31)
-		bitStreamSucceeded = bitStream->ReadBits( ( unsigned char* ) & ( internalPacket->orderingChannel ), 5 );
+		// ordering channel encoded in 12 bits (from 0 to 4095)
+		internalPacket->orderingChannel = 0;
+		bitStreamSucceeded = bitStream->ReadBits( ( unsigned char* ) & ( internalPacket->orderingChannel ), 12 );
 #ifdef _DEBUG
 		
 		assert( bitStreamSucceeded );
@@ -2058,14 +2059,15 @@ bool ReliabilityLayer::CheckSHA1( char code[ SHA1_LENGTH ], unsigned char *
 // Search the specified list for sequenced packets on the specified ordering
 // stream, optionally skipping those with splitPacketId, and delete them
 //-------------------------------------------------------------------------------------------------------
-void ReliabilityLayer::DeleteSequencedPacketsInList( unsigned char orderingChannel, BasicDataStructures::List<InternalPacket*>&theList, int splitPacketId )
+void ReliabilityLayer::DeleteSequencedPacketsInList( unsigned orderingChannel, BasicDataStructures::List<InternalPacket*>&theList, int splitPacketId )
 {
 	unsigned i = 0;
 	
 	while ( i < theList.size() )
 	{
 		if ( ( theList[ i ] ->reliability == RELIABLE_SEQUENCED || theList[ i ] ->reliability == UNRELIABLE_SEQUENCED ) &&
-			theList[ i ] ->orderingChannel == orderingChannel && ( splitPacketId == -1 || theList[ i ] ->splitPacketId != splitPacketId ) )
+			 theList[ i ] ->orderingChannel == orderingChannel && 
+			 ( splitPacketId == -1 || theList[ i ] ->splitPacketId != splitPacketId ) )
 		{
 			InternalPacket * internalPacket = theList[ i ];
 			theList.del( i );
@@ -2082,7 +2084,7 @@ void ReliabilityLayer::DeleteSequencedPacketsInList( unsigned char orderingChann
 // Search the specified list for sequenced packets with a value less than orderingIndex and delete them
 // Note - I added functionality so you can use the Queue as a list (in this case for searching) but it is less efficient to do so than a regular list
 //-------------------------------------------------------------------------------------------------------
-void ReliabilityLayer::DeleteSequencedPacketsInList( unsigned char orderingChannel, BasicDataStructures::Queue<InternalPacket*>&theList )
+void ReliabilityLayer::DeleteSequencedPacketsInList( unsigned orderingChannel, BasicDataStructures::Queue<InternalPacket*>&theList )
 {
 	InternalPacket * internalPacket;
 	int listSize = theList.size();
@@ -2505,7 +2507,7 @@ InternalPacket * ReliabilityLayer::CreateInternalPacketCopy( InternalPacket *ori
 // Get the specified ordering list
 // LOCK THIS WHOLE BLOCK WITH reliabilityLayerMutexes[orderingList_MUTEX].Unlock();
 //-------------------------------------------------------------------------------------------------------
-BasicDataStructures::LinkedList<InternalPacket*> *ReliabilityLayer::GetOrderingListAtOrderingStream( unsigned char orderingChannel )
+BasicDataStructures::LinkedList<InternalPacket*> *ReliabilityLayer::GetOrderingListAtOrderingStream( unsigned orderingChannel )
 {
 	if ( orderingChannel >= orderingList.size() )
 		return 0;

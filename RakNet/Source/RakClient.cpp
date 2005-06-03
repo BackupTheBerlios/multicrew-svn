@@ -87,7 +87,7 @@ bool RakClient::HasPassword( void ) const
 	return password.GetNumberOfBytesUsed() > 0;
 }
 
-bool RakClient::Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel )
+bool RakClient::Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel )
 {
 	if ( remoteSystemList == 0 )
 		return false;
@@ -95,7 +95,7 @@ bool RakClient::Send( char *data, const long length, PacketPriority priority, Pa
 	return RakPeer::Send( data, length, priority, reliability, orderingChannel, remoteSystemList[ 0 ].playerId, false );
 }
 
-bool RakClient::Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel )
+bool RakClient::Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel )
 {
 	if ( remoteSystemList == 0 )
 		return false;
@@ -343,7 +343,7 @@ void RakClient::UnregisterAsRemoteProcedureCall( char* uniqueID )
 	RakPeer::UnregisterAsRemoteProcedureCall( uniqueID );
 }
 
-bool RakClient::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, bool shiftTimestamp )
+bool RakClient::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, bool shiftTimestamp )
 {
 	if ( remoteSystemList == 0 )
 		return false;
@@ -351,7 +351,7 @@ bool RakClient::RPC( char* uniqueID, char *data, unsigned long bitLength, Packet
 	return RakPeer::RPC( uniqueID, data, bitLength, priority, reliability, orderingChannel, remoteSystemList[ 0 ].playerId, false, shiftTimestamp );
 }
 
-bool RakClient::RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, char orderingChannel, bool shiftTimestamp )
+bool RakClient::RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, bool shiftTimestamp )
 {
 	if ( remoteSystemList == 0 )
 		return false;

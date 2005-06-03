@@ -182,7 +182,7 @@ public:
 	 * @return 
 	 * False if we are not connected to the specified recipient.  True otherwise
 	 */
-	bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast );
+	bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast );
 	/**
 	 * Sends a block of data to the specified system that you are connected to.
 	 * This function only works while the client is connected (Use the Connect function).
@@ -197,7 +197,7 @@ public:
 	 * @return 
 	 * False if we are not connected to the specified recipient.  True otherwise
 	 */
-	bool Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast );
+	bool Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast );
 	
 	/**
 	 * Gets a packet from the incoming packet queue. Use DeallocatePacket to deallocate the packet after you are done with it.
@@ -269,7 +269,7 @@ public:
 	 * @return True on a successful packet send (this does not indicate the recipient performed the call), false on failure
 	 * @note This is part of the Remote Procedure Call Subsystem 
 	 */
-	bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
+	bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
 	/**
 	 * @ingroup RAKNET_RPC 
 	 * Calls a C function on the server that the server already registered using RegisterAsRemoteProcedureCall
@@ -287,7 +287,7 @@ public:
 	 * @return True on a successful packet send (this does not indicate the recipient performed the call), false on failure
 	 * @note This is part of the Remote Procedure Call Subsystem 
 	 */
-	bool RPC( char* uniqueID, RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
+	bool RPC( char* uniqueID, RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
 	/*
 	 * --------------------------------------------------------------------------------------------
 	 * Player Management Functions

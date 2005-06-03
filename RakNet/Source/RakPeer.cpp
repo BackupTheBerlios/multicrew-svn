@@ -700,7 +700,7 @@ bool RakPeer::GetConnectionList( PlayerID *remoteSystems, unsigned short *number
 // Returns:
 // False if we are not connected to the specified recipient.  True otherwise
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-bool RakPeer::Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast )
+bool RakPeer::Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast )
 {
 #ifdef _DEBUG
 	assert( data && length > 0 );
@@ -715,7 +715,7 @@ bool RakPeer::Send( char *data, const long length, PacketPriority priority, Pack
 	
 }
 
-bool RakPeer::Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast )
+bool RakPeer::Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast )
 {
 #ifdef _DEBUG
 	assert( bitStream->GetNumberOfBytesUsed() > 0 );
@@ -1114,7 +1114,7 @@ void RakPeer::UnregisterAsRemoteProcedureCall( char* uniqueID )
 // playerId: Who to send this packet to, or in the case of broadcasting who not to send it to. Use UNASSIGNED_PLAYER_ID to specify none
 // broadcast: True to send this packet to all connected systems.  If true, then playerId specifies who not to send the packet to.
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-bool RakPeer::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
+bool RakPeer::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
 {
 	RakNet::BitStream temp( data, BITS_TO_BYTES( bitLength ), false );
 	
@@ -1124,7 +1124,7 @@ bool RakPeer::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPr
 		return RPC( uniqueID, 0, priority, reliability, orderingChannel, playerId, broadcast, shiftTimestamp );
 }
 
-bool RakPeer::RPC( char* uniqueID, RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
+bool RakPeer::RPC( char* uniqueID, RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
 {
 #ifdef _DEBUG
 	assert( uniqueID && uniqueID[ 0 ] );

@@ -46,7 +46,7 @@
  * Number of ordered streams available. 
  * You can use up to 32 ordered streams 
  */
-#define NUMBER_OF_ORDERED_STREAMS 32 // 2^5 
+#define NUMBER_OF_ORDERED_STREAMS 4096 // 2^5 
 /**
  * Timeout before killing a connection. If no response to a reliable
  * packet for this long kill the connection
@@ -152,7 +152,7 @@ public:
 	 * 
 	 * @todo Document MTUSize parameter 
 	 */
-	bool Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned char orderingChannel, bool makeDataCopy, int MTUSize );
+	bool Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, bool makeDataCopy, int MTUSize );
 	
 	/**
 	 * Run this once per game cycle.  Handles internal lists and
@@ -251,9 +251,9 @@ private:
 	bool CheckSHA1( char code[ SHA1_LENGTH ], unsigned char * const buffer, unsigned long nbytes );
 	
 	// Search the specified list for sequenced packets on the specified ordering channel, optionally skipping those with splitPacketId, and delete them
-	void DeleteSequencedPacketsInList( unsigned char orderingChannel, BasicDataStructures::List<InternalPacket*>&theList, int splitPacketId = -1 );
+	void DeleteSequencedPacketsInList( unsigned orderingChannel, BasicDataStructures::List<InternalPacket*>&theList, int splitPacketId = -1 );
 	// Search the specified list for sequenced packets with a value less than orderingIndex and delete them
-	void DeleteSequencedPacketsInList( unsigned char orderingChannel, BasicDataStructures::Queue<InternalPacket*>&theList );
+	void DeleteSequencedPacketsInList( unsigned orderingChannel, BasicDataStructures::Queue<InternalPacket*>&theList );
 	
 	// Returns true if newPacketOrderingIndex is older than the waitingForPacketOrderingIndex
 	bool IsOlderOrderedPacket( unsigned char newPacketOrderingIndex, unsigned char waitingForPacketOrderingIndex );
@@ -276,7 +276,7 @@ private:
 	
 	// Get the specified ordering list
 	// LOCK THIS WHOLE BLOCK WITH reliabilityLayerMutexes[orderingList_MUTEX].Unlock();
-	BasicDataStructures::LinkedList<InternalPacket*> *GetOrderingListAtOrderingStream( unsigned char orderingChannel );
+	BasicDataStructures::LinkedList<InternalPacket*> *GetOrderingListAtOrderingStream( unsigned orderingChannel );
 	
 	// Add the internal packet to the ordering list in order based on order index
 	void AddToOrderingList( InternalPacket * internalPacket );
@@ -324,13 +324,13 @@ private:
 	//unsigned long windowSize;
 	unsigned long lastAckTime;
 	RakNet::BitStream updateBitStream;
-	unsigned char waitingForOrderedPacketWriteIndex[ NUMBER_OF_ORDERED_STREAMS ], waitingForSequencedPacketWriteIndex[ NUMBER_OF_ORDERED_STREAMS ];
+	unsigned waitingForOrderedPacketWriteIndex[ NUMBER_OF_ORDERED_STREAMS ], waitingForSequencedPacketWriteIndex[ NUMBER_OF_ORDERED_STREAMS ];
 	// Used for flow control (changed to regular TCP sliding window)
 	// unsigned long maximumWindowSize, bytesSentSinceAck;
 	// unsigned long outputWindowFullTime; // under linux if this last variable is on the line above it the delete operator crashes deleting this class!
 	
 	// STUFF TO NOT MUTEX HERE (called from non-conflicting threads, or value is not important)
-	unsigned char waitingForOrderedPacketReadIndex[ NUMBER_OF_ORDERED_STREAMS ], waitingForSequencedPacketReadIndex[ NUMBER_OF_ORDERED_STREAMS ];
+	unsigned waitingForOrderedPacketReadIndex[ NUMBER_OF_ORDERED_STREAMS ], waitingForSequencedPacketReadIndex[ NUMBER_OF_ORDERED_STREAMS ];
 	bool deadConnection, cheater;
 	// unsigned long lastPacketSendTime,retransmittedFrames, sentPackets, sentFrames, receivedPacketsCount, bytesSent, bytesReceived,lastPacketReceivedTime;
 	unsigned long lostPacketResendDelay;

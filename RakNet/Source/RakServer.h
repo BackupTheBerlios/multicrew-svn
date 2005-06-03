@@ -113,7 +113,7 @@ public:
 	 * Set broadcast to true to broadcast to all connected clients EXCEPT the one specified in the playerId field.
 	 * To broadcast to everyone specify UNASSIGNED_PLAYER_ID for the playerId field.
 	 */
-	bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast );
+	bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast );
 	/**
 	 * This function only works while the server is active (Use the Start function).  Returns false on failure, true on success
 	 * Send the bitstream to whichever playerId you specify.
@@ -124,7 +124,7 @@ public:
 	 * Set broadcast to true to broadcast to all connected clients EXCEPT the one specified in the playerId field.
 	 * To broadcast to everyone specify UNASSIGNED_PLAYER_ID for the playerId field.
 	 */
-	bool Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast );
+	bool Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast );
 	/**
 	 * Call this to get a packet from the incoming packet queue.  Use DeallocatePacket to deallocate the packet after you are done with it.
 	 * Check the Packet struct at the top of CoreNetworkStructures.h for the format of the struct
@@ -306,7 +306,7 @@ public:
 	 * @return True on a successful packet send (this does not indicate the recipient performed the call), false on failure
 	 * @note This is part of the Remote Procedure Call Subsystem 
 	 */
-	bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
+	bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
 	/**
 	 * @ingroup RAKNET_RPC 
 	 * Calls a C function on the server that the server already registered using RegisterAsRemoteProcedureCall
@@ -324,7 +324,7 @@ public:
 	 * @return True on a successful packet send (this does not indicate the recipient performed the call), false on failure
 	 * @note This is part of the Remote Procedure Call Subsystem 
 	 */
-	bool RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
+	bool RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp );
 	
 	/*
 	 * Handles an RPC packet.  If you get a packet with the ID ID_RPC you should pass it to this function

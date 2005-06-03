@@ -60,7 +60,7 @@ struct InternalPacket
 	/**
 	 * What ordering channel this packet is on, if the reliability type uses ordering channels
 	 */
-	unsigned char orderingChannel;
+	unsigned orderingChannel;
 	/**
 	 * The ID used as identification for ordering channels
 	 */

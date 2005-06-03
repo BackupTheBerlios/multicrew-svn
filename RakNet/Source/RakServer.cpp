@@ -99,12 +99,12 @@ void RakServer::Disconnect( unsigned long blockDuration )
 	RakPeer::Disconnect( blockDuration );
 }
 
-bool RakServer::Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast )
+bool RakServer::Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast )
 {
 	return RakPeer::Send( data, length, priority, reliability, orderingChannel, playerId, broadcast );
 }
 
-bool RakServer::Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast )
+bool RakServer::Send( RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast )
 {
 	return RakPeer::Send( bitStream, priority, reliability, orderingChannel, playerId, broadcast );
 }
@@ -397,12 +397,12 @@ void RakServer::UnregisterAsRemoteProcedureCall( char* uniqueID )
 	RakPeer::UnregisterAsRemoteProcedureCall( uniqueID );
 }
 
-bool RakServer::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
+bool RakServer::RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
 {
 	return RakPeer::RPC( uniqueID, data, bitLength, priority, reliability, orderingChannel, playerId, broadcast, shiftTimestamp );
 }
 
-bool RakServer::RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
+bool RakServer::RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp )
 {
 	return RakPeer::RPC( uniqueID, parameters, priority, reliability, orderingChannel, playerId, broadcast, shiftTimestamp );
 }

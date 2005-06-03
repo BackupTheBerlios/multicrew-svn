@@ -105,7 +105,7 @@ public:
 	 * @param reliability the reliability policy required 
 	 * @param orderingChannel the channel to send the message to. 
 	 */
-	virtual bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel ) = 0;
+	virtual bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel ) = 0;
 	/**
 	 * This function only works while the client is connected (Use the
 	 * Connect function).  Returns false on failure, true on success
@@ -117,7 +117,7 @@ public:
 	 * @param reliability the reliability policy required 
 	 * @param orderingChannel the channel to send the message to. 
 	 */
-	virtual bool Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel ) = 0;
+	virtual bool Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel ) = 0;
 	/**
 	 * Call this to get a packet from the incoming packet queue. Use
 	 * DeallocatePacket to deallocate the packet after you are done with
@@ -306,7 +306,7 @@ public:
 	 * call), false on failure The uniqueID must be composed of a string
 	 * with only characters from a-z and is not case sensitive
 	 */
-	virtual bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, bool shiftTimestamp ) = 0;
+	virtual bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, bool shiftTimestamp ) = 0;
 	/**
 	 * Calls a C function on the server that the server already
 	 * registered using RegisterAsRemoteProcedureCall Pass the data you
@@ -319,7 +319,7 @@ public:
 	 * call), false on failure The uniqueID must be composed of a string
 	 * with only characters from a-z and is not case sensitive
 	 */
-	virtual bool RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, char orderingChannel, bool shiftTimestamp ) = 0;
+	virtual bool RPC( char* uniqueID, RakNet::BitStream *parameters, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, bool shiftTimestamp ) = 0;
 	
 	// OBSOLETE - DONE AUTOMATICALLY
 	// Handles an RPC packet.  If you get a packet with the ID ID_RPC you should pass it to this function

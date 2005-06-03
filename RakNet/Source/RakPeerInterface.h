@@ -180,7 +180,7 @@ public:
 	 * False if we are not connected to the specified recipient.  True otherwise
 	 */
 	
-	virtual bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast ) = 0;
+	virtual bool Send( char *data, const long length, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast ) = 0;
 	/**
 	 * Sends a block of data to the specified system that you are connected to.
 	 * This function only works while the client is connected (Use the Connect function).
@@ -196,7 +196,7 @@ public:
 	 * False if we are not connected to the specified recipient.  True otherwise
 	 */
 	
-	virtual bool Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast ) = 0;
+	virtual bool Send( RakNet::BitStream * bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast ) = 0;
 	/**
 	 * Gets a packet from the incoming packet queue. Use DeallocatePacket to deallocate the packet after you are done with it.
 	 * Check the Packet struct at the top of CoreNetworkStructures.h for the format of the struct
@@ -268,7 +268,7 @@ public:
 	 *
 	 */
 	
-	virtual bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp ) = 0;
+	virtual bool RPC( char* uniqueID, char *data, unsigned long bitLength, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp ) = 0;
 	/**
 	 * @ingroup RAKNET_RPC 
 	 * Calls a C function on the server that the server already registered using RegisterAsRemoteProcedureCall
@@ -288,7 +288,7 @@ public:
 	 */
 	
 	
-	virtual bool RPC( char* uniqueID, RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, char orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp ) = 0;
+	virtual bool RPC( char* uniqueID, RakNet::BitStream *bitStream, PacketPriority priority, PacketReliability reliability, unsigned orderingChannel, PlayerID playerId, bool broadcast, bool shiftTimestamp ) = 0;
 	
 	// --------------------------------------------------------------------------------------------
 	// Player Management Functions
