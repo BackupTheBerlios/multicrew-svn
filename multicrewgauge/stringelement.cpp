@@ -61,6 +61,7 @@ struct StringElement::Data {
 	char value[BUFFER_SIZE+1];
 	char buffer[BUFFER_SIZE+1];
 	CRITICAL_SECTION cs;
+	bool changed;
 };
 
 
@@ -73,6 +74,7 @@ StringElement::StringElement( Gauge *gauge, unsigned num )
 	d->buffer[0] = 0;
 	d->buffer[BUFFER_SIZE] = 0;
 	d->origCallback = 0;
+	d->changed = false;
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -137,9 +139,7 @@ void StringElement::receive( SmartPtr<PacketBase> packet ) {
 		strncpy( d->value, sp->string.c_str(), BUFFER_SIZE );
 		LeaveCriticalSection( &d->cs );
 		dout << "String receive " << id() << " = " << d->value << std::endl;
-		if( d->stringHeader ) {
-			SET_OFF_SCREEN( d->stringHeader );
-		}
+		d->changed = true;
 	} break;
 	}
 }
@@ -180,6 +180,16 @@ FLOAT64 StringElement::callback( PELEMENT_STRING pelement ) {
 		pelement->string = d->buffer;
 		strncpy( d->buffer, d->value, BUFFER_SIZE );	
 		LeaveCriticalSection( &d->cs );
+
+		if( d->changed ) {
+			d->changed = false;
+
+            // redraw statics		
+			if( d->stringHeader->image_flags & IMAGE_USE_TRANSPARENCY ) {
+				gauge()->redrawStatics();
+			}
+			SET_OFF_SCREEN( d->stringHeader );
+		}
 		return ret;
 	} break;
 	}

@@ -37,6 +37,7 @@ using namespace Gdiplus;
 
 
 /********************************** packets *******************************/
+#pragma pack(1)
 struct MouseStruct {
 	int mouseRectNum;
 	float relX;
@@ -45,6 +46,7 @@ struct MouseStruct {
 	float scrY;
 	FLAGS32 flags;
 };
+#pragma pack()
 
 
 typedef StructPacket<MouseStruct> MousePacket;
@@ -82,8 +84,15 @@ struct Gauge::Data {
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR           gdiplusToken;	
 
+	// drawing
+	unsigned long lastFrameCounter;
+	static unsigned long frameCounter;
+	bool iProvideFrameCallback;
 	double oldDrawTime;
 };
+
+
+unsigned long Gauge::Data::frameCounter = 0;
 
 
 Gauge::Gauge( GaugeModule *mgauge, std::string name, std::string parameters ) 
@@ -94,7 +103,10 @@ Gauge::Gauge( GaugeModule *mgauge, std::string name, std::string parameters )
 	d->name = name;
 	d->parameters = parameters;
 	d->core = MulticrewCore::multicrewCore();
+
 	d->oldDrawTime = d->core->time();
+	d->lastFrameCounter = Data::frameCounter;
+	d->iProvideFrameCallback = false;
 
 	InitializeCriticalSection( &d->cs );
 }
@@ -212,11 +224,33 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 		}*/
 	switch( service_id ) {
 	case PANEL_SERVICE_PRE_DRAW: {
-		if( name()=="Switches" ) {
-			d->core->ackNewFrame();			
-			//dout << "pre draw " << this << "/" << name() << std::endl;
+		// frame callback logic
+		if( d->iProvideFrameCallback ) {
+			if( d->lastFrameCounter==Data::frameCounter ) {
+				// I am still the frame provider
+				d->lastFrameCounter++;
+				Data::frameCounter++;
+				d->core->ackNewFrame();
+				//dout << "frame " << Data::frameCounter << std::endl;
+			} else {
+				// somebody else took over
+				d->lastFrameCounter = Data::frameCounter;
+				d->iProvideFrameCallback = false;
+			}
+		} else {
+			if( d->lastFrameCounter==Data::frameCounter ) {
+				// frame provider missed frame => take over
+				d->iProvideFrameCallback = true;
+				Data::frameCounter++;
+				d->lastFrameCounter = Data::frameCounter;
+				dout << "Switch frame callback provider to " << id() << std::endl;
+				d->core->ackNewFrame();
+			} else {
+				d->lastFrameCounter = Data::frameCounter;
+			}
 		}
 
+		// call static callback which do not have their own callback from fs9
 		std::deque<StaticElement*>::iterator it = d->statics.begin();
 		while( it!=d->statics.end() ) {
 			(*it)->callback();
@@ -224,9 +258,6 @@ void Gauge::callback( PGAUGEHDR pgauge, SINT32 service_id, UINT32 extra_data ) {
 		}
 	} break;
 	case PANEL_SERVICE_POST_DRAW:
-		if( name()=="Switches" || name()=="Master_Alt_Bat" ) {
-			//dout << "post draw " << this << "/" << name() << std::endl;
-		}
 		break;
 	case PANEL_SERVICE_PRE_KILL:
 		// if a pre kill is received the plane is either closed

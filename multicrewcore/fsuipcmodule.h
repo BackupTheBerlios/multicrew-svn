@@ -31,12 +31,15 @@ class FsuipcModule : public MulticrewModule,
 	virtual ~FsuipcModule();
 
 	void watch( WORD id, BYTE size, bool safe, bool highPrioo=false );
+	void start();
+	void stop();
 	
  private:
 	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );	
 	virtual void receive( SmartPtr<PacketBase> packet );
 	virtual unsigned threadProc( void *param );
 	virtual void sendFullState();
+	void frameCallback();
 
 	struct Data;
 	friend Data;

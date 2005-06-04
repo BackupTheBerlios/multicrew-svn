@@ -26,10 +26,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define ICON_FLAGS_MASK (~(IMAGE_ON_SCREEN |IMAGE_HIDDEN ))
 
+#pragma pack(push,1)
 struct IconStruct {
 	FLOAT64 value;
 	FLAGS flags;
 };
+#pragma pack(pop)
 
 typedef StructPacket<IconStruct> IconPacket;
 
@@ -132,10 +134,10 @@ FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 			if( pelement->source_var.id!=-1 ) ret = pelement->source_var.var_value.n;
 			
 		if( ret!=d->oldValue || (pelement->image_flags & ICON_FLAGS_MASK)!=d->oldFlags ) {
-			dout << "Icon callback " << id() 
+			/*dout << "Icon callback " << id() 
 				 << " = " << (unsigned long)ret
 				 << "/" << to_string( pelement->image_flags, 2 )
-				 << std::endl;
+				 << std::endl;*/
 			d->oldValue = ret;
 			d->oldFlags = pelement->image_flags & ICON_FLAGS_MASK;
 			sendState();
@@ -148,8 +150,8 @@ FLOAT64 IconElement::callback( PELEMENT_ICON pelement ) {
 			(*d->origCallback)( pelement );
 
 		if( d->changed ) {
-			dout << "Icon redraw " << id() 
-				 << " = " << (unsigned long)d->oldValue << std::endl;
+			/*dout << "Icon redraw " << id() 
+			  << " = " << (unsigned long)d->oldValue << std::endl;*/
 			d->changed = false;
 
             // redraw statics		

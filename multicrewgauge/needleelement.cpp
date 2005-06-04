@@ -25,9 +25,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 /************************ packets *****************************/
+#pragma pack(push,1)
 struct NeedleStruct {
 	FLOAT64 value;
 };
+#pragma pack(pop)
 
 typedef StructPacket<NeedleStruct> NeedlePacket;
 
@@ -42,6 +44,7 @@ struct NeedleElement::Data {
 	CallbackAdapter1<FLOAT64, NeedleElement, PELEMENT_NEEDLE> callbackAdapter;
 
 	FLOAT64 oldValue;
+	bool changed;
 };
 
 
@@ -52,6 +55,7 @@ NeedleElement::NeedleElement( Gauge *gauge, unsigned num )
 	d->oldValue = (FLOAT64)0x57524320;
 	d->oldValue = 0.0;
 	d->origCallback = 0;
+	d->changed = false;
 }
 
 
@@ -110,9 +114,7 @@ void NeedleElement::receive( SmartPtr<PacketBase> packet ) {
 	{
 		SmartPtr<NeedlePacket> ip = (NeedlePacket*)&*packet;
 		d->oldValue = ip->data().value;
-		if( d->needleHeader ) {
-			SET_OFF_SCREEN( d->needleHeader );
-		}
+		d->changed = true;
 	} break;
 	}
 }
@@ -143,6 +145,17 @@ FLOAT64 NeedleElement::callback( PELEMENT_NEEDLE pelement ) {
 	case MulticrewCore::ClientMode:
 	{
 		(*d->origCallback)( pelement );
+
+		if( d->changed ) {
+			d->changed = false;
+
+            // redraw statics		
+			if( d->needleHeader->image_flags & IMAGE_USE_TRANSPARENCY ) {
+				gauge()->redrawStatics();
+			}
+			SET_OFF_SCREEN( d->needleHeader );
+		}
+
 		return d->oldValue;
 	} break;
 	}

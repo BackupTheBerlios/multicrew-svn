@@ -72,6 +72,17 @@ Fsuipc::Fsuipc() {
 			 << gFsuipcErrors[res]
 			 << std::endl;
 	}
+
+	// register with freeware key
+	begin();
+	char *key = "E09XMDV8JQZ0multicrewcore.dll";
+	bool ok1 = write( 0x8001, strlen(key)+1, key );
+	bool ok2 = end();
+	if( !ok1 || !ok2 ) {
+		derr << "Cannot register Multicrew at FSUIPC with freeware key:"
+			 << gFsuipcErrors[res]
+			 << std::endl;
+	}		   
 }
 
 

@@ -32,10 +32,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "packets.h"
 
 
-#define WAITTIME 300
+#define WAITTIME 200
 
 
 /******************** packets *******************************/
+#pragma pack(push,1)
 struct FsuipcStruct {
 	FsuipcStruct( WORD id, BYTE size ) {
 		this->id = id;
@@ -44,6 +45,7 @@ struct FsuipcStruct {
 	WORD id;
 	BYTE size;
 };
+#pragma pack(pop)
 
 
 class FsuipcPacket : public WrappedPacket<FsuipcStruct, RawPacket> {
@@ -74,6 +76,9 @@ protected:
 		return new RawPacket( buffer );
 	}
 };
+
+
+typedef SmartPtr<FsuipcPacket> SmartFsuipcPacket;
 
 
 /*********************************************************************/
@@ -115,7 +120,7 @@ public:
 	}
 
 	bool safe() {
-		return _safe;
+		return true; //_safe;
 	}
 
 	Priority priority() {
@@ -135,26 +140,49 @@ private:
 
 /*********************************************************************/
 struct FsuipcModule::Data {
+	Data( FsuipcModule *mod ) 
+		: frameSlot( 0, mod, FsuipcModule::frameCallback ) {		
+	}
+
 	typedef SmartPtr<FsuipcWatch> SmartFsuipcWatch;
 	std::deque<SmartFsuipcWatch> watches;
 	SmartPtr<Fsuipc> fsuipc;
 	SmartPtr<MulticrewCore> core;
+	CRITICAL_SECTION cs;
 	bool nextIsFullSend;
+	Slot<FsuipcModule> frameSlot;
+	std::deque<SmartFsuipcPacket> todo;
+	bool watchNow;
 };
 
 
 FsuipcModule::FsuipcModule() 
 	: MulticrewModule( "FSUIPC" ), NetworkChannel( "FSUIPC" ) {
-	d = new Data;
+	d = new Data( this );
+	InitializeCriticalSection( &d->cs );
 	d->core = MulticrewCore::multicrewCore();
-	d->fsuipc = Fsuipc::fsuipc();
+	d->frameSlot.connect( &d->core->frameSignal );
+	d->watchNow = false;
 }
 
 
 FsuipcModule::~FsuipcModule() {
 	stopThread();
+	d->todo.clear();
 	d->watches.clear();
+	DeleteCriticalSection( &d->cs );
 	delete d;
+}
+
+
+void FsuipcModule::start() {
+	if( d->fsuipc.isNull() ) d->fsuipc = Fsuipc::fsuipc();
+	startThread( 0 );
+}
+
+
+void FsuipcModule::stop() {
+	stopThread();
 }
 
 
@@ -168,7 +196,23 @@ unsigned  FsuipcModule::threadProc( void *param ) {
 		switch( d->core->mode() ) {
 		case MulticrewCore::IdleMode: break;
 		case MulticrewCore::HostMode:
-		{
+			d->watchNow = true;
+			break;
+		case MulticrewCore::ClientMode: break;
+		}
+	}
+		
+	return 0;
+}
+
+
+void FsuipcModule::frameCallback() {
+	switch( d->core->mode() ) {
+	case MulticrewCore::IdleMode: break;
+	case MulticrewCore::HostMode:
+		if( d->watchNow && !d->fsuipc.isNull() ) {
+			d->watchNow = false;
+
 			// let watches call read
 			d->fsuipc->begin();
 			for( int i=0; i<d->watches.size(); i++ ) {
@@ -193,11 +237,28 @@ unsigned  FsuipcModule::threadProc( void *param ) {
 				}
 			}
 		} break;
-		case MulticrewCore::ClientMode: break;
+	case MulticrewCore::ClientMode:
+		if( !d->fsuipc.isNull() ) {
+			EnterCriticalSection( &d->cs );
+			std::deque<SmartFsuipcPacket>::iterator it = d->todo.begin();
+			if( it!=d->todo.end() ) {
+				d->fsuipc->begin();
+				while( it!=d->todo.end() ) {
+					// write variables from the FS				
+					bool ok1 = d->fsuipc->write( (*it)->id(), (*it)->size(), (*it)->data() );
+					if( !ok1 ) break;
+					it++;
+				}
+				bool ok2 = d->fsuipc->end();
+				if( !ok2 ) {
+					dout << "FSUIPC write error id " << (*it)->id() << std::endl;
+				}
+				d->todo.clear();
+			}			
+			LeaveCriticalSection( &d->cs );	
 		}
+		break;
 	}
-		
-	return 0;
 }
 
 
@@ -206,17 +267,10 @@ void FsuipcModule::receive( SmartPtr<PacketBase> packet ) {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode:
 	case MulticrewCore::ClientMode: 
-	{
-		SmartPtr<FsuipcPacket> pp = (FsuipcPacket*)&*packet;
-		
-		// write variables from the FS
-		d->fsuipc->begin();
-		bool ok = d->fsuipc->write( pp->id(), pp->size(), pp->data() );
-		ok = ok && d->fsuipc->end();
-		if( !ok ) {
-			dout << "FSUIPC write error id " << pp->id() << std::endl;
-		}
-	} break;
+		EnterCriticalSection( &d->cs );
+		d->todo.push_back( (FsuipcPacket*)&*packet );
+		LeaveCriticalSection( &d->cs );	
+		break;
 	}
 }
 
@@ -227,6 +281,7 @@ void FsuipcModule::sendFullState() {
 
 
 void FsuipcModule::watch( WORD id, BYTE size, bool safe, bool highPrio ) {
+	if( d->fsuipc.isNull() ) d->fsuipc = Fsuipc::fsuipc();
 	d->watches.push_back( 
 		new FsuipcWatch( d->fsuipc, id, size, 
 						 highPrio?highPriority:mediumPriority, 

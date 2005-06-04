@@ -26,10 +26,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define STATIC_FLAGS_MASK (~(IMAGE_HIDDEN | IMAGE_ON_SCREEN))
 						   
 
-
+#pragma pack(push,1)
 struct StaticStruct {
 	FLAGS flags;
 };
+#pragma pack(pop)
 
 typedef StructPacket<StaticStruct> StaticPacket;
 
@@ -81,9 +82,9 @@ void StaticElement::receive( SmartPtr<PacketBase> packet ) {
 		SmartPtr<StaticPacket> ip = (StaticPacket*)&*packet;
 		StaticStruct &s = ip->data();
 		d->oldFlags = s.flags & STATIC_FLAGS_MASK;
-		dout << "Static receive " << id() 
+		/*dout << "Static receive " << id() 
 			 << " = " << to_string( d->oldFlags, 2 ) 
-			 << std::endl;
+			 << std::endl;*/
 	} break;
 	}
 }
@@ -117,9 +118,9 @@ void StaticElement::callback() {
 	case MulticrewCore::IdleMode: break;
 	case MulticrewCore::HostMode:		
 		if( (d->staticHeader->image_flags & STATIC_FLAGS_MASK)!=d->oldFlags ) {
-			dout << "Static callback " << id() 
+			/*dout << "Static callback " << id() 
 				 << " = " << to_string( d->staticHeader->image_flags, 2 )
-				 << std::endl;
+				 << std::endl;*/
 			d->oldFlags = d->staticHeader->image_flags & STATIC_FLAGS_MASK;
 			sendState();
 		}

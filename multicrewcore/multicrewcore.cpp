@@ -78,7 +78,7 @@ class MulticrewCoreImpl : public MulticrewCore,
  public:
 	MulticrewCoreImpl();
 	virtual ~MulticrewCoreImpl();
-	void start();
+	void createModules();
 
 	Mode mode();
 	void start( bool host, SmartPtr<Connection> con );
@@ -131,7 +131,10 @@ static MulticrewCoreImpl *multicrewCore = 0;
 
 
 SmartPtr<MulticrewCore> MulticrewCore::multicrewCore() {
-	if( ::multicrewCore==0 ) ::multicrewCore = new MulticrewCoreImpl();
+	if( ::multicrewCore==0 ) {
+		::multicrewCore = new MulticrewCoreImpl();
+		::multicrewCore->createModules();
+	}
 
 	// dout << "MulticrewCore::multicrewCore()" << std::endl;
 	return ::multicrewCore;
@@ -197,13 +200,6 @@ MulticrewCoreImpl::MulticrewCoreImpl() {
 }
 
 
-void MulticrewCoreImpl::start() {
-	/* create general modules */
-	d->posModule = new PositionModule();
-	d->fsuipcModule = new FsuipcModule();
-}
-
-
 MulticrewCoreImpl::~MulticrewCoreImpl() {
 	dout << "~MulticrewCore" << std::endl;
 	d->modules.clear();
@@ -214,6 +210,11 @@ MulticrewCoreImpl::~MulticrewCoreImpl() {
 	delete d;
 }
 
+
+void MulticrewCoreImpl::createModules() {
+	d->posModule = new PositionModule();
+	d->fsuipcModule = new FsuipcModule();   
+}
 
 double MulticrewCoreImpl::time() {
 	__int64 now;
@@ -288,14 +289,17 @@ void MulticrewCoreImpl::start( bool host, SmartPtr<Connection> con ) {
 	LeaveCriticalSection( &d->critSect );
 
 	// startup procedure
-	if( d->posModule.isNull() ) start();
-	if( d->fsuipcModule.isNull() ) start();
+	d->fsuipcModule->start();
+	d->posModule->start();
 	sendFullState();
 	modeChanged.emit( d->mode );
 }
 
 
 void MulticrewCoreImpl::stop() {
+	d->fsuipcModule->stop();
+	d->posModule->stop();
+
 	EnterCriticalSection( &d->critSect );
 	d->mode = IdleMode;
 	d->connection = 0;
@@ -345,7 +349,7 @@ unsigned MulticrewCoreImpl::registerNetworkChannel( NetworkChannel *channel ) {
 		d->channels[channel->channelId()] = NetworkChannelSet();
 	d->channels[channel->channelId()].insert( channel );
 	unsigned ret = d->channels.size();
-	dout << "Network channel " << channel->channelId() << " max=" << ret << std::endl;
+	//dout << "Network channel " << channel->channelId() << " max=" << ret << std::endl;
 	LeaveCriticalSection( &d->critSect );
 	return ret;
 }
