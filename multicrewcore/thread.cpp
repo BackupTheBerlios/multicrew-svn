@@ -78,10 +78,13 @@ unsigned Thread::stopThread() {
 	// stop thread
 	if( d->thread!=0 ) { 
 		SetEvent( d->exitEvent );
-		WaitForSingleObject( d->exitedEvent, INFINITE );
-		dout << "Thread has exited" << std::endl;
-		DWORD ret;
-		GetExitCodeThread( d->thread, &ret );
+		DWORD ret = WaitForSingleObject( d->exitedEvent, 3000 ); //INFINITE );
+		if( ret==WAIT_TIMEOUT ) {
+			dout << "Thread exit timeout" << std::endl;
+		} else {
+			dout << "Thread has exited" << std::endl;
+			GetExitCodeThread( d->thread, &ret );
+		}
 		CloseHandle( d->thread );
 		CloseHandle( d->exitEvent );
 		CloseHandle( d->exitedEvent );

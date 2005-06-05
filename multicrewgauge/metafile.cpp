@@ -340,7 +340,7 @@ unsigned MetafileCompressor::threadProc( void *param ) {
 							d->metafileCounter,
 							SharedBuffer(new Buffer( delta, deltaSize, false )))),
 					true, // safe
-					lowPriority );
+					mediumPriority );
 				
 				// packet sent
 				d->metafileCounter++;

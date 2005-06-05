@@ -40,57 +40,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "fsuipcmodule.h"
 
 
-enum {
-	fullSendPacket=0,
-	channelPacket
-};
-
-
-typedef TypedPacket<char, PacketBase> MulticrewPacket;
-typedef EmptyPacket FullSendPacket;
-
-
-class ChannelPacket : public StringTypedPacket<PacketBase> {
- public:
-	ChannelPacket( std::string channel, SmartPtr<PacketBase> packet ) 
-		: StringTypedPacket<PacketBase>( channel, packet ) {
-	}	
-
-	ChannelPacket( SharedBuffer &buffer, Factory *factory ) 
-		: StringTypedPacket<PacketBase>( buffer, factory ) {
-	}
-
-	std::string channel() {
-		return key();
-	}
-};
-
-
-typedef std::set<NetworkChannel*> NetworkChannelSet;
-
-
 /*********************************************************************/
 
 
-class MulticrewCoreImpl : public MulticrewCore, 
-						  private TypedPacketFactory<char,PacketBase>,
-						  private StringTypedPacketFactory<PacketBase> {
+class MulticrewCoreImpl : public MulticrewCore {
  public:
 	MulticrewCoreImpl();
 	virtual ~MulticrewCoreImpl();
 	void createModules();
 
-	Mode mode();
 	void start( bool host, SmartPtr<Connection> con );
 	void stop();
-	void sendFullState();
-	void handleFullState();
-	unsigned registerNetworkChannel( NetworkChannel *channel );
-	void unregisterNetworkChannel( NetworkChannel *channel );
-	void receive( SmartPtr<PacketBase> packet );
-	SmartPtr<PacketBase> createPacket( SharedBuffer &buffer );
-	SmartPtr<PacketBase> createPacket( char key, SharedBuffer &buffer );
-	SmartPtr<PacketBase> createPacket( std::string channel, SharedBuffer &buffer );
+
 	void log( std::string line );
 	double time();
 	void callbackAsync();
@@ -98,26 +59,18 @@ class MulticrewCoreImpl : public MulticrewCore,
 	void ackNewFrame();
 	void registerModule( MulticrewModule *module );
 	void unregisterModule( MulticrewModule *module );   
-	bool sendChannelPacket( SmartPtr<ChannelPacket> packet, bool safe,
-							Priority prio, unsigned channel );
 	struct Data;
 	Data *d;
 };
 
 
 struct MulticrewCoreImpl::Data {	
-	/* mode handling */
-	Mode mode;
-
 	/* modules */
 	std::map<std::string, MulticrewModule*> modules;
 	SmartPtr<PositionModule> posModule;
 	SmartPtr<FsuipcModule> fsuipcModule;
 
-	/* network stuff */
-	SmartPtr<Connection> connection;
 	std::set<AsyncCallee*> asyncCallees;
-	std::map<std::string, NetworkChannelSet> channels; 
 
 	/* timing */
 	__int64 perfTimerFreq;
@@ -141,54 +94,8 @@ SmartPtr<MulticrewCore> MulticrewCore::multicrewCore() {
 }
 
 
-/*********************************************************************/
-
-
-struct NetworkChannel::Data {
-	SmartPtr<MulticrewCoreImpl> core;
-	std::string id;
-	unsigned num;
-};
-
-
-NetworkChannel::NetworkChannel( std::string id ) {
-	d = new Data;
-	d->core = (MulticrewCoreImpl*)&*MulticrewCore::multicrewCore();
-	d->id = id;
-	d->num = d->core->registerNetworkChannel( this );
-}
-
-
-NetworkChannel::~NetworkChannel() {
-	d->core->unregisterNetworkChannel( this );
-	delete d;
-}
-
-
-std::string NetworkChannel::channelId() {
-	return d->id;
-}
-
-
-unsigned NetworkChannel::channelNum() {
-	return d->num;
-}
-
-
-bool NetworkChannel::send( SmartPtr<PacketBase> packet, bool safe, 
-						   Priority prio ) {
-	return d->core->sendChannelPacket(
-		new ChannelPacket( d->id, packet ), 
-		safe, prio, d->num );
-}
-
-
-/*********************************************************************/
-
-
 MulticrewCoreImpl::MulticrewCoreImpl() {
 	d = new Data;
-	d->mode = IdleMode;
 	CoInitializeEx( NULL, COINIT_MULTITHREADED );
 	dout << "MulticrewCore" << std::endl;
 	InitializeCriticalSection( &d->critSect );
@@ -224,6 +131,7 @@ double MulticrewCoreImpl::time() {
 
 
 void MulticrewCoreImpl::ackNewFrame() {
+	//dout << "frame callback" << std::endl;
 	frameSignal.emit();
 }
 
@@ -277,35 +185,17 @@ void MulticrewCoreImpl::unregisterModule( MulticrewModule *module ) {
 }
 
 
-MulticrewCore::Mode MulticrewCoreImpl::mode() {
-	return d->mode;
-}
-
-
 void MulticrewCoreImpl::start( bool host, SmartPtr<Connection> con ) {
-	EnterCriticalSection( &d->critSect );
-	d->mode = host?HostMode:ClientMode;
-	d->connection = con;
-	LeaveCriticalSection( &d->critSect );
-
-	// startup procedure
 	d->fsuipcModule->start();
 	d->posModule->start();
-	sendFullState();
-	modeChanged.emit( d->mode );
+	ChannelProtocol::start( host, con );
 }
 
 
 void MulticrewCoreImpl::stop() {
 	d->fsuipcModule->stop();
 	d->posModule->stop();
-
-	EnterCriticalSection( &d->critSect );
-	d->mode = IdleMode;
-	d->connection = 0;
-	LeaveCriticalSection( &d->critSect );
-
-	modeChanged.emit( d->mode );
+	ChannelProtocol::stop();
 }
 
 
@@ -338,147 +228,6 @@ void MulticrewCoreImpl::callbackAsync() {
 	}
 	d->asyncCallees.clear();
 	LeaveCriticalSection( &d->critSect );
-}
-
-
-unsigned MulticrewCoreImpl::registerNetworkChannel( NetworkChannel *channel ) {
-	EnterCriticalSection( &d->critSect );
-	std::map<std::string, NetworkChannelSet>::iterator it =
-		d->channels.find( channel->channelId() );
-	if( it==d->channels.end() )
-		d->channels[channel->channelId()] = NetworkChannelSet();
-	d->channels[channel->channelId()].insert( channel );
-	unsigned ret = d->channels.size();
-	//dout << "Network channel " << channel->channelId() << " max=" << ret << std::endl;
-	LeaveCriticalSection( &d->critSect );
-	return ret;
-}
-
-
-void MulticrewCoreImpl::unregisterNetworkChannel( NetworkChannel *channel ) {
-	EnterCriticalSection( &d->critSect );
-	std::map<std::string,NetworkChannelSet>::iterator it =
-		d->channels.find( channel->channelId() );
-	if( it!=d->channels.end() ) 
-		d->channels[channel->channelId()].erase( channel );
-	LeaveCriticalSection( &d->critSect );
-}
-
-
-bool MulticrewCoreImpl::sendChannelPacket( SmartPtr<ChannelPacket> packet, 
-										   bool safe, Priority prio, 
-										   unsigned channel ) {
-	bool ret = false;
-	EnterCriticalSection( &d->critSect );
-	SmartPtr<Connection> con = d->connection;
-	LeaveCriticalSection( &d->critSect );
-
-	if( !con.isNull() ) {
-		return con->send( 
-			new MulticrewPacket( channelPacket, &*packet ),
-			safe, prio, channel );
-	}
-	return false;
-}
-
-
-void MulticrewCoreImpl::handleFullState() {
-	EnterCriticalSection( &d->critSect );
-	std::map<std::string,NetworkChannelSet>::iterator it = d->channels.begin();
-	while( it!=d->channels.end() ) {
-		NetworkChannelSet::iterator it2 = it->second.begin();
-		while( it2!=it->second.end() ) {
-			(*it2)->sendFullState();
-			it2++;
-		}
-		it++;
-	}
-	LeaveCriticalSection( &d->critSect );
-}
-
-
-void MulticrewCoreImpl::sendFullState() {
-	switch( mode() ) {
-	case MulticrewCore::IdleMode: break;
-	case MulticrewCore::HostMode:
-		handleFullState();
-		break;
-	case MulticrewCore::ClientMode: {		
-		SmartPtr<PacketBase> packet = 
-			new MulticrewPacket( 
-				fullSendPacket, 
-				new FullSendPacket );
-		d->connection->send( packet, true, highPriority, 0 );
-	} break;
-	}
-}
-
-
-SmartPtr<PacketBase> MulticrewCoreImpl::createPacket( SharedBuffer &buffer ) {
-	return new MulticrewPacket( buffer, this );
-}
-
-
-SmartPtr<PacketBase> MulticrewCoreImpl::createPacket( char key, 
-													  SharedBuffer &buffer ) {
-	switch( key ) {
-	case fullSendPacket:
-		return new FullSendPacket();
-		break;
-	case channelPacket:
-		return new ChannelPacket( buffer, this );
-		break;
-	}
-	return 0;
-}
-
-SmartPtr<PacketBase> MulticrewCoreImpl::createPacket( std::string channel,
-													  SharedBuffer &buffer ) {
-    // find destination
-	std::map<std::string,NetworkChannelSet>::iterator dest =
-		d->channels.find( channel );
-	if( dest==d->channels.end() ) {
-		dout << "Unroutable packet for module \"" << channel
-			 << "\"" << std::endl;
-	} else {
-		std::set<NetworkChannel*>::iterator it = dest->second.begin();
-		if( it!=dest->second.end() )
-			return (*it)->createPacket( buffer );
-		else
-			dout << "Unroutable packet for module \"" << channel
-				 << "\"" << std::endl;
-	}
-	return 0;	
-}
-
-
-void MulticrewCoreImpl::receive( SmartPtr<PacketBase> packet ) {
-	SmartPtr<MulticrewPacket> mp = (MulticrewPacket*)&*packet;
-	switch( mp->key() ) {
-	case fullSendPacket:
-		handleFullState();
-		break;
-	case channelPacket: {
-		EnterCriticalSection( &d->critSect );
-		SmartPtr<ChannelPacket> ncp = (ChannelPacket*)&*mp->wrappee();
-		
-        // find destination
-		std::map<std::string,NetworkChannelSet>::iterator dest =
-			d->channels.find( ncp->key() );
-		if( dest==d->channels.end() ) {
-			dout << "Unroutable packet for module \"" << ncp->key() 
-				 << "\"" << std::endl;
-			LeaveCriticalSection( &d->critSect );
-		} else {			
-			LeaveCriticalSection( &d->critSect );
-			std::set<NetworkChannel*>::iterator it = dest->second.begin();
-			while( it!=dest->second.end() ) {
-				(*it)->receive( ncp->wrappee() );			
-				it++;
-			}
-		}		
-	}
-	}
 }
 
 

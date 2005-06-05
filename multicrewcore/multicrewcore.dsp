@@ -100,6 +100,10 @@ SOURCE=.\callback.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\channelprotocol.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\clientconnection.cpp
 # End Source File
 # Begin Source File

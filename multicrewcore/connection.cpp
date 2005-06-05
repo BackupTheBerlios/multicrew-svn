@@ -60,11 +60,7 @@ unsigned Connection::threadProc( void *param ) {
 
 void Connection::processPacket( void *data, unsigned length ) {
 	SharedBuffer packetBuf( ((char*)data)+1, length-1 );
-
-	// find destination
-	SmartPtr<PacketBase> packet = 
-		MulticrewCore::multicrewCore()->createPacket( packetBuf );
-	MulticrewCore::multicrewCore()->receive( packet );
+	MulticrewCore::multicrewCore()->receive( packetBuf );
 }
 
 

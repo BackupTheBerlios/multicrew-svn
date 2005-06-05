@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "packets.h"
 
 
-#define WAITTIME 100
+#define WAITTIME 150
 
 
 /******************* packets **************************/
@@ -201,7 +201,7 @@ void PositionModule::frameCallback() {
 			else {
 				// and send packet
 				pos.timestamp = MulticrewCore::multicrewCore()->time();
-				send( new PositionPacket(pos), false, mediumPriority );
+				send( new PositionPacket(pos), false, highPriority );
 				d->lastReferenceTime = MulticrewCore::multicrewCore()->time();
 			}
 		}
@@ -245,17 +245,19 @@ void PositionModule::receive( SmartPtr<PacketBase> packet ) {
 		PositionStruct &newPos = pp->data();
 		
 		// calculate time difference to host and latency
-		double correctedNow = MulticrewCore::multicrewCore()->time() - d->timediff;
-		double latency = correctedNow-newPos.timestamp;
+		double now = MulticrewCore::multicrewCore()->time();
+		double latency;
 		if( !d->extrapolate ) {
-			d->timediff = latency;
+			latency = 0;
+			d->timediff = MulticrewCore::multicrewCore()->time() - newPos.timestamp;
 			d->meanLatency = 0;
 		} else {
+			double correctedNow = MulticrewCore::multicrewCore()->time() - d->timediff;
+			latency = correctedNow-newPos.timestamp;
 			d->timediff += latency/10.0;
 			d->meanLatency = (d->meanLatency*9.0 + ((latency<0)?-latency:latency))/10.0;
 		}
-		//dout << "timediff=" << d->timediff << " meanLat=" << d->meanLatency << " latency=" << latency << std::endl;
-		if( latency<0 ) latency=-latency;
+		dout << "timediff=" << d->timediff << " meanLat=" << d->meanLatency << " latency=" << latency << std::endl;
 					   
 		// make new position active
 		EnterCriticalSection( &d->cs );
@@ -268,7 +270,7 @@ void PositionModule::receive( SmartPtr<PacketBase> packet ) {
 			d->reference = newPos;
 			d->extrapolated = newPos;
 			dout << "First position packet " << to_string(newPos.pos) << std::endl;
-		} else {
+		} else { //if( abs(latency-d->meanLatency)<5*abs(d->meanLatency) ) {
 			// calculate moved distance
 			double dlat = x_to_lat(newPos.pos[0]-d->reference.pos[0]);
 			double dlon = y_to_lon(newPos.pos[1]-d->reference.pos[1]);
@@ -296,8 +298,9 @@ void PositionModule::receive( SmartPtr<PacketBase> packet ) {
 				for( int x=0; x<3; x++ ) {
 					// position speed
 					d->posVel[x] = 
-						(newPos.pos[x]-d->reference.pos[x])/dt						  
-						+ (newPos.pos[x]-d->extrapolated.pos[x]);
+						(newPos.pos[x]-d->reference.pos[x])/dt
+						+ (newPos.pos[x]-d->extrapolated.pos[x]
+						   +(newPos.pos[x]-d->reference.pos[x])/dt*latency);
 										
 					// direction speed
 					double ddir = dir_to_deg(newPos.dir[x])
@@ -306,21 +309,20 @@ void PositionModule::receive( SmartPtr<PacketBase> packet ) {
 					if( ddir<=-180.0 ) ddir += 360.0;
 					d->dirVel[x] = 
 						ddir/dt
-						+ dir_to_deg(newPos.dir[x])
-						- dir_to_deg(d->extrapolated.dir[x]);
-					
-					dout << "Move (" << dist << "m) from " << to_string(d->extrapolated.pos) 
-						 << " (with " << to_string(d->posVel) 
-						 << " ) to " << to_string(newPos.pos)
-						 << std::endl;
-					dout << "Turn from " << to_string(d->extrapolated.dir) 
-						 << " (with " << to_string(d->dirVel) 
-						 << " ) to " << to_string(newPos.dir)
-						 << std::endl;
-
+						+ (dir_to_deg(newPos.dir[x])+ddir/dt*latency
+						   - dir_to_deg(d->extrapolated.dir[x]));				   
 				}        
+				dout << "Move (" << dist << "m) from " << to_string(d->extrapolated.pos) 
+					 << " (with " << to_string(d->posVel) 
+					 << " ) to " << to_string(newPos.pos)
+					 << std::endl;
+				/*dout << "Turn from " << to_string(d->extrapolated.dir) 
+				  << " (with " << to_string(d->dirVel) 
+				  << " ) to " << to_string(newPos.dir)
+				  << std::endl;*/
+				
 				d->reference = newPos;
-				d->lastReferenceTime = MulticrewCore::multicrewCore()->time();
+				d->lastReferenceTime = now;
 			}
 		}
 		LeaveCriticalSection( &d->cs );

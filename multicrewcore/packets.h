@@ -173,6 +173,10 @@ class DLLEXPORT WrappedPacket : public PacketBase {
 		return createWrappee( SharedBuffer(buffer, sizeof(Prefix)) );
 	}
 
+	static SharedBuffer data( SharedBuffer &buffer ) {
+		return SharedBuffer( buffer, sizeof(Prefix) );
+	}
+
 	static Prefix *prefix( SharedBuffer &buffer ) {
 		return (Prefix*)buffer.data();
 	}
@@ -412,6 +416,28 @@ public:
 
  private:
 	T _data;
+};
+
+
+class StringPacket : public PacketBase {
+public:
+	StringPacket( std::string string ) {
+		this->string = string;
+	}	
+
+	StringPacket( SharedBuffer &buffer ) 
+		: string( (char*)buffer.data() ) {		
+	}
+
+	virtual unsigned compiledSize() {
+		return string.length()+1;
+	}
+
+	virtual void compile( void *data ) {
+		strcpy( (char*)data, string.c_str() );
+	}
+
+	std::string string;
 };
 
 

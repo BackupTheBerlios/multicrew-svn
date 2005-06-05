@@ -94,9 +94,10 @@ HostConnectionImpl::HostConnectionImpl( RakServerInterface* server ) {
 HostConnectionImpl::~HostConnectionImpl() {
 	if( server!=0 ) {
 		server->Disconnect( 300 );
+		stopThread();
 		RakNetworkFactory::DestroyRakServerInterface( server );	
-	}
-	stopThread();
+	} else
+		stopThread();
 	RakNetworkFactory::DestroyRakClientInterface( client );	
 }
 
@@ -120,7 +121,8 @@ void HostConnectionImpl::disconnectImpl() {
 
 
 void HostConnectionImpl::processImpl() {
-	ProcessPackets( server );
+	if( server!=0 )
+		ProcessPackets( server );
 }
 
 

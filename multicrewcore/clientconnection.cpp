@@ -151,9 +151,10 @@ ClientConnectionImpl::ClientConnectionImpl( RakClientInterface* client ) {
 ClientConnectionImpl::~ClientConnectionImpl() {
 	if( client!=0 ) {
 		client->Disconnect( 300 );
+		stopThread();
 		RakNetworkFactory::DestroyRakClientInterface( client );	
-	}
-	stopThread();
+	} else
+		stopThread();
 }
 
 
@@ -176,7 +177,7 @@ void ClientConnectionImpl::disconnectImpl() {
 
 
 void ClientConnectionImpl::processImpl() {
-	if( !disconnected )
+	if( !disconnected && client!=0 )
 		ProcessPackets( client );
 }
 

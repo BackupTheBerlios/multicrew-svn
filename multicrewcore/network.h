@@ -114,6 +114,68 @@ private:
 };
 
 
+class DLLEXPORT NetworkChannel : public PacketFactory<PacketBase> {
+ public:
+	NetworkChannel( std::string id );
+	virtual ~NetworkChannel();
+	std::string channelId();
+	unsigned channelNum();
+	void setChannelNum( unsigned num );
+
+	bool send( SmartPtr<PacketBase> packet, bool safe, Priority prio );
+	virtual void receive( SmartPtr<PacketBase> packet )=0;
+	virtual void sendFullState()=0;
+
+ private:
+	struct Data;
+	friend Data;
+	Data *d;
+};
+
+
+class DLLEXPORT ChannelProtocol : private StringTypedPacketFactory<PacketBase> {
+ public:
+	ChannelProtocol();
+	virtual ~ChannelProtocol();
+
+	enum Mode {
+		IdleMode,
+		HostMode,
+		ClientMode,
+	};
+
+	virtual Mode mode();
+	Signal1<Mode> modeChanged;
+	virtual void start( bool host, SmartPtr<Connection> con );
+	virtual void stop();
+	void sendFullState();
+
+ protected:
+	friend NetworkChannel;
+	unsigned registerNetworkChannel( NetworkChannel *channel );
+	void unregisterNetworkChannel( NetworkChannel *channel );
+
+ protected:
+	friend Connection;
+	void receive( SharedBuffer &buf );
+
+ private:
+	SmartPtr<PacketBase> createPacket( std::string channel, SharedBuffer &buffer );
+	void receiveChannelPacket( std::string channel, SharedBuffer &buffer );
+	void receiveChannelPacket( std::string channel, SmartPtr<PacketBase> packet );
+	bool sendChannelPacket( SmartPtr<PacketBase> packet, bool safe,
+							Priority prio, NetworkChannel *channel );
+
+	unsigned getIdNum( std::string id );
+	std::string getNumId( unsigned num );
+	unsigned createIdNum( std::string id );
+	void setIdNum( std::string id, unsigned num );
+
+	void handleFullState();
+
+	struct Data;
+	Data *d;
+};
 
 
 #endif

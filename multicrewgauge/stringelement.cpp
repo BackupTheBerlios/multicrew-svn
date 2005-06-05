@@ -24,29 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../multicrewcore/callback.h"
 
 
-/******************************** packets ****************************/
 #define BUFFER_SIZE 256
-
-class StringPacket : public PacketBase {
-public:
-	StringPacket( std::string string ) {
-		this->string = string;
-	}	
-
-	StringPacket( SharedBuffer &buffer ) 
-		: string( (char*)buffer.data() ) {		
-	}
-
-	virtual unsigned compiledSize() {
-		return string.length()+1;
-	}
-
-	virtual void compile( void *data ) {
-		strcpy( (char*)data, string.c_str() );
-	}
-
-	std::string string;
-};
 
 
 /**********************************************************************/

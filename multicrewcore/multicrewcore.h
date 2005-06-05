@@ -75,41 +75,9 @@ class DLLEXPORT AsyncCallee {
 };
 
 
-class DLLEXPORT NetworkChannel : public PacketFactory<PacketBase> {
- public:
-	NetworkChannel( std::string id );
-	virtual ~NetworkChannel();
-	std::string channelId();
-	unsigned channelNum();
-
-	bool send( SmartPtr<PacketBase> packet, bool safe, Priority prio );
-	virtual void receive( SmartPtr<PacketBase> packet )=0;
-	virtual void sendFullState()=0;
-
- private:
-	struct Data;
-	friend Data;
-	Data *d;
-};
-
-
-class DLLEXPORT MulticrewCore : public Shared {
+class DLLEXPORT MulticrewCore : public Shared, public ChannelProtocol {
  public:
 	static SmartPtr<MulticrewCore> multicrewCore();	
-
-	/* mode handling */
-	enum Mode {
-		IdleMode,
-		HostMode,
-		ClientMode,
-	};
-
-	virtual void start( bool host, SmartPtr<Connection> con )=0;
-	virtual void stop()=0;
-	virtual Mode mode()=0;
-	Signal1<Mode> modeChanged;
-	virtual void sendFullState()=0;
-	virtual SmartPtr<PacketBase> createPacket( SharedBuffer &buffer )=0;
 
 	/* general stuff */
 	virtual void log( std::string line )=0;
@@ -122,10 +90,6 @@ class DLLEXPORT MulticrewCore : public Shared {
 
 	virtual void ackNewFrame()=0;
 	Signal frameSignal;
-
- protected:
-	friend Connection;
-	virtual void receive( SmartPtr<PacketBase> packet )=0;
 
  protected:
 	friend AsyncCallee;
