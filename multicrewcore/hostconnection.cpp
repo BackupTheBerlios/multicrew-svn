@@ -17,6 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#include "common.h"
+
 #include <windows.h>
 
 #include "../RakNet/source/PacketEnumerations.h"
@@ -37,19 +39,53 @@ class HostConnectionImpl : public Connection,
 						   public Multiplayer<RakServerInterface>
 {
 public:
-	HostConnectionImpl( RakServerInterface* server );
-	virtual ~HostConnectionImpl();
+	HostConnectionImpl( RakServerInterface* server ) {
+		this->server = server;
+		this->client = RakNetworkFactory::GetRakClientInterface(); // just for the dotted string function
+	}
 
-protected:
-	virtual bool sendImpl( char *buf, unsigned len, 
-					  PacketPriority priority, 
-					  PacketReliability reliability, 
-					  unsigned orderingChannel );
-	virtual void disconnectImpl(); 
-	virtual void processImpl();
-	virtual void ProcessUnhandledPacket(Packet *packet, 
-										unsigned char packetIdentifier, 
-										RakServerInterface *interfaceType);
+
+	virtual ~HostConnectionImpl() {
+		if( server!=0 ) {
+			server->Disconnect( 300 );
+			stopThread();
+			RakNetworkFactory::DestroyRakServerInterface( server );	
+		} else
+			stopThread();
+		RakNetworkFactory::DestroyRakClientInterface( client );	
+	}
+
+	void start() {
+		setState( connectingState );
+		setState( connectedState );
+	}
+
+	bool sendImpl( char *buf, unsigned len, 
+				   PacketPriority priority, 
+				   PacketReliability reliability, 
+				   unsigned orderingChannel ) {
+		if( server->GetConnectedPlayers()>0 ) {
+			return server->Send( buf, len, priority, reliability, 
+								 orderingChannel,
+								 UNASSIGNED_PLAYER_ID, true );
+		} else
+			return true;
+	}
+
+	void disconnect() {
+		server->Disconnect( 300 );
+		setState( disconnectedState );
+	}
+
+	void processImpl() {
+		if( server!=0 )	ProcessPackets( server );
+	}
+
+	void ProcessUnhandledPacket(Packet *packet, 
+								unsigned char packetIdentifier, 
+								RakServerInterface *interfaceType) {
+		processPacket( packet->data, packet->length );
+	}
 
 	virtual void ReceiveRemoteDisconnectionNotification(Packet *packet,RakServerInterface *interfaceType) {
 		dlog << "Client " 
@@ -59,8 +95,7 @@ protected:
 	}
 
 	virtual void ReceiveDisconnectionNotification(Packet *packet,RakServerInterface *interfaceType) {
-		dlog << "Disconnected" << std::endl;
-		//disconnect();
+		dlog << "Client disconnected" << std::endl;
 	}
 
 	virtual void ReceiveNewIncomingConnection(Packet *packet,RakServerInterface *interfaceType) {
@@ -70,79 +105,31 @@ protected:
 	}
 	
 	virtual void ReceiveModifiedPacket(Packet *packet,RakServerInterface *interfaceType) {
-		dlog << "Modified packet. Cheater!" << std::endl;
-		disconnect();
+		setState( disconnectedState, "Modified packet. Cheater!" );
 	}
 		
 	virtual void ReceiveConnectionLost(Packet *packet,RakServerInterface *interfaceType) {
-		dlog << "Connection lost" << std::endl;
-		//disconnect();
+		setState( disconnectedState, "Client connection lost" );
 	}
 
-private:
 	RakServerInterface *server;
 	RakClientInterface *client;
 };
 
 
-HostConnectionImpl::HostConnectionImpl( RakServerInterface* server ) {
-	this->server = server;
-	this->client = RakNetworkFactory::GetRakClientInterface(); // just for the dotted string function
-}
-
-
-HostConnectionImpl::~HostConnectionImpl() {
-	if( server!=0 ) {
-		server->Disconnect( 300 );
-		stopThread();
-		RakNetworkFactory::DestroyRakServerInterface( server );	
-	} else
-		stopThread();
-	RakNetworkFactory::DestroyRakClientInterface( client );	
-}
-
-
-bool HostConnectionImpl::sendImpl( char *buf, unsigned len, 
-								   PacketPriority priority, 
-								   PacketReliability reliability, 
-								   unsigned orderingChannel ) {
-	if( server->GetConnectedPlayers()>0 ) {
-		return server->Send( buf, len, priority, reliability, 
-							 orderingChannel,
-							 UNASSIGNED_PLAYER_ID, true );
-	} else
-		return true;
-}
-
-
-void HostConnectionImpl::disconnectImpl() {
-	server->Disconnect( 300 );
-}
-
-
-void HostConnectionImpl::processImpl() {
-	if( server!=0 )
-		ProcessPackets( server );
-}
-
-
-void HostConnectionImpl::ProcessUnhandledPacket(Packet *packet, 
-												unsigned char packetIdentifier, 
-												RakServerInterface *interfaceType) {
-	processPacket( packet->data, packet->length );
-}
-
-
 /***********************************************************************/
+
 
 struct HostConnectionSetup::Data {
 	RakServerInterface* server;
 };
 
+
 HostConnectionSetup::HostConnectionSetup() {
 	d = new Data;
 	d->server = 0;
 }
+
 
 HostConnectionSetup::~HostConnectionSetup() {
 	dout << "~HostConnectionSetup()" << std::endl;
@@ -150,6 +137,7 @@ HostConnectionSetup::~HostConnectionSetup() {
 		RakNetworkFactory::DestroyRakServerInterface( d->server );
 	delete d;
 }
+
 
 SmartPtr<Connection> HostConnectionSetup::host( int port, 
 												std::string sessionName, 
@@ -176,9 +164,9 @@ SmartPtr<Connection> HostConnectionSetup::host( int port,
 	}
 
 	// create connection object
-	SmartPtr<Connection> con( new HostConnectionImpl( d->server ) );
+	SmartPtr<HostConnectionImpl> con( new HostConnectionImpl( d->server ) );
 	con->start();
 	d->server = 0;
 
-	return con;
+	return &*con;
 }

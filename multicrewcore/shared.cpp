@@ -17,6 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#include "common.h"
+
 #include <windows.h>
 
 #include "multicrewcore.h"
@@ -56,9 +58,10 @@ int Shared::deref() {
 		dout << (void*)this << ":" << typeid(*this).name() 
 			 << " deleting itself" << std::endl;
 #endif
+		LeaveCriticalSection( &gSharedCritSect );
 		delete this; 
-	}
+	} else
+		LeaveCriticalSection( &gSharedCritSect );
 	
-	LeaveCriticalSection( &gSharedCritSect );
 	return ret;
 }

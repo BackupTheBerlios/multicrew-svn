@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 
 #include <windows.h>
+#include <assert.h>
 
 #include "thread.h"
 #include "callback.h"
@@ -78,13 +79,11 @@ unsigned Thread::stopThread() {
 	// stop thread
 	if( d->thread!=0 ) { 
 		SetEvent( d->exitEvent );
-		DWORD ret = WaitForSingleObject( d->exitedEvent, 3000 ); //INFINITE );
-		if( ret==WAIT_TIMEOUT ) {
-			dout << "Thread exit timeout" << std::endl;
-		} else {
-			dout << "Thread has exited" << std::endl;
-			GetExitCodeThread( d->thread, &ret );
-		}
+		DWORD ret = WaitForSingleObject( d->exitedEvent, 3000 );
+		assert( ret!=WAIT_TIMEOUT );
+		dout << "Thread has exited" << std::endl;
+		GetExitCodeThread( d->thread, &ret );
+
 		CloseHandle( d->thread );
 		CloseHandle( d->exitEvent );
 		CloseHandle( d->exitedEvent );

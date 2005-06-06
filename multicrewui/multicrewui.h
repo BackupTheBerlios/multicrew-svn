@@ -42,7 +42,7 @@ public:
 
 private:
 	void updateMenu();
-	void disconnected();
+	void disconnected( std::string error );
 	void logged( const char *line );
 	void asyncSlot();
 	void modeChanged( MulticrewCore::Mode newMode );

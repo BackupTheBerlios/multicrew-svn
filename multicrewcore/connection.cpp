@@ -17,6 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#include "common.h"
+
 #include <windows.h>
 
 #include "streams.h"
@@ -31,14 +33,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 struct Connection::Data {
 	Data( Connection *con ) {}
 
-	bool disconnected;
 	CRITICAL_SECTION critSect;
+	std::string error;
+	State state;
 };
 
 
 Connection::Connection() {
 	d = new Data( this );
-	d->disconnected = false;
+	d->state = idleState;
+	d->error = "";
 	InitializeCriticalSection( &d->critSect );
 }
 
@@ -58,36 +62,57 @@ unsigned Connection::threadProc( void *param ) {
 }
 
 
+void Connection::setState( State state, std::string error ) {
+	d->error = error;
+	if( state!=d->state ) { 
+		d->state = state;
+		switch( d->state ) {
+		case idleState:
+			stopThread();
+			break;
+			
+		case connectingState:
+			startThread( 0 );
+			break;
+			
+		case connectedState:
+			startThread( 0 );
+			break;
+
+		case disconnectedState: {
+			ref();
+			triggerAsyncCallback();
+		} break;
+		}
+	}
+}
+
 void Connection::processPacket( void *data, unsigned length ) {
 	SharedBuffer packetBuf( ((char*)data)+1, length-1 );
 	MulticrewCore::multicrewCore()->receive( packetBuf );
 }
 
 
-void Connection::disconnect() {
-	if( !d->disconnected ) {
-		ref();
-		d->disconnected = true;
-		dlog << "Terminating session" << std::endl;
-		disconnectImpl();
-		disconnected.emit();
-		deref();
-	}
+void Connection::asyncCallback() {
+	disconnected.emit( d->error );
+	deref();
 }
 
 
-bool Connection::start() {
-	startThread( 0 );
-	return true;
+std::string Connection::error() {
+	return d->error;
+}
+
+
+Connection::State Connection::state() {
+	return d->state;
 }
 
 
 bool Connection::send( SmartPtr<PacketBase> packet, bool safe, 
-						   Priority prio, unsigned channel ) {
+					   Priority prio, unsigned channel ) {
 	// connected?
-	if( d->disconnected ) {
-		return false;
-	}
+	if( state()!=connectedState ) return false;
 
 	// prepare packet
 	unsigned size = packet->compiledSize()+1;

@@ -17,6 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#include "common.h"
+
 #include <windows.h>
 
 #ifdef _DEBUG
@@ -69,17 +71,8 @@ BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
 		InitializeCriticalSection( &ostreamCritSec );
 		
 #ifdef _DEBUG
-        // Get current flag
-		int tmpFlag = _CrtSetDbgFlag( _CRTDBG_REPORT_FLAG );
-
-        // Turn on leak-checking bit
-		tmpFlag |= _CRTDBG_LEAK_CHECK_DF;
-
-        // Turn off CRT block checking bit
-		tmpFlag &= ~_CRTDBG_CHECK_CRT_DF;
-
-        // Set flag to the new value
-		_CrtSetDbgFlag( tmpFlag );
+		_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF ); 
+		_CrtSetReportMode ( _CRT_ERROR, _CRTDBG_MODE_DEBUG );
 #endif
 
 		OutputDebugString( "Loaded MulticrewCore\n" );

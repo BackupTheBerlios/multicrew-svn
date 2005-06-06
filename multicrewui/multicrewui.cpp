@@ -57,7 +57,7 @@ struct MulticrewUI::Data {
 
 	/* connection handling */
 	SmartPtr<Connection> connection; 
-	Slot<MulticrewUI> disconnectedSlot;
+	Slot1<MulticrewUI,std::string> disconnectedSlot;
 
 	/* log output */
 	Slot1<MulticrewUI, const char*> loggedSlot;
@@ -102,7 +102,6 @@ MulticrewUI::~MulticrewUI() {
 	if( !d->connection.isNull() ) {
 		d->disconnectedSlot.disconnect();
 		d->core->stop();
-		d->connection->disconnect();
 		d->connection = 0;
 	}
 
@@ -158,16 +157,8 @@ void MulticrewUI::host() {
 		else {
 			d->connection = con;
 			d->disconnectedSlot.connect( &d->connection->disconnected );
-			bool ok = d->connection->start();
-			dlog << "Setting host mode" << std::endl;
 			d->core->start( true, d->connection );
-			if( !ok ) {
-				dlog << "Setting mode to idle" << std::endl;	
-				d->core->stop();
-				d->connection->disconnect();
-				d->connection = 0;
-			} else
-				d->statusDlg->setConnected();
+			d->statusDlg->setConnected();
 		}
 	}
 }
@@ -188,10 +179,7 @@ void MulticrewUI::connect() {
 	if( !ret.isNull() ) {
 		d->connection = ret;
 		d->disconnectedSlot.connect( &d->connection->disconnected );
-		
-		dlog << "Setting client mode" << std::endl;
 		d->core->start( false, d->connection );
-		d->connection->start();
 		d->statusDlg->setConnected();
 	}
 }
@@ -209,17 +197,28 @@ void MulticrewUI::disconnect() {
 }
 
 
-void MulticrewUI::disconnected() {
-	dlog << "Setting mode to idle" << std::endl;
+void MulticrewUI::disconnected( std::string error ) {
 	d->core->stop();
 	d->connection = 0;
 	updateMenu();
-	d->statusDlg->setUnconnected();
-	MessageBox( d->hwnd, "Session terminated.", "Multicrew", MB_OK | MB_ICONINFORMATION );
+	d->statusDlg->setUnconnected();	
+	if( error.length()==0 )	error = "Session terminated";
+	MessageBox( d->hwnd, error.c_str(), "Multicrew", MB_OK | MB_ICONINFORMATION );
 }
 
 
 void MulticrewUI::modeChanged( MulticrewCore::Mode newMode ) {
+	switch( newMode ) {
+	case MulticrewCore::IdleMode:
+		dlog << "Idle mode" << std::endl;
+		break;
+	case MulticrewCore::HostMode:
+		dlog << "Host mode" << std::endl;
+		break;
+	case MulticrewCore::ClientMode:
+		dlog << "Client mode" << std::endl;
+		break;
+	}		
 }
 
 

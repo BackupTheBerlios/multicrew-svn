@@ -17,6 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#include "common.h"
+
 #include <windows.h>
 
 #include "../RakNet/source/PacketEnumerations.h"
@@ -33,22 +35,46 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 class ClientConnectionImpl  : public Connection,
 							  public Multiplayer<RakClientInterface> {
 public:
-	ClientConnectionImpl( RakClientInterface* client );
-	virtual ~ClientConnectionImpl();
+	ClientConnectionImpl( RakClientInterface* client ) {
+		this->client = client;
+	}
+
+	virtual ~ClientConnectionImpl() {
+		if( client!=0 ) {
+			client->Disconnect( 300 );
+			setState( idleState );
+			RakNetworkFactory::DestroyRakClientInterface( client );	
+		} else
+			setState( idleState );
+	}
+
+	virtual void disconnect() {
+		if( client!=0 && state()==connectedState ) {
+			client->Disconnect( 300 );
+			setState( disconnectedState );
+		}
+	}
 
 	virtual bool sendImpl( char *buf, unsigned len, 
 						   PacketPriority priority, 
 						   PacketReliability reliability, 
-						   unsigned orderingChannel );
-	virtual void disconnectImpl();
-	virtual void processImpl();
+						   unsigned orderingChannel ) {
+		return client->Send( buf, len, priority, reliability, orderingChannel );
+	}
+
+	virtual void processImpl() {
+		if( client!=0 ) ProcessPackets( client );
+	}
+
+	void start() {
+		setState( connectingState );
+	}
 
 	//Signal connectionAccepted;
 	Signal1<Packet*> hostFound;
 	RakClientInterface* client;
-	volatile bool disconnected;
 	volatile bool connected;
-	std::string errorMessage;
+	volatile bool disconnected;
 
 protected:	
 	virtual void ProcessUnhandledPacket(Packet *packet, 
@@ -58,8 +84,7 @@ protected:
 	}
 
 	virtual void ReceiveDisconnectionNotification(Packet *packet,RakClientInterface *interfaceType) {
-		disconnect();
-		derr << "Connection lost normally" << std::endl;
+		setState( disconnectedState, "Host closed connection" );
 	}
 
 	virtual void ReceiveRemoteDisconnectionNotification(Packet *packet,RakClientInterface *interfaceType) {
@@ -91,95 +116,39 @@ protected:
 	}
 
 	virtual void ReceiveConnectionBanned(Packet *packet,RakClientInterface *interfaceType) {
-		dout << "Received: Banned from this server" << std::endl;
-		errorMessage = "Banned from this server";
-		client->Disconnect( 300 );
-		disconnected = true;
+		setState( disconnectedState, "Banned from this server" );
 	}
 
 	virtual void ReceiveRemotePortRefused(Packet *packet,RakClientInterface *interfaceType) {
-		dout << "Received: Remote port refused" << std::endl;
-		errorMessage = "Remote port refused";
-		client->Disconnect( 300 );
-		disconnected = true;
+		setState( disconnectedState, "Remote port refused" );
 	}
 
 	virtual void ReceiveNoFreeIncomingConnections(Packet *packet,RakClientInterface *interfaceType) {
-		dout << "Received: Sorry, the server is full" << std::endl;
-		errorMessage = "Sorry, the server is full";
-		client->Disconnect( 300 );
-		disconnected = true;
+		setState( disconnectedState, "Sorry, the server is full" );
 	}
 
 	virtual void ReceiveInvalidPassword(Packet *packet,RakClientInterface *interfaceType) {
-		dout << "Received: Invalid password" << std::endl;
-		errorMessage = "Invalid password";
-		client->Disconnect( 300 );
-		disconnected = true;
+		setState( disconnectedState, "Invalid password" );
 	}
 
 	virtual void ReceiveModifiedPacket(Packet *packet,RakClientInterface *interfaceType) {
-		disconnect();
-		dlog << "Packets modified. Cheater!" << std::endl;
+		setState( disconnectedState, "Packets modified. Cheater!" );
 	}
 
 	virtual void ReceiveConnectionLost(Packet *packet,RakClientInterface *interfaceType) {
-		disconnect();
-		derr << "Connection lost" << std::endl;
+		setState( disconnectedState, "Connection lost" );
 	}
 
 	virtual void ReceiveConnectionRequestAccepted(Packet *packet,RakClientInterface *interfaceType) {
 		dlog << "Connection accepted" << std::endl;
-		connected = true;
+		setState( connectedState );
 	}
 
 	virtual void ReceivePong( Packet *packet, RakClientInterface *interfaceType) {
 		dout << "Pong" << std::endl;
 		hostFound.emit( packet );
 	}
-
 };
-
-
-ClientConnectionImpl::ClientConnectionImpl( RakClientInterface* client ) {
-	this->client = client;
-	this->disconnected = false;
-	this->connected = false;
-}
-
-
-ClientConnectionImpl::~ClientConnectionImpl() {
-	if( client!=0 ) {
-		client->Disconnect( 300 );
-		stopThread();
-		RakNetworkFactory::DestroyRakClientInterface( client );	
-	} else
-		stopThread();
-}
-
-
-bool ClientConnectionImpl::sendImpl( char *buf, unsigned len, 
-								   PacketPriority priority, 
-								   PacketReliability reliability, 
-								   unsigned orderingChannel ) {
-	return client->Send( buf, len, priority, reliability, 
-						 orderingChannel );
-}
-
-
-void ClientConnectionImpl::disconnectImpl() {
-	if( connected ) {
-		client->Disconnect( 300 );		
-		connected = false;
-	}
-	disconnected = true;
-}
-
-
-void ClientConnectionImpl::processImpl() {
-	if( !disconnected && client!=0 )
-		ProcessPackets( client );
-}
 
 
 /******************************************************************/
@@ -205,9 +174,11 @@ ClientConnectionSetup::ClientConnectionSetup() {
 	d = new Data( this );
 }
 
+
 ClientConnectionSetup::~ClientConnectionSetup() {
 	delete d;
 }
+
 
 bool ClientConnectionSetup::init() {
 	// create client
@@ -297,9 +268,6 @@ SmartPtr<Connection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) 
 
 	// setup connection state
 	d->errorMessage = "";
-	d->con->errorMessage = "";
-	d->con->connected = false;
-	d->con->disconnected = false;
 
 	// connect to host
 	std::string dest = d->con->client->PlayerIDToDottedIP( hostImpl->player );
@@ -317,24 +285,22 @@ SmartPtr<Connection> ClientConnectionSetup::connect( SmartPtr<FoundHost> host ) 
 	// wait for answer
 	dout << "Waiting for answer" << std::endl;
 	int timeout = 3000;
-	while( !d->con->connected && !d->con->disconnected && timeout>0 ) {
+	while( d->con->state()==Connection::connectingState && timeout>0 ) {
 		dlog << "Connecting (" << timeout << "ms)" << std::endl;
 		Sleep( 100 );
 		timeout-=100;
 	}
 
-	if( d->con->connected ) {
+	if( d->con->state()==Connection::connectedState ) {
 		dout << "Connected" << std::endl;
 		return d->con;
 	}
 
-	if( !d->con->disconnected )
+	std::string err = d->con->error();
+	if( err.length()==0 )
 		d->errorMessage = "Connection timeout";
 	else
-		if( d->con->errorMessage.length()>0 )
-			d->errorMessage = d->con->errorMessage;
-		else
-			d->errorMessage = "Unknown connection error";
+		d->errorMessage = err;
 	return 0;
 }
 

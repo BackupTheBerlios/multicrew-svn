@@ -68,13 +68,6 @@ class DLLEXPORT MulticrewModule : public Shared, public Identified {
 };
 
 
-class DLLEXPORT AsyncCallee {
- public:
-	void triggerAsyncCallback();
-	virtual void asyncCallback()=0;
-};
-
-
 class DLLEXPORT MulticrewCore : public Shared, public ChannelProtocol {
  public:
 	static SmartPtr<MulticrewCore> multicrewCore();	

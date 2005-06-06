@@ -17,13 +17,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#ifdef MULTICREWUI_COMMON_H_INCLUDED
-#define MULTICREWUI_COMMON_H_INCLUDED
+#ifndef MULTICREWCORE_DEBUG_H_INCLUDED
+#define MULTICREWCORE_DEBUG_H_INCLUDED
 
-#pragma warning (disable : 4355 4786)
-
-
-#include "../multicrewcore/debug.h"
-
+#include <crtdbg.h>
 
 #endif

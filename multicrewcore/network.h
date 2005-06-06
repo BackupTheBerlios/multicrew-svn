@@ -41,26 +41,39 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 enum Priority { highPriority, mediumPriority, lowPriority };
 
 
-class Connection : public Shared, public Thread {
+class Connection : public Shared, public Thread, private AsyncCallee {
 public:
 	Connection();
 	virtual ~Connection();
 
-	virtual bool start();
+	enum State {
+		idleState,
+		connectingState,
+		connectedState,
+		disconnectedState
+	};
+	State state();
+	
 	virtual bool send( SmartPtr<PacketBase> packet, bool safe, 
 					   Priority prio, unsigned channel );
-	virtual void disconnect();
-	Signal disconnected;
+	
+	virtual void disconnect()=0;
+	Signal1<std::string /*reason*/> disconnected;
+	std::string error();
 
-protected:
+ protected:
 	virtual bool sendImpl( char *buf, unsigned len, 
 						   PacketPriority priority, 
 						   PacketReliability reliability, 
 						   unsigned orderingChannel )=0;
-	virtual void disconnectImpl()=0;
-	virtual void processImpl()=0;
-	virtual unsigned threadProc( void *param );
+	void setState( State state, std::string error="" );
 	void processPacket( void *data, unsigned length );
+
+	virtual void processImpl()=0;
+
+ private:
+	unsigned threadProc( void *param );
+	void asyncCallback();
 
 	struct Data;
 	friend Data;

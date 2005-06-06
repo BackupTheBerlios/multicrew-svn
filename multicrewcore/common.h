@@ -32,6 +32,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #include "../stlplus/source/string_utilities.hpp"
+#include "debug.h"
+
+
+class DLLEXPORT AsyncCallee {
+ public:
+	void triggerAsyncCallback();
+	virtual void asyncCallback()=0;
+};
 
 
 #endif
