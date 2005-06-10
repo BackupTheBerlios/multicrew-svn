@@ -33,6 +33,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "log.h"
 
 
+#define RESERVED_CHANNELS 16
+
 enum {
 	fullSendPacket=0,
 	channelPacket=1,
@@ -71,7 +73,7 @@ typedef std::set<NetworkChannel*> NetworkChannelSet;
 struct NetworkChannel::Data {
 	SmartPtr<MulticrewCore> core;
 	std::string id;
-	unsigned num;
+	unsigned num;	
 };
 
 
@@ -127,12 +129,14 @@ struct ChannelProtocol::Data {
 	std::map<unsigned, std::string> numToId;
 	std::map<std::string, unsigned> idToNum;
 	std::map<unsigned, SharedBufferDeque> todo;
+	unsigned sentReservedChannelPackets;
 };
 
 
 ChannelProtocol::ChannelProtocol() {
 	d = new Data;
 	d->mode = IdleMode;
+	d->sentReservedChannelPackets = 0;
 	InitializeCriticalSection( &d->critSect );
 }
 
@@ -198,6 +202,11 @@ void ChannelProtocol::unregisterNetworkChannel( NetworkChannel *channel ) {
 }
 
 
+unsigned ChannelProtocol::reservedChannel() {
+	return (d->sentReservedChannelPackets++) % RESERVED_CHANNELS;
+}
+
+
 unsigned ChannelProtocol::getIdNum( std::string id ) {
 	EnterCriticalSection( &d->critSect );
 	std::map<std::string, unsigned>::iterator it
@@ -228,7 +237,7 @@ unsigned ChannelProtocol::createIdNum( std::string id ) {
 		= d->idToNum.find( id );
 	unsigned num = 0;
 	if( it==d->idToNum.end() ) {
-		num = d->idToNum.size()+1;
+		num = d->idToNum.size()+RESERVED_CHANNELS;
 		setIdNum( id, num );
 	} else
 		num = it->second;
@@ -238,17 +247,21 @@ unsigned ChannelProtocol::createIdNum( std::string id ) {
 
 
 void ChannelProtocol::setIdNum( std::string id, unsigned num ) {
-	dout << "SetIdNum " << id << "=" << num << std::endl;
+	//dout << "SetIdNum " << id << "=" << num << std::endl;
 	EnterCriticalSection( &d->critSect );
-	d->idToNum[id] = num;
-	d->numToId[num] = id;
-	std::map<std::string, NetworkChannelSet>::iterator it
-		= d->channels.find( id );
-	if( it!=d->channels.end() ) {
-		NetworkChannelSet::iterator it2 = it->second.begin();
-		while( it2!=it->second.end() ) {
-			(*it2)->setChannelNum( num );
-			it2++;
+	std::map<std::string, unsigned>::iterator it
+		= d->idToNum.find( id );
+	if( it==d->idToNum.end() ) {
+		d->idToNum[id] = num;
+		d->numToId[num] = id;
+		std::map<std::string, NetworkChannelSet>::iterator it
+			= d->channels.find( id );
+		if( it!=d->channels.end() ) {
+			NetworkChannelSet::iterator it2 = it->second.begin();
+			while( it2!=it->second.end() ) {
+				(*it2)->setChannelNum( num );
+				it2++;
+			}
 		}
 	}
 	LeaveCriticalSection( &d->critSect );
@@ -276,13 +289,15 @@ bool ChannelProtocol::sendChannelPacket( SmartPtr<PacketBase> packet,
 				// and send packet with the channel and the id
 				num = createIdNum( id );
 				LeaveCriticalSection( &d->critSect );
+				//dout << "sendChannelPacket idChannelPacket to " << id << "=" << num << std::endl;
 				return con->send( 
 					new MulticrewPacket( 
 						idChannelPacket + (num << 4), 
 						new IdChannelPacket( id, packet ) ),
-					true, prio, 0 );
+					true, prio, reservedChannel() );
 			} else {
 				LeaveCriticalSection( &d->critSect );
+				//dout << "sendChannelPacket channelPacket to " << id << "=" << num << std::endl;
 				return con->send( 
 					new MulticrewPacket( 
 						channelPacket + (num << 4), 
@@ -299,13 +314,15 @@ bool ChannelProtocol::sendChannelPacket( SmartPtr<PacketBase> packet,
 				// send packet with channel 0, host will reply with
 				// IdNumPacket
 				LeaveCriticalSection( &d->critSect );
+				//dout << "sendChannelPacket idChannelPacket to " << id << "=" << num << std::endl;
 				return con->send( 
 					new MulticrewPacket( 
 						idChannelPacket, 
 						new IdChannelPacket( id, packet ) ),
-					true, prio, 0 );
+					true, prio, reservedChannel() );
 			} else {
 				LeaveCriticalSection( &d->critSect );
+				//dout << "sendChannelPacket channelPacket to " << id << "=" << num << std::endl;
 				return con->send( 
 					new MulticrewPacket( 
 						channelPacket + (num << 4), 
@@ -345,7 +362,7 @@ void ChannelProtocol::sendFullState() {
 			new MulticrewPacket( 
 				fullSendPacket, 
 				new FullSendPacket );
-		d->connection->send( packet, true, highPriority, 0 );
+		d->connection->send( packet, true, highPriority, reservedChannel() );
 	} break;
 	}
 }
@@ -375,8 +392,6 @@ void ChannelProtocol::receiveChannelPacket( std::string channel,
 		std::set<NetworkChannel*>::iterator it = dest->second.begin();
 		if( it!=dest->second.end() ) {
 			SmartPtr<PacketBase> packet = (*it)->createPacket( buffer );
-			(*it)->receive( packet );			
-			it++;
 			while( it!=dest->second.end() ) {
 				(*it)->receive( packet );			
 				it++;
@@ -409,12 +424,14 @@ void ChannelProtocol::receive( SharedBuffer &buf ) {
 	case idNumPacket: {
 		SmartPtr<IdNumPacket> inp = new IdNumPacket( MulticrewPacket::data( buf ) );
 		switch( mode() ) {
-		case IdleMode:
+		case IdleMode: break;
 		case ClientMode: {
-			setIdNum( inp->string, num );
+			setIdNum( inp->string, num );			
+			//dout << "receive idNumPacket " << inp->string << "=" << num << std::endl;
 			std::map<unsigned,SharedBufferDeque>::iterator todos =
 				d->todo.find( num );
 			if( todos!=d->todo.end() ) {
+				//dout << "receive found todos" << std::endl;
 				SharedBufferDeque::iterator it = todos->second.begin();
 				while( it!=todos->second.end() ) {
 					receiveChannelPacket( inp->string, *it );
@@ -429,11 +446,12 @@ void ChannelProtocol::receive( SharedBuffer &buf ) {
 			// host replies with another idNumPacket with the set
 			// channel id
 			std::string id = getNumId( num );
+			//dout << "receive idNumPacket " << id << "=" << num << std::endl;
 			d->connection->send( 
 				new MulticrewPacket( 
 					idNumPacket + (num << 4), 
 					new IdNumPacket( id )),
-				true, highPriority, 0 );						
+				true, highPriority, reservedChannel() );						
 		} break;
 		}
 	} break;
@@ -449,23 +467,24 @@ void ChannelProtocol::receive( SharedBuffer &buf ) {
 			if( id.length()==0 ) {
 				std::map<unsigned, SharedBufferDeque>::iterator it
 					= d->todo.find( num );
-				if( it==d->todo.end() ) {
-					d->todo[num] = SharedBufferDeque();
-				}
+				if( it==d->todo.end() )	d->todo[num] = SharedBufferDeque();				
 				d->todo[num].push_back( MulticrewPacket::data( buf ) );
 				LeaveCriticalSection( &d->critSect );
+				//dout << "receive channelPacket " << num << ", sending idNumPacket" << std::endl;
 				d->connection->send( 
 					new MulticrewPacket( 
 						idNumPacket + (num << 4),
 						new IdNumPacket( "" )),
-					true, highPriority, 0 );				
+					true, highPriority, reservedChannel() );				
 			} else {
 				LeaveCriticalSection( &d->critSect );
+				//dout << "receive channelPacket " << id << "=" << num << std::endl;
 				receiveChannelPacket( id, MulticrewPacket::data( buf ) );
 			}
 		} break;
 		case HostMode: {			
 			std::string id = getNumId( num );
+			//dout << "receive channelPacket " << id << "=" << num << std::endl;
 			receiveChannelPacket( id, MulticrewPacket::data( buf ) );			
 		} break;
 		}
@@ -478,12 +497,29 @@ void ChannelProtocol::receive( SharedBuffer &buf ) {
 			SmartPtr<IdChannelPacket> icp = 
 				new IdChannelPacket( MulticrewPacket::data( buf ), this );
 			setIdNum( icp->key(), num );			
+			//dout << "receive idChannelPacket " << icp->key() << "=" << num << std::endl;
+			LeaveCriticalSection( &d->critSect );
+			receiveChannelPacket( icp->key(), icp->wrappee() );			
+		} break;
+		case HostMode: {
+			EnterCriticalSection( &d->critSect );
+			SmartPtr<IdChannelPacket> icp = 
+				new IdChannelPacket( MulticrewPacket::data( buf ), this );
 			receiveChannelPacket( icp->key(), icp->wrappee() );
 			LeaveCriticalSection( &d->critSect );
+			unsigned num = createIdNum( icp->key() );
+			//dout << "receive idChannelPacket " << icp->key() << "=" << num << ", sending idNumPacket" << std::endl;
+			d->connection->send( 
+				new MulticrewPacket( 
+					idNumPacket + (num << 4), 
+					new IdNumPacket( icp->key() )),
+				true, highPriority, reservedChannel() );
 		} break;
-		case HostMode: break;
 		}
 	} break;
+	default:
+		dout << "Unknown packet type " << type << std::endl;
+		break;
 	}
 }
 

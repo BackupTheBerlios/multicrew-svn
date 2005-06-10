@@ -73,6 +73,8 @@ BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
 #ifdef _DEBUG
 		_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF ); 
 		_CrtSetReportMode ( _CRT_ERROR, _CRTDBG_MODE_DEBUG );
+		freopen( "c:\multicrew.err", "w", stderr );
+		freopen( "c:\multicrew.out", "w", stdout );
 #endif
 
 		OutputDebugString( "Loaded MulticrewCore\n" );
@@ -83,7 +85,7 @@ BOOL WINAPI DllMain( HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReserved ) {
 		OutputDebugString( "Unloading MulticrewCore\n" );
 		
 		DeleteCriticalSection( &ostreamCritSec );
-		
+
 		OutputDebugString( "Unloaded MulticrewCore\n" );
 	} break;
 	}

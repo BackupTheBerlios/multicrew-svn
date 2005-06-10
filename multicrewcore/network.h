@@ -183,6 +183,7 @@ class DLLEXPORT ChannelProtocol : private StringTypedPacketFactory<PacketBase> {
 	std::string getNumId( unsigned num );
 	unsigned createIdNum( std::string id );
 	void setIdNum( std::string id, unsigned num );
+	unsigned reservedChannel();
 
 	void handleFullState();
 

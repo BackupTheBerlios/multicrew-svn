@@ -59,6 +59,7 @@ public:
 						   PacketPriority priority, 
 						   PacketReliability reliability, 
 						   unsigned orderingChannel ) {
+		//dout << "send" << std::endl;
 		return client->Send( buf, len, priority, reliability, orderingChannel );
 	}
 
@@ -80,7 +81,7 @@ protected:
 	virtual void ProcessUnhandledPacket(Packet *packet, 
 										unsigned char packetIdentifier, 
 										RakClientInterface *interfaceType) {
-		processPacket( packet->data, packet->length );
+		processPacket( ((char*)packet->data)+1, packet->length-1 );
 	}
 
 	virtual void ReceiveDisconnectionNotification(Packet *packet,RakClientInterface *interfaceType) {

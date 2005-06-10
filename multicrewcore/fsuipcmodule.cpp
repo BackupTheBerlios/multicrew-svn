@@ -104,7 +104,7 @@ public:
 	void update() {
 		bool ok = fsuipc->read( id, size, data );
 		if( !ok ) {
-			dout << "FSUIPC error for id " << id << std::endl;
+			//dout << "FSUIPC error for id " << id << std::endl;
 		}
 	}
 

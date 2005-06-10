@@ -44,7 +44,6 @@ public:
 		this->client = RakNetworkFactory::GetRakClientInterface(); // just for the dotted string function
 	}
 
-
 	virtual ~HostConnectionImpl() {
 		if( server!=0 ) {
 			server->Disconnect( 300 );
@@ -56,7 +55,7 @@ public:
 	}
 
 	void start() {
-		setState( connectingState );
+//		setState( connectingState );
 		setState( connectedState );
 	}
 
@@ -81,10 +80,12 @@ public:
 		if( server!=0 )	ProcessPackets( server );
 	}
 
-	void ProcessUnhandledPacket(Packet *packet, 
-								unsigned char packetIdentifier, 
-								RakServerInterface *interfaceType) {
-		processPacket( packet->data, packet->length );
+protected:
+	virtual void ProcessUnhandledPacket(Packet *packet, 
+										unsigned char packetIdentifier, 
+										RakServerInterface *interfaceType) {
+		//dout << "Receive packet" << std::endl;
+		processPacket( ((char*)packet->data)+1, packet->length-1 );
 	}
 
 	virtual void ReceiveRemoteDisconnectionNotification(Packet *packet,RakServerInterface *interfaceType) {

@@ -84,6 +84,10 @@ CFG=install - Win32 Debug
 # Begin Group "Quellcodedateien"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
+# Begin Source File
+
+SOURCE=.\installer\setup.nsi
+# End Source File
 # End Group
 # Begin Group "Header-Dateien"
 

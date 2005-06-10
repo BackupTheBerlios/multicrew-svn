@@ -88,7 +88,7 @@ void Connection::setState( State state, std::string error ) {
 }
 
 void Connection::processPacket( void *data, unsigned length ) {
-	SharedBuffer packetBuf( ((char*)data)+1, length-1 );
+	SharedBuffer packetBuf( (char*)data, length );
 	MulticrewCore::multicrewCore()->receive( packetBuf );
 }
 
