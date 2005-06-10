@@ -81,7 +81,7 @@ Section "!Multicrew" SEC01
   SetOutPath "$SYSDIR"
   File "${SYSTEMDIR}\${CRTDLL}.dll"
   File "${SYSTEMDIR}\${MSVCP60DLL}.dll"
-
+  
 ; Shortcuts
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   !insertmacro MUI_STARTMENU_WRITE_END
